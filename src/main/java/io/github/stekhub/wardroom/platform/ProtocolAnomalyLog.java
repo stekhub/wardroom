@@ -20,31 +20,31 @@ public final class ProtocolAnomalyLog {
     static final int RAW_MAX_LENGTH = 500;
 
     private final Logger log;
-    private final Map<ProtocolAnomalyKind, Integer> totals = new EnumMap<>(ProtocolAnomalyKind.class);
-    private final Map<ProtocolAnomalyKind, Integer> logged = new EnumMap<>(ProtocolAnomalyKind.class);
+    private final Map<ProtocolAnomalyKind, Integer> totalByKind = new EnumMap<>(ProtocolAnomalyKind.class);
+    private final Map<ProtocolAnomalyKind, Integer> loggedByKind = new EnumMap<>(ProtocolAnomalyKind.class);
 
     public ProtocolAnomalyLog(Logger log) {
         this.log = log;
     }
 
     public synchronized void report(ProtocolAnomaly anomaly) {
-        int total = totals.merge(anomaly.kind(), 1, Integer::sum);
+        int total = totalByKind.merge(anomaly.kind(), 1, Integer::sum);
         if (total <= FULL_LINES_PER_KIND || log.isDebugEnabled()) {
-            logged.merge(anomaly.kind(), 1, Integer::sum);
+            loggedByKind.merge(anomaly.kind(), 1, Integer::sum);
             log.warn(format(anomaly));
         }
     }
 
     /** Writes one summary line for every kind of which not all anomalies were logged in full, and starts over. */
     public synchronized void finish() {
-        totals.forEach((kind, total) -> {
-            int full = logged.getOrDefault(kind, 0);
-            if (total > full) {
-                log.warn("{} kind={} summary=true total={} logged={}", MARKER, kind.id(), total, full);
+        totalByKind.forEach((kind, total) -> {
+            int loggedInFull = loggedByKind.getOrDefault(kind, 0);
+            if (total > loggedInFull) {
+                log.warn("{} kind={} summary=true total={} logged={}", MARKER, kind.id(), total, loggedInFull);
             }
         });
-        totals.clear();
-        logged.clear();
+        totalByKind.clear();
+        loggedByKind.clear();
     }
 
     static String format(ProtocolAnomaly anomaly) {

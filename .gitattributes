@@ -1,5 +1,6 @@
-# Text files are stored with LF in the repository.
-* text=auto
+# Text files use LF in the repository and in every checkout, also on Windows. The frontend format check
+# (Prettier) fails on files with CRLF line endings.
+* text=auto eol=lf
 
 # Scripts that run on Linux, also inside the container, must keep LF on every platform.
 *.sh text eol=lf

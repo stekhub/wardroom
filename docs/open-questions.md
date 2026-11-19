@@ -2,9 +2,9 @@
 
 Questions raised during refinement that are not yet decided. Each is resolved in an ADR or a feature specification, then removed from this list.
 
-## Tooling
+## Open
 
-1. **NNTP library spike**, at the start of implementation. Verify Apache Commons Net support for `CAPABILITIES`, streaming `LIST ACTIVE`, `LIST NEWSGROUPS`, `LIST OVERVIEW.FMT`, `OVER` and `POST` ([ADR 0005](architecture/decisions/0005-nntp-client-library.md)). `STARTTLS` is not needed in the MVP ([ADR 0016](architecture/decisions/0016-nntp-transport-security.md)).
+None at the moment.
 
 ## Deferred beyond the MVP
 

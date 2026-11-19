@@ -13,6 +13,8 @@ Wardroom is a free, open-source (AGPL), self-hosted NNTP Usenet client with a mo
 | `docs/architecture/data-model.md` | Tables, columns and lifecycle rules |
 | `docs/specs/NNN-*/spec.md` | Feature specifications, all Accepted |
 | `docs/user-guide.md` | Guide for people who run Wardroom; the README links to it (ADR 0031) |
+| `docs/ai-guidelines.md` | How the AI assistant is used and which rules keep humans in control; binding for this work |
+| `CONTRIBUTING.md` | Contribution guidelines for people |
 | `docs/open-questions.md` | Undecided items and the list deferred beyond the MVP |
 | `docs/implementation-plan.md` | Implementation steps, their order and status; **read it first when implementing** |
 
@@ -38,10 +40,12 @@ Wardroom is a free, open-source (AGPL), self-hosted NNTP Usenet client with a mo
 **Backend** (ADR 0002, 0003, 0005, 0006)
 
 - Java 25, Spring Boot 4, Maven Wrapper, Spring Modulith; module boundaries are verified in a test.
+- Visibility: in a module's base package, `public` only for what other modules may use. In sub-packages such as `internal`, classes and constructors are package-private, Spring beans included; `public` there only when another package of the same module needs the type.
 - SQLite with Flyway (plain SQL migrations) and jOOQ generated from the migrated schema; generated code is not committed. Migration rules in ADR 0004; before the first release, migrations may still be reset.
 - Configuration via `@ConfigurationProperties` records with Bean Validation. Records for value objects and DTOs. Lombok only for `@RequiredArgsConstructor`, `@Slf4j`, `@Builder`; no `@Data` on domain classes.
 - NNTP only through Wardroom's own `NntpClient` adapter around Apache Commons Net; circuit breaker with Resilience4j and retries with Spring Framework, as in ADR 0006 and 0026.
 - API errors as Problem Details (RFC 9457).
+- Variable, field and parameter names say what the thing is, in full words that match its type: `serverSettings` and `wireClient`, not `server` and `wire`. No abbreviations and no single letters, except `e` in a catch block and loop counters.
 
 **Frontend** (ADR 0007, UI concept)
 
@@ -87,4 +91,6 @@ Run from the repository root with JDK 25. Maven, Node.js and pnpm are downloaded
 - `WARDROOM_LOG_LEVEL=DEBUG` shows NNTP commands and per-article decisions (ADR 0029).
 - Shared technical code (data directory, database startup, logging helpers, API error handling) is in the `platform` module. Log untrusted text only through `LogSafe`, and protocol anomalies only through `ProtocolAnomalyLog`.
 - Integration tests are annotated with `@IntegrationTest`.
+- Other modules talk NNTP only through `NntpConnections` (pooled connections with connection limit, circuit breaker and retries) and `NntpConnector` (one dedicated connection, for the connection test). New NNTP commands are added to `NntpClient`.
+- The mock NNTP server is `MockNntpServer` in `src/test/java/.../nntp/mock`; answers and faults are scripted with `MockReply`. Fixtures are in `src/test/resources/nntp` and keep their bytes.
 - shadcn/ui components are added with `pnpm dlx shadcn@latest add <name>` in `frontend/`.
