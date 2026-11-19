@@ -12,6 +12,7 @@ Creating the single Wardroom account at first start, logging in and out, session
 
 - As the owner, after the first start I create my account in the browser, so that only I can use the instance.
 - As the owner, I log in with username and password and stay logged in across container restarts.
+- As the owner, I choose at login whether this browser stays logged in after it is closed.
 - As the owner, I log out, so that the browser no longer has access.
 - As the owner, I change my password on the settings page.
 - As the owner, if I forget my password, I can reset it with access to the database file.
@@ -33,12 +34,16 @@ Creating the single Wardroom account at first start, logging in and out, session
 **Login and logout**
 
 - Login with username and password. A failure gives one generic message, without saying which of the two was wrong.
+- The login page has the option "Remember me", which is not chosen by default. It decides how long the browser keeps the session cookie (see Sessions).
 - Logout ends the current session.
 
 **Sessions**
 
 - Sessions are stored in SQLite and survive restarts. After an update, a session that can no longer be read counts as logged out, and the owner logs in again.
-- A session ends after 30 days of inactivity. There is no "remember me" option.
+- A session ends after 7 days of inactivity. Every request starts the 7 days again.
+- Without "Remember me", the session cookie ends when the browser is closed. A browser that restores its previous tabs may keep the cookie; the 7 days apply in any case.
+- With "Remember me", the browser keeps the session cookie after it is closed. The 7 days of inactivity are enforced by the server.
+- Setup has no such option. The session it starts behaves like a login without "Remember me".
 
 **Login throttling**
 
@@ -64,7 +69,7 @@ All endpoints are under `/api/auth`. Request and response bodies are JSON. Error
 |---|---|---|---|
 | `GET /api/auth/setup` | Public | | `200` while setup is available; `404` afterwards |
 | `POST /api/auth/setup` | Public | `{ "username", "password" }` | `201` account created and logged in; `400` validation; `404` an account already exists |
-| `POST /api/auth/login` | Public | `{ "username", "password" }` | `204` logged in; `401` invalid credentials; `429` throttled, with `Retry-After` |
+| `POST /api/auth/login` | Public | `{ "username", "password", "rememberMe" }`; `rememberMe` is optional and `false` by default | `204` logged in; `401` invalid credentials; `429` throttled, with `Retry-After` |
 | `POST /api/auth/logout` | Logged in | | `204` |
 | `GET /api/auth/me` | Logged in | | `200 { "username" }`; `401` |
 | `PUT /api/auth/password` | Logged in | `{ "currentPassword", "newPassword" }` | `204` password changed and logged out; `400` validation or wrong current password |
@@ -81,7 +86,7 @@ All endpoints are under `/api/auth`. Request and response bodies are JSON. Error
 - Sessions use Spring Session JDBC on the SQLite database. Its tables are created by a Flyway migration, not by Spring Session. Spring Session does not officially support SQLite; if it does not work, a session store of Wardroom's own with the same behavior replaces it.
 - A stored session that cannot be read is deleted and treated as logged out.
 - The session ID is changed at login and at setup (protection against session fixation).
-- Session cookie: `HttpOnly`, `SameSite=Lax`, `Secure` as in ADR 0010.
+- Session cookie: `HttpOnly`, `SameSite=Lax`, `Secure` as in ADR 0010. Without "Remember me" it has no lifetime, so it ends with the browser session. With "Remember me" it has the longest lifetime the browser allows; it is written once at login and not renewed, so the inactivity timeout is the server's.
 - CSRF: Spring Security's cookie-based CSRF token. The token is in a cookie readable by the frontend, which sends it back in a request header on every state-changing request.
 - On each request, a session whose account no longer exists is treated as logged out.
 - Setup runs in one transaction and checks inside it that no account exists, so two simultaneous setup requests cannot both succeed.
@@ -119,6 +124,7 @@ Integration tests against a real SQLite database:
 - Login succeeds with correct credentials and fails with a generic `401` otherwise.
 - Throttling starts after the fifth failure, doubles up to 60 seconds and resets after a successful login.
 - A session survives an application restart and ends after the inactivity timeout; an unreadable stored session is treated as logged out.
+- The session cookie has a lifetime only after a login with "Remember me"; after a login without it and after setup it has none.
 - Logout ends the session.
 - Password change requires the current password and ends all sessions, including the current one.
 - Protected endpoints return `401` without a session; state-changing requests without the CSRF token return `403`.

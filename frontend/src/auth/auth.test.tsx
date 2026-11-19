@@ -123,7 +123,35 @@ test('a successful login shows the application at the URL that was opened', asyn
   await userEvent.click(screen.getByRole('button', { name: 'Log in' }))
 
   expect(await screen.findByRole('heading', { name: 'Account' })).toBeVisible()
-  expect(sentBody).toEqual({ username: 'owner', password: PASSWORD })
+  expect(sentBody).toEqual({ username: 'owner', password: PASSWORD, rememberMe: false })
+})
+
+test('"Remember me" is not chosen by default and is sent when chosen', async () => {
+  backendLoggedOut()
+  let sentBody: unknown
+  server.use(
+    http.post('/api/auth/login', async ({ request }) => {
+      sentBody = await request.json()
+      backendLoggedIn()
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  render(<App />)
+
+  const rememberMe = await screen.findByRole('checkbox', { name: 'Remember me' })
+  expect(rememberMe).not.toBeChecked()
+  expect(rememberMe).toHaveAccessibleDescription(
+    'Stay logged in on this browser after it is closed.',
+  )
+
+  await userEvent.type(screen.getByLabelText('Username'), 'owner')
+  await userEvent.type(screen.getByLabelText('Password'), PASSWORD)
+  await userEvent.click(rememberMe)
+  expect(rememberMe).toBeChecked()
+  await userEvent.click(screen.getByRole('button', { name: 'Log in' }))
+
+  expect(await screen.findByRole('link', { name: 'Discover groups' })).toBeVisible()
+  expect(sentBody).toEqual({ username: 'owner', password: PASSWORD, rememberMe: true })
 })
 
 test('a failed login shows the one generic message of the backend', async () => {

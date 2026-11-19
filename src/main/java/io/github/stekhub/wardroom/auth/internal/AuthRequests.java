@@ -24,7 +24,14 @@ final class AuthRequests {
     }
 
     @Schema(name = "LoginRequest")
-    record LoginRequest(@NotNull String username, @NotNull String password) {
+    record LoginRequest(@NotNull String username, @NotNull String password,
+            @Schema(description = "Whether the browser keeps the session cookie after it is closed; false if absent")
+            Boolean rememberMe) {
+
+        /** A request without the field is a login without "Remember me". */
+        boolean remembersBrowser() {
+            return Boolean.TRUE.equals(rememberMe);
+        }
 
         @Override
         public String toString() {

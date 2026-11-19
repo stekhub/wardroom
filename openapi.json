@@ -15,6 +15,10 @@
           "password" : {
             "type" : "string"
           },
+          "rememberMe" : {
+            "description" : "Whether the browser keeps the session cookie after it is closed; false if absent",
+            "type" : "boolean"
+          },
           "username" : {
             "type" : "string"
           }

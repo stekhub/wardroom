@@ -14,6 +14,19 @@ window.matchMedia = (query: string) =>
     dispatchEvent: () => false,
   }) as unknown as MediaQueryList
 
+// jsdom does not observe element sizes; the checkbox component asks for an observer.
+window.ResizeObserver = class {
+  observe() {
+    // Nothing changes its size in a test.
+  }
+  unobserve() {
+    // See observe.
+  }
+  disconnect() {
+    // See observe.
+  }
+}
+
 // A request no test has mocked is a mistake in the test, so it fails instead of reaching the network.
 beforeAll(() => {
   server.listen({ onUnhandledFrame: 'error' })

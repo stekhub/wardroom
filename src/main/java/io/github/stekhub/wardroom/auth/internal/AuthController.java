@@ -23,6 +23,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.session.security.web.authentication.SpringSessionRememberMeServices;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -39,6 +40,16 @@ import org.springframework.web.bind.annotation.RestController;
 class AuthController {
 
     private static final String PROBLEM_JSON = MediaType.APPLICATION_PROBLEM_JSON_VALUE;
+
+    /**
+     * How long the browser keeps the session cookie (spec 001). A session that is created by a request with this
+     * attribute gets a cookie with the longest lifetime there is, which browsers cut to their own maximum of about
+     * 400 days. Without the attribute the cookie has no lifetime, and the browser drops it when it is closed.
+     *
+     * <p>The cookie is written once at login and not renewed, so it cannot carry the inactivity timeout; the server
+     * enforces that for every session. Spring Boot sets up the session cookie to look for exactly this attribute.
+     */
+    private static final String REMEMBER_ME_REQUEST_ATTRIBUTE = SpringSessionRememberMeServices.REMEMBER_ME_LOGIN_ATTR;
 
     private final AccountService accountService;
     private final SessionSecurityContextRepository securityContextRepository;
@@ -65,7 +76,7 @@ class AuthController {
     void setup(@Valid @RequestBody SetupRequest setupRequest, HttpServletRequest request,
             HttpServletResponse response) {
         String username = accountService.createAccount(setupRequest.username(), setupRequest.password());
-        startSession(username, request, response);
+        startSession(username, false, request, response);
     }
 
     @Operation(summary = "Logs in", operationId = "login")
@@ -80,7 +91,7 @@ class AuthController {
     void login(@Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request,
             HttpServletResponse response) {
         String username = accountService.login(loginRequest.username(), loginRequest.password());
-        startSession(username, request, response);
+        startSession(username, loginRequest.remembersBrowser(), request, response);
     }
 
     @Operation(summary = "Logs out", operationId = "logout")
@@ -119,9 +130,15 @@ class AuthController {
     /**
      * Logs the request in. A session the browser already had is ended first, so the login always gets a new session
      * ID (protection against session fixation).
+     *
+     * @param rememberMe whether the browser keeps the session cookie after it is closed
      */
-    private void startSession(String username, HttpServletRequest request, HttpServletResponse response) {
+    private void startSession(String username, boolean rememberMe, HttpServletRequest request,
+            HttpServletResponse response) {
         endSession(request);
+        if (rememberMe) {
+            request.setAttribute(REMEMBER_ME_REQUEST_ATTRIBUTE, Boolean.TRUE);
+        }
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(username, null, List.of()));
         SecurityContextHolder.setContext(context);

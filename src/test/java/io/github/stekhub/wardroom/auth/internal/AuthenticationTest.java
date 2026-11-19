@@ -284,14 +284,14 @@ class AuthenticationTest {
     @Test
     void sessionEndsAfterTheInactivityTimeout() {
         setUp(browser);
-        long thirtyDays = 30L * 24 * 60 * 60;
+        long sevenDays = 7L * 24 * 60 * 60;
         assertThat(database.select(SPRING_SESSION.MAX_INACTIVE_INTERVAL).from(SPRING_SESSION).fetchSingle().value1())
-                .isEqualTo((int) thirtyDays);
+                .isEqualTo((int) sevenDays);
 
-        long thirtyOneDaysAgo = System.currentTimeMillis() - (thirtyDays + 24 * 60 * 60) * 1000;
+        long eightDaysAgo = System.currentTimeMillis() - (sevenDays + 24 * 60 * 60) * 1000;
         database.update(SPRING_SESSION)
-                .set(SPRING_SESSION.LAST_ACCESS_TIME, thirtyOneDaysAgo)
-                .set(SPRING_SESSION.EXPIRY_TIME, thirtyOneDaysAgo + thirtyDays * 1000)
+                .set(SPRING_SESSION.LAST_ACCESS_TIME, eightDaysAgo)
+                .set(SPRING_SESSION.EXPIRY_TIME, eightDaysAgo + sevenDays * 1000)
                 .execute();
 
         assertThat(browser.get("/api/auth/me")).hasStatus(HttpStatus.UNAUTHORIZED);

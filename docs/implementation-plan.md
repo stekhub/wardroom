@@ -149,7 +149,7 @@ Decisions made during the step, open to a veto:
 
 - Username: surrounding whitespace is removed at setup and at login. Apart from that, the username is stored as entered and compared exactly, including upper and lower case. Spec 001 says "stored as entered" and "after trimming"; this is how both were read.
 - Lengths of username and password are counted in characters, not in bytes. An emoji is one character.
-- The session cookie is kept by the browser for 400 days, the longest time browsers allow. Spec 001 does not say how long the cookie lives. Without a lifetime, closing the browser would log out. The 30 days of inactivity are enforced by the server.
+- Changed in the review: a session ends after 7 days of inactivity instead of 30, and the login page has the option "Remember me". Without it the session cookie ends with the browser session; with it the browser keeps the cookie and the server enforces the 7 days. Before, there was no such option and every cookie was kept for 400 days. Spec 001 was changed accordingly.
 - A login always gets a new session; a session the browser had before is ended.
 - Logins are checked one after the other, so parallel attempts cannot get around the throttling.
 - A password that is too long to be valid is answered like a wrong password (`401`), not with `400`.

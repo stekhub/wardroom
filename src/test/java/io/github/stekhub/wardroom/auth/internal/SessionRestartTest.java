@@ -38,8 +38,9 @@ class SessionRestartTest {
             assertThat(setCookie)
                     .contains("HttpOnly")
                     .contains("SameSite=Lax")
-                    .as("the cookie outlives the browser session; the server enforces the 30 days")
-                    .contains("Max-Age=34560000")
+                    .as("after setup the cookie ends with the browser session")
+                    .doesNotContain("Max-Age")
+                    .doesNotContain("Expires")
                     .doesNotContain("Secure");
             sessionCookie = cookiePair(setCookie);
             assertThat(currentAccount(baseUrl, sessionCookie).statusCode()).isEqualTo(200);
@@ -50,6 +51,38 @@ class SessionRestartTest {
 
             assertThat(afterRestart.statusCode()).isEqualTo(200);
             assertThat(afterRestart.body()).contains("\"owner\"");
+        }
+    }
+
+    @Test
+    void sessionCookieHasALifetimeOnlyAfterALoginWithRememberMe(@TempDir Path dataDirectory) throws Exception {
+        try (ConfigurableApplicationContext application = start(dataDirectory)) {
+            String baseUrl = baseUrl(application);
+            String csrfToken = csrfToken(baseUrl);
+            setUp(baseUrl, csrfToken, false);
+
+            HttpResponse<String> loginWithoutRememberMe = logIn(baseUrl, csrfToken, CREDENTIALS);
+            HttpResponse<String> loginWithRememberMeOff = logIn(baseUrl, csrfToken,
+                    "{\"username\": \"owner\", \"password\": \"correct horse battery\", \"rememberMe\": false}");
+            HttpResponse<String> loginWithRememberMe = logIn(baseUrl, csrfToken,
+                    "{\"username\": \"owner\", \"password\": \"correct horse battery\", \"rememberMe\": true}");
+
+            assertThat(loginWithoutRememberMe.statusCode()).isEqualTo(204);
+            assertThat(sessionSetCookieHeader(loginWithoutRememberMe))
+                    .as("the cookie ends with the browser session")
+                    .doesNotContain("Max-Age")
+                    .doesNotContain("Expires");
+            assertThat(loginWithRememberMeOff.statusCode()).isEqualTo(204);
+            assertThat(sessionSetCookieHeader(loginWithRememberMeOff)).doesNotContain("Max-Age").doesNotContain(
+                    "Expires");
+            assertThat(loginWithRememberMe.statusCode()).isEqualTo(204);
+            assertThat(sessionSetCookieHeader(loginWithRememberMe))
+                    .as("the browser keeps the cookie; the server enforces the 7 days")
+                    .contains("Max-Age=" + Integer.MAX_VALUE)
+                    .contains("HttpOnly")
+                    .contains("SameSite=Lax");
+            assertThat(currentAccount(baseUrl, cookiePair(sessionSetCookieHeader(loginWithRememberMe))).statusCode())
+                    .isEqualTo(200);
         }
     }
 
@@ -95,6 +128,17 @@ class SessionRestartTest {
             request.header("X-Forwarded-Proto", "https");
         }
         return httpClient.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> logIn(String baseUrl, String csrfToken, String jsonBody)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/auth/login"))
+                .header("Content-Type", "application/json")
+                .header("Cookie", "XSRF-TOKEN=" + csrfToken)
+                .header("X-XSRF-TOKEN", csrfToken)
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> currentAccount(String baseUrl, String sessionCookie)
