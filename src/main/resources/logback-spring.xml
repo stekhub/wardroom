@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logging as in ADR 0029: plain text to standard output only, one line per event with UTC timestamp, level,
+  component and message. The level comes from WARDROOM_LOG_LEVEL (see LogLevels).
+
+  Line breaks inside a message are escaped here as a second line of defense; code that logs untrusted text escapes
+  it with LogSafe first. A stack trace follows its event on separate lines.
+-->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z', UTC} %-5level %logger{40} - %replace(%replace(%msg){'\r','\\r'}){'\n','\\n'}%n%ex</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

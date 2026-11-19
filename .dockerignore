@@ -1,0 +1,10 @@
+.git
+.github
+.idea
+.vscode
+assets
+config
+docs
+target
+frontend/node_modules
+frontend/src/api/schema.d.ts

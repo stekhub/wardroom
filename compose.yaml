@@ -1,0 +1,12 @@
+services:
+  wardroom:
+    image: ghcr.io/stekhub/wardroom:latest
+    restart: unless-stopped
+    ports:
+      - "8119:8119"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./config:/config
