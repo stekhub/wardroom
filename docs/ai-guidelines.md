@@ -18,7 +18,7 @@ Wardroom uses spec-driven development.
 ### Small steps a human can follow
 
 - The work is split into small steps, listed in the [implementation plan](implementation-plan.md). Each step is one branch and one pull request.
-- A step is small enough that a human can read and understand all of it in one review.
+- A step is meant to be small enough that a human can follow it in one review.
 - Each step ends with a summary: what was built, how to try it, what deviates from the specification and what is still open.
 - The next step starts only after the previous one was reviewed.
 
@@ -32,8 +32,8 @@ Wardroom uses spec-driven development.
 
 ### Humans review and test
 
-- All AI-generated code is reviewed by a human before it is merged.
-- Every step is tested manually by a human, in addition to the automated tests.
+- A human reviews every change before it is merged. The review aims to understand what the change does and why. It does not claim to catch every mistake, which is why automated tests and small steps are part of the process.
+- A human tries out each step by hand where there is something to try, in addition to the automated tests.
 
 ### Humans control the repository
 
@@ -65,7 +65,7 @@ The human who merges a change is responsible for it, whoever or whatever wrote i
 
 You may use AI tools for contributions. The same rules apply:
 
-- You understand every line you submit and can explain it.
+- You understand what you submit and can explain it.
 - You have built and tested the change yourself.
 - You say in the pull request that AI was used.
 - You do not submit AI output that you have not reviewed.
