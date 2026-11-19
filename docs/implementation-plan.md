@@ -20,7 +20,7 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 12 | Ignoring | Spec 010 | Not started |
 | 13 | Posting | Spec 009 | Not started |
 | 14 | Cache size limit | ADR 0023; spec 005 | Not started |
-| 15 | Polish and documentation | UI concept; spec 001, 002 | Not started |
+| 15 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Not started |
 | 16 | Release pipeline | ADR 0009, 0024 | Not started; discuss first |
 
 Status values: `Not started`, `In progress`, `In review`, `Done`.
@@ -111,6 +111,7 @@ Wardroom can first be used for reading after step 11.
 ### 15. Polish and documentation
 
 - Quick switcher (`Ctrl+K` / `⌘K`), settings section "About", accessibility pass against WCAG 2.2 AA.
+- Application version in backup names (ADR 0032): store the version at every start, name the backup after the stored version, log both versions, and adapt the cleanup of old backups to the new file name. Add the section on going back to an earlier version to the user guide.
 - README: introduction, quick start with the reference Compose file, first-run wizard, link list to the user guide (ADR 0031).
 - User guide (`docs/user-guide.md`): backups, updates, password reset (spec 001), lost key file (spec 002), and an advanced section on keeping the encryption key outside `/config` (ADR 0025, 0031).
 - The README and the user guide were written early, on 2026-11-19. In this step: check both against the finished application and replace the screenshot placeholder in the README with a real screenshot.

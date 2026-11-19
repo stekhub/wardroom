@@ -1,6 +1,6 @@
 # 0004. Database upgrades and migration rules
 
-- Status: Accepted; backup retention in [0028](0028-backup-retention.md)
+- Status: Accepted; backup retention in [0028](0028-backup-retention.md); backup file name superseded by [0032](0032-application-version-in-backup-names.md)
 - Date: 2026-11-18
 
 ## Context
