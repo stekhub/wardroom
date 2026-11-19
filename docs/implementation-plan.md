@@ -6,8 +6,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 
 | # | Step | Specs and ADRs | Status |
 |---|---|---|---|
-| 1 | Project skeleton | ADR 0002, 0003, 0004, 0007, 0008, 0009, 0024, 0027, 0028, 0029, 0030 | In review |
-| 2 | NNTP foundation | ADR 0005, 0006, 0016, 0026; open question 1 | Not started |
+| 1 | Project skeleton | ADR 0002, 0003, 0004, 0007, 0008, 0009, 0024, 0027, 0028, 0029, 0030 | Done |
+| 2 | NNTP foundation | ADR 0005, 0006, 0016, 0026; open question 1 | In review |
 | 3 | Authentication and application shell | Spec 001; UI concept | Not started |
 | 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | Not started |
 | 5 | Newsgroup discovery | Spec 003; group icons | Not started |
@@ -118,6 +118,8 @@ Wardroom can first be used for reading after step 11.
 ### 16. Release pipeline
 
 - To be discussed with the owner before implementation: release workflow, publishing to `ghcr.io/stekhub/wardroom` for amd64 and arm64, tags, GitHub setup.
+- When the repository is made public: turn on private vulnerability reporting in the repository settings (Settings, Security), because `CONTRIBUTING.md` points to it. GitHub offers it only for public repositories. Remind the owner.
+- Until the first release, the README needs a line saying that Wardroom is in development and no image is published yet.
 
 ## Working on a step
 
@@ -133,6 +135,50 @@ Wardroom can first be used for reading after step 11.
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 2, NNTP foundation (2026-11-19)**
+
+Library spike (open question 1). Apache Commons Net 3.13.0 is sufficient; nothing has to be replaced. The findings are kept as tests in `CommonsNetSpikeTest`.
+
+| Command | Result |
+|---|---|
+| `CAPABILITIES` | No method. Works as a generic command; the adapter reads the multi-line answer itself |
+| `LIST ACTIVE` | Method exists and streams: groups are handed out while the list is still arriving, with one line of look-ahead |
+| `LIST NEWSGROUPS` | No method. Works as a generic command |
+| `LIST OVERVIEW.FMT` | Method exists |
+| `OVER` | No method; the library's overview method sends the older `XOVER`. `OVER` works as a generic command |
+| `POST` | Method exists, with dot-stuffing |
+| Character data | The library reads ISO-8859-1, so every byte survives and can be decoded later with the right character set |
+
+- No check against a real server was made. Everything was verified against the mock server only.
+
+What was built:
+
+- Other modules use two interfaces of the `nntp` module. `NntpConnections` runs work on pooled connections, with the connection limit, the circuit breaker and retries. `NntpConnector` opens one dedicated connection without them, for the connection test. Both hand out an `NntpClient`, which so far offers the capabilities and the posting flag of the greeting. Later steps add the commands.
+- The mock NNTP server is `MockNntpServer` in the test sources, with `MockReply` for scripted answers and faults. Fixtures are in `src/test/resources/nntp`.
+
+Decisions made during the step, open to a veto:
+
+- The capabilities are requested again after the login, because a server may offer more to an authenticated client (RFC 3977).
+- The circuit breaker counts every attempt, not every request. With 3 attempts per request, the circuit opens during the second failing request. An open circuit ends the retries of the running request.
+- A certificate failure counts toward the circuit breaker but is not retried. A rejected login and a protocol violation are neither retried nor counted.
+- Response `482` at login is treated like `481`, because older servers use it for rejected credentials.
+- An unused connection is kept for 60 seconds and then replaced. A connection on which an action failed is closed. Changed server settings always get a new connection.
+- The adapter refuses settings with credentials but without TLS, in addition to the validation of spec 002.
+- Background work waits without a time limit for a free connection; only interactive actions have the 30 second limit.
+- The adapter has three failure types that spec 002 does not list: `CONNECTION_LOST`, `CIRCUIT_OPEN` and `NO_CONNECTION_AVAILABLE`. Step 4 has to decide how the connection test reports `CONNECTION_LOST`.
+- New protocol anomaly kinds: `response.malformed-line` and `response.unexpected-code`. After such a response the connection is closed.
+
+Left for later steps:
+
+- `MODE READER` is not sent yet. To be decided in step 5, with the first reading command.
+- Marking the server's credentials as invalid after `481` belongs to the server module (step 4). The adapter reports the failure type `AUTH_FAILED` and does not retry.
+
+Tests and build:
+
+- The certificates for the TLS tests are created when the tests run, with the `keytool` of the JDK. No key is stored in the repository.
+- The test client trusts the certificate it sees when it connects to the mock server. On the development machine, security software intercepts TLS even for local connections and re-signs the certificate; the tests pass there through that interception.
+- `.gitattributes` now forces LF line endings in every checkout. On Windows, a fresh checkout had CRLF, and the frontend format check failed.
 
 **Step 1, project skeleton (2026-11-19)**
 

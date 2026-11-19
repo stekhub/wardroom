@@ -13,6 +13,8 @@ Wardroom is a free, open-source (AGPL), self-hosted NNTP Usenet client with a mo
 | `docs/architecture/data-model.md` | Tables, columns and lifecycle rules |
 | `docs/specs/NNN-*/spec.md` | Feature specifications, all Accepted |
 | `docs/user-guide.md` | Guide for people who run Wardroom; the README links to it (ADR 0031) |
+| `docs/ai-guidelines.md` | How the AI assistant is used and which rules keep humans in control; binding for this work |
+| `CONTRIBUTING.md` | Contribution guidelines for people |
 | `docs/open-questions.md` | Undecided items and the list deferred beyond the MVP |
 | `docs/implementation-plan.md` | Implementation steps, their order and status; **read it first when implementing** |
 
@@ -87,4 +89,6 @@ Run from the repository root with JDK 25. Maven, Node.js and pnpm are downloaded
 - `WARDROOM_LOG_LEVEL=DEBUG` shows NNTP commands and per-article decisions (ADR 0029).
 - Shared technical code (data directory, database startup, logging helpers, API error handling) is in the `platform` module. Log untrusted text only through `LogSafe`, and protocol anomalies only through `ProtocolAnomalyLog`.
 - Integration tests are annotated with `@IntegrationTest`.
+- Other modules talk NNTP only through `NntpConnections` (pooled connections with connection limit, circuit breaker and retries) and `NntpConnector` (one dedicated connection, for the connection test). New NNTP commands are added to `NntpClient`.
+- The mock NNTP server is `MockNntpServer` in `src/test/java/.../nntp/mock`; answers and faults are scripted with `MockReply`. Fixtures are in `src/test/resources/nntp` and keep their bytes.
 - shadcn/ui components are added with `pnpm dlx shadcn@latest add <name>` in `frontend/`.

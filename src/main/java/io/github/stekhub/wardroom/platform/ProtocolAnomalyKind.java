@@ -8,7 +8,13 @@ package io.github.stekhub.wardroom.platform;
 public enum ProtocolAnomalyKind {
 
     /** A line of an {@code OVER} or {@code XOVER} response that cannot be split into the expected fields. */
-    OVERVIEW_MALFORMED_LINE("overview.malformed-line");
+    OVERVIEW_MALFORMED_LINE("overview.malformed-line"),
+
+    /** A status line that does not start with a three-digit response code. */
+    RESPONSE_MALFORMED_LINE("response.malformed-line"),
+
+    /** A well-formed status line with a response code that the protocol does not allow for the command. */
+    RESPONSE_UNEXPECTED_CODE("response.unexpected-code");
 
     private final String id;
 
