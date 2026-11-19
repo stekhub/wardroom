@@ -55,9 +55,10 @@ What follows from it: benefits, costs, rules to follow.
 | [0022](0022-older-articles-arrive-read.md) | Older articles arrive read | Accepted |
 | [0023](0023-cache-size-limit.md) | Cache size limit | Accepted |
 | [0024](0024-arm64-image.md) | ARM64 image | Accepted |
-| [0025](0025-external-encryption-key.md) | External encryption key | Accepted |
+| [0025](0025-external-encryption-key.md) | External encryption key | Accepted; documentation location superseded by 0031 |
 | [0026](0026-nntp-timeouts-and-retry-values.md) | NNTP timeouts and retry values | Accepted |
 | [0027](0027-committed-openapi-specification.md) | Committed OpenAPI specification | Accepted |
 | [0028](0028-backup-retention.md) | Backup retention | Accepted |
 | [0029](0029-logging.md) | Logging | Accepted |
 | [0030](0030-test-levels-and-build-gate.md) | Test levels and build gate | Accepted |
+| [0031](0031-user-guide.md) | User guide outside the README | Accepted |
