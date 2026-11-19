@@ -67,17 +67,32 @@ For more detail, add `WARDROOM_LOG_LEVEL=DEBUG` to `environment` in the Compose 
 
 ## Advanced: keeping the encryption key outside the data directory
 
-By default, the key for the stored NNTP password is in `config`, next to the database. A copy of `config`, such as a backup, then contains everything needed to read the password.
+**How the NNTP password is stored**
 
-You can keep the key in another place instead. Backups of `config` then no longer contain it. This protects copies of your data. It does not protect a running host that someone else controls, because Wardroom needs the key while it runs.
+Wardroom needs the password of your NNTP server every time it connects, so it has to store it. It stores the password encrypted in the database. The key for it is the file `config/credentials.key`, which Wardroom creates on the first start.
 
-1. Create a key file with 32 random bytes:
+**The weak point of the default**
+
+By default, the key is in `config`, next to the database. A copy of `config`, such as a backup, then contains everything needed to read the password.
+
+**What you can do**
+
+Keep the key in another place: a file outside the data directory that you pass to the container as a Docker secret. Backups of `config` then no longer contain the key.
+
+- This protects copies of your data, for example a backup that gets into the wrong hands.
+- It does not protect a running host that someone else controls, because Wardroom needs the key while it runs.
+
+This step is optional. It is worth doing when backups of `config` leave the host, for example to a cloud storage.
+
+**Steps**
+
+1. Create a key file with 32 random bytes, in a directory that is not part of your `config` backups:
 
    ```bash
    head -c 32 /dev/urandom > wardroom.key
    ```
 
-2. Pass it to the container as a secret and name it in `WARDROOM_ENCRYPTION_KEY_FILE`:
+2. Pass it to the container as a secret and name it in `WARDROOM_ENCRYPTION_KEY_FILE`. Docker makes a secret available inside the container as a file below `/run/secrets`:
 
    ```yaml
    services:
@@ -100,6 +115,8 @@ You can keep the key in another place instead. Backups of `config` then no longe
      wardroom_key:
        file: /path/outside/config/wardroom.key
    ```
+
+3. Start Wardroom again: `docker compose up -d`
 
 Notes:
 
