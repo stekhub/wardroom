@@ -42,6 +42,7 @@ Wardroom is a free, open-source (AGPL), self-hosted NNTP Usenet client with a mo
 - Java 25, Spring Boot 4, Maven Wrapper, Spring Modulith; module boundaries are verified in a test.
 - Visibility: in a module's base package, `public` only for what other modules may use. In sub-packages such as `internal`, classes and constructors are package-private, Spring beans included; `public` there only when another package of the same module needs the type.
 - SQLite with Flyway (plain SQL migrations) and jOOQ generated from the migrated schema; generated code is not committed. Migration rules in ADR 0004; before the first release, migrations may still be reset.
+- In migrations, declare columns for times in milliseconds and for article numbers as `BIGINT`; jOOQ maps `INTEGER` to 32-bit numbers.
 - Configuration via `@ConfigurationProperties` records with Bean Validation. Records for value objects and DTOs. Lombok only for `@RequiredArgsConstructor`, `@Slf4j`, `@Builder`; no `@Data` on domain classes.
 - NNTP only through Wardroom's own `NntpClient` adapter around Apache Commons Net; circuit breaker with Resilience4j and retries with Spring Framework, as in ADR 0006 and 0026.
 - API errors as Problem Details (RFC 9457).
@@ -91,6 +92,10 @@ Run from the repository root with JDK 25. Maven, Node.js and pnpm are downloaded
 - `WARDROOM_LOG_LEVEL=DEBUG` shows NNTP commands and per-article decisions (ADR 0029).
 - Shared technical code (data directory, database startup, logging helpers, API error handling) is in the `platform` module. Log untrusted text only through `LogSafe`, and protocol anomalies only through `ProtocolAnomalyLog`.
 - Integration tests are annotated with `@IntegrationTest`.
+- All `/api/**` endpoints except setup and login need a session and, when they change state, the CSRF token. In integration tests, `TestBrowser` behaves like a browser (cookies and token); a test that is not about login can send a request with `.with(user("owner"))` instead.
+- Field validation failures are thrown as `FieldValidationException` (platform module) and answered as `400` with field and rule.
+- A module that stores security-sensitive data implements `AccountCreationCleanup` of the `auth` module (ADR 0017).
+- Frontend: API calls go through `api` in `src/api/client.ts`, which adds the CSRF token and handles ended sessions. Forms use `FormField`; settings sections are listed in `src/settings/sections.ts`. Tests mock the backend with the helpers in `src/test/backend.ts`.
 - Other modules talk NNTP only through `NntpConnections` (pooled connections with connection limit, circuit breaker and retries) and `NntpConnector` (one dedicated connection, for the connection test). New NNTP commands are added to `NntpClient`.
 - The mock NNTP server is `MockNntpServer` in `src/test/java/.../nntp/mock`; answers and faults are scripted with `MockReply`. Fixtures are in `src/test/resources/nntp` and keep their bytes.
 - shadcn/ui components are added with `pnpm dlx shadcn@latest add <name>` in `frontend/`.

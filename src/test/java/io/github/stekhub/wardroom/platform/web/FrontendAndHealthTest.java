@@ -52,6 +52,12 @@ class FrontendAndHealthTest {
     }
 
     @Test
+    void pageIsCheckedWithTheServerOnEveryLoad() {
+        assertThat(mvc.get().uri("/index.html")).hasHeader("Cache-Control", "no-cache");
+        assertThat(mvc.get().uri("/settings/server")).hasHeader("Cache-Control", "no-cache");
+    }
+
+    @Test
     void missingFileIsNotAnsweredWithTheFrontend() {
         assertThat(mvc.get().uri("/assets/missing.js")).hasStatus(HttpStatus.NOT_FOUND);
     }

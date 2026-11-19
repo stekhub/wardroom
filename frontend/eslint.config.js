@@ -6,9 +6,16 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  // The generated API types and shadcn/ui's components are not checked: one is generated,
-  // the others are kept as the shadcn/ui CLI writes them.
-  { ignores: ['node_modules', 'src/api/schema.d.ts', 'src/components/ui'] },
+  // The generated API types and shadcn/ui's components and hooks are not checked: one is
+  // generated, the others are kept as the shadcn/ui CLI writes them.
+  {
+    ignores: [
+      'node_modules',
+      'src/api/schema.d.ts',
+      'src/components/ui',
+      'src/hooks/use-mobile.ts',
+    ],
+  },
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

@@ -7,8 +7,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | # | Step | Specs and ADRs | Status |
 |---|---|---|---|
 | 1 | Project skeleton | ADR 0002, 0003, 0004, 0007, 0008, 0009, 0024, 0027, 0028, 0029, 0030 | Done |
-| 2 | NNTP foundation | ADR 0005, 0006, 0016, 0026; open question 1 | In review |
-| 3 | Authentication and application shell | Spec 001; UI concept | Not started |
+| 2 | NNTP foundation | ADR 0005, 0006, 0016, 0026; open question 1 | Done |
+| 3 | Authentication and application shell | Spec 001; UI concept | In review |
 | 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | Not started |
 | 5 | Newsgroup discovery | Spec 003; group icons | Not started |
 | 6 | Subscriptions | Spec 004 | Not started |
@@ -136,6 +136,49 @@ Wardroom can first be used for reading after step 11.
 
 Progress notes, deviations and findings, newest first.
 
+**Step 3, authentication and application shell (2026-11-19)**
+
+What was built:
+
+- Backend: the six endpoints of spec 001 below `/api/auth`, the access rules, sessions in the database, login throttling, and the account creation with its cleanup. Spring Session JDBC works with SQLite; no session store of Wardroom's own was needed.
+- Frontend: login page, wizard step 1 (account), the shell with the sidebar, the settings page with its section navigation, the "Account" section with the password change, log out, toasts and skeletons. The logo and the favicon are in place.
+- A module that stores sensitive data implements `AccountCreationCleanup` of the `auth` module. Its cleanup runs in the transaction that creates the account (ADR 0017).
+
+Decisions made during the step, open to a veto:
+
+- Username: surrounding whitespace is removed at setup and at login. Apart from that, the username is stored as entered and compared exactly, including upper and lower case. Spec 001 says "stored as entered" and "after trimming"; this is how both were read.
+- Lengths of username and password are counted in characters, not in bytes. An emoji is one character.
+- The session cookie is kept by the browser for 400 days, the longest time browsers allow. Spec 001 does not say how long the cookie lives. Without a lifetime, closing the browser would log out. The 30 days of inactivity are enforced by the server.
+- A login always gets a new session; a session the browser had before is ended.
+- Logins are checked one after the other, so parallel attempts cannot get around the throttling.
+- A password that is too long to be valid is answered like a wrong password (`401`), not with `400`.
+- A wrong current password at the password change is not throttled. Spec 001 only throttles the login.
+- Validation errors of all endpoints have one shape: `detail` is the first failed rule, and `errors` lists every failed field with its rule.
+- Files below `/assets` may be kept by the browser for a year, because their names change with their content. Everything else is checked with the server on every page load.
+- The settings navigation shows all six sections of the UI concept. A section whose feature is not built yet says so.
+- `/` leads to the discover view, which has only its heading so far.
+- After wizard step 1, the application is shown directly. Step 4 adds wizard step 2 and the rule that the application needs a server.
+- The sidebar collapses to a narrow column of icons and remembers this in a cookie. In a narrow window it opens over the page.
+
+Findings:
+
+- jOOQ maps `INTEGER` columns to 32-bit numbers. Columns for times in milliseconds or for article numbers must be declared `BIGINT` in the migrations. The session tables do this.
+- Spring Boot would create a second user with a generated password and print that password in the log. This is switched off.
+- The attributes of the session cookie (`HttpOnly`, `SameSite`, `Secure`) are set by the web server, so they are tested with a real server in `SessionRestartTest`, not with the usual integration tests.
+- The logo files are copied into `frontend/src/assets`, because the image build does not include `assets/`. The favicon in `frontend/public` is derived from the logo.
+- The build no longer prints `[ERROR]` lines when nothing failed: pnpm is started with `--silent`, which removes the line that repeats its command. A real failure of the frontend checks still shows its messages and ends with `BUILD FAILURE`.
+- New dependencies: Spring Security, Spring Session JDBC, Bouncy Castle (needed for Argon2), and in the frontend the toast library of shadcn/ui.
+
+Left for later steps:
+
+- The test "setup after the account row was deleted" covers the sessions and that cleanups run. The part about the NNTP credentials is tested in step 4, when they exist.
+- Installation documentation of spec 001 (step 15): complete setup immediately; an update may require logging in again.
+
+Not verified:
+
+- That forwarded headers from an address outside a private network are ignored. This is the web server's default behavior and was not tested; the test only shows that a local address is trusted.
+- The image build. The application was tried in the browser with the jar built by Maven.
+
 **Step 2, NNTP foundation (2026-11-19)**
 
 Library spike (open question 1). Apache Commons Net 3.13.0 is sufficient; nothing has to be replaced. The findings are kept as tests in `CommonsNetSpikeTest`.
@@ -192,4 +235,3 @@ Tests and build:
 - The frontend uses React Router 7 and TypeScript 5.9, not the newest major versions: ADR 0007 names React Router 7, and the API client generator requires TypeScript 5.
 - Not verified locally: the build stage of the Dockerfile. The runtime stage was checked with the jar built by Maven. To be checked on the first build outside the development machine.
 - When committing: mark `mvnw` and `docker/entrypoint.sh` as executable in Git (`git update-index --chmod=+x`), otherwise the CI workflow cannot start the wrapper.
-- For step 3: `.dockerignore` excludes `assets/`. Copy the logo into the frontend sources or remove that line when the logo is used.
