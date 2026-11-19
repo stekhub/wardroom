@@ -29,7 +29,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-public class PooledNntpConnections implements NntpConnections, DisposableBean {
+class PooledNntpConnections implements NntpConnections, DisposableBean {
 
     /** ADR 0026: three attempts in total. */
     private static final int RETRIES = 2;
@@ -46,7 +46,7 @@ public class PooledNntpConnections implements NntpConnections, DisposableBean {
     private final Map<Long, ServerConnectionPool> connectionPools = new ConcurrentHashMap<>();
 
     @Autowired
-    public PooledNntpConnections(CommonsNetNntpConnector connector) {
+    PooledNntpConnections(CommonsNetNntpConnector connector) {
         this(connector, NntpTimings.DEFAULTS);
     }
 

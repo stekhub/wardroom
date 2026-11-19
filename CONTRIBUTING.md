@@ -46,6 +46,7 @@ More commands are listed in the [user guide](docs/user-guide.md#building-from-so
 **Backend**
 
 - Java 25 and Spring Boot. Each area is its own module; do not use the internals of another module.
+- A class is `public` only when another module or another package of its own module needs it. Everything else is package-private, Spring beans included.
 - Dependencies are passed in through the constructor. No field injection.
 - Records for value objects and data passed between layers.
 - Database changes are plain SQL migrations. Database access uses the classes generated from the schema.

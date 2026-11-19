@@ -10,14 +10,14 @@ import org.springframework.stereotype.Component;
 
 /** Opens NNTP connections with Apache Commons Net. */
 @Component
-public class CommonsNetNntpConnector implements NntpConnector {
+class CommonsNetNntpConnector implements NntpConnector {
 
     private final NntpTimings timings;
     private final SSLContext sslContext;
 
     /** Uses the timeouts of ADR 0026 and the trust store of the Java runtime (ADR 0016). */
     @Autowired
-    public CommonsNetNntpConnector() {
+    CommonsNetNntpConnector() {
         this(NntpTimings.DEFAULTS, defaultSslContext());
     }
 

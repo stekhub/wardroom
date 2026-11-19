@@ -21,6 +21,8 @@ import io.github.stekhub.wardroom.nntp.mock.MockNntpServer;
 import io.github.stekhub.wardroom.nntp.mock.MockReply;
 import io.github.stekhub.wardroom.nntp.mock.TestCertificate;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import javax.net.ssl.SSLContext;
 import org.junit.jupiter.api.AfterEach;
@@ -173,8 +175,14 @@ class CommonsNetNntpConnectorTest {
 
         @Test
         void closedPortIsUnreachable() throws IOException {
-            NntpServerSettings serverSettings = plain(mockServer);
-            mockServer.close();
+            // A port that was open and is closed again. Closing the mock server is not used here: while its
+            // thread still waits for a client, the port can accept one more connection for a moment.
+            int closedPort;
+            try (ServerSocket closedSocket = new ServerSocket(0, 50, InetAddress.getLoopbackAddress())) {
+                closedPort = closedSocket.getLocalPort();
+            }
+            NntpServerSettings serverSettings = new NntpServerSettings(1, "localhost", closedPort, NntpTlsMode.NONE,
+                    null, null, 4);
 
             assertFailure(serverSettings, NntpFailureType.UNREACHABLE);
         }
