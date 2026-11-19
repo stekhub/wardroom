@@ -12,6 +12,7 @@ Wardroom is a free, open-source (AGPL), self-hosted NNTP Usenet client with a mo
 | `docs/architecture/decisions/` | ADRs; the index in its `README.md` shows which are superseded |
 | `docs/architecture/data-model.md` | Tables, columns and lifecycle rules |
 | `docs/specs/NNN-*/spec.md` | Feature specifications, all Accepted |
+| `docs/user-guide.md` | Guide for people who run Wardroom; the README links to it (ADR 0031) |
 | `docs/open-questions.md` | Undecided items and the list deferred beyond the MVP |
 | `docs/implementation-plan.md` | Implementation steps, their order and status; **read it first when implementing** |
 
@@ -26,7 +27,8 @@ Wardroom is a free, open-source (AGPL), self-hosted NNTP Usenet client with a mo
 
 - Discussions: propose numbered points, the owner approves or changes them, then document. Mark your own additions as such so they can be vetoed.
 - Keep the MVP simple; further features are added on demand.
-- Commit only when asked. Work on a branch, never directly on `main`.
+- Commit and push only when the owner asks, each time. Work on a branch, never directly on `main`.
+- Branch names: a type prefix, a slash and a short lowercase name with hyphens. `feature/step-NN-short-title` for implementation steps; `fix/`, `docs/` and `chore/` for other work.
 - Write user-facing docs in English, in short, plain sentences.
 - Do not mention other applications or application stacks in the docs.
 - Keep personal motives of the owner out of the docs.
@@ -68,4 +70,21 @@ Wardroom is a free, open-source (AGPL), self-hosted NNTP Usenet client with a mo
 
 ## Commands
 
-To be filled in when the project skeleton exists (implementation plan, step 1).
+Run from the repository root with JDK 25. Maven, Node.js and pnpm are downloaded by the build; on Windows use `mvnw.cmd`.
+
+| Command | Purpose |
+|---|---|
+| `./mvnw verify` | Full build: backend, frontend, all tests, coverage report in `target/site/jacoco`. The build gate (ADR 0030) |
+| `./mvnw test -Dtest=ClassName` | One backend test class |
+| `./mvnw spring-boot:run "-Dspring-boot.run.profiles=dev"` | Start on port 8119 with the data directory `./config`; Swagger UI at `/swagger-ui.html` |
+| `./mvnw test -Dtest=OpenApiSpecificationTest "-Dopenapi.update=true"` | Rewrite `openapi.json` after an intended API change (ADR 0027) |
+| `pnpm dev` in `frontend/` | Frontend with hot reload; forwards `/api` to the backend on port 8119 |
+| `pnpm check` in `frontend/` | Lint, format check and frontend tests |
+| `pnpm format` in `frontend/` | Format the frontend sources |
+| `docker build -t ghcr.io/stekhub/wardroom:latest .` then `docker compose up` | Build the image locally and start it with the reference Compose file |
+
+- The quotes around `-D` arguments that contain a dot are needed in PowerShell, which otherwise splits the argument at the dot.
+- `WARDROOM_LOG_LEVEL=DEBUG` shows NNTP commands and per-article decisions (ADR 0029).
+- Shared technical code (data directory, database startup, logging helpers, API error handling) is in the `platform` module. Log untrusted text only through `LogSafe`, and protocol anomalies only through `ProtocolAnomalyLog`.
+- Integration tests are annotated with `@IntegrationTest`.
+- shadcn/ui components are added with `pnpm dlx shadcn@latest add <name>` in `frontend/`.

@@ -20,7 +20,7 @@ The layout and interaction rules shared by all feature specifications. Each spec
 
 **Sidebar** (always visible once logged in and a server is configured)
 
-- Header: the application name and a settings button.
+- Header: the logo, small, next to the application name, and a settings button.
 - A "Discover groups" button at the top.
 - The subscribed groups, alphabetically. Each entry shows the group icon, the group name (shortened with an ellipsis if too long, full name as tooltip) and its unread count.
 - Status icons on an entry: synchronization running, last synchronization failed, removed from the server.
@@ -37,7 +37,7 @@ The layout and interaction rules shared by all feature specifications. Each spec
 | Settings | `/settings/{section}` | Section navigation and one section at a time; see [Settings page](#settings-page) |
 
 - Every view has its own URL, so the browser's back button and bookmarks work.
-- Without a session the login page is shown; without an account or without a server the first-run wizard ([spec 001](../specs/001-user-authentication/spec.md), [spec 002](../specs/002-nntp-server-configuration/spec.md)). These pages are shown without the sidebar.
+- Without a session the login page is shown; without an account or without a server the first-run wizard ([spec 001](../specs/001-user-authentication/spec.md), [spec 002](../specs/002-nntp-server-configuration/spec.md)). These pages are shown without the sidebar, with the logo above the card.
 
 ## Visual design
 
@@ -46,6 +46,7 @@ Wardroom aims for a modern, clean look comparable to current web applications.
 - **Components:** shadcn/ui throughout, with one set of design tokens (colors, radii, spacing) defined once in Tailwind. One accent color; everything else neutral.
 - **Typography:** Inter, bundled with the application (no font is loaded from elsewhere). Article text uses a comfortable line length: the thread page's content column is at most 768 px wide.
 - **Surfaces:** cards with rounded corners, a light border and a soft shadow on hover; generous whitespace.
+- **Logo:** the files in `assets/logo/`. The application uses the light variant. The favicon is the logo centered on a square canvas.
 - **Icons:** Lucide everywhere. Icon-only buttons have a tooltip and an accessible label.
 - **Loading:** skeleton placeholders in the shape of the content instead of spinners.
 - **Motion:** short transitions (150–200 ms) for collapsing, expanding and page changes; disabled when the browser asks for reduced motion.

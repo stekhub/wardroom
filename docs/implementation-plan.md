@@ -6,7 +6,7 @@ The order in which the MVP is built, and the status of each step. Each step is o
 
 | # | Step | Specs and ADRs | Status |
 |---|---|---|---|
-| 1 | Project skeleton | ADR 0002, 0003, 0004, 0007, 0008, 0009, 0024, 0027, 0028, 0029, 0030 | Not started |
+| 1 | Project skeleton | ADR 0002, 0003, 0004, 0007, 0008, 0009, 0024, 0027, 0028, 0029, 0030 | In review |
 | 2 | NNTP foundation | ADR 0005, 0006, 0016, 0026; open question 1 | Not started |
 | 3 | Authentication and application shell | Spec 001; UI concept | Not started |
 | 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | Not started |
@@ -60,7 +60,7 @@ Wardroom can first be used for reading after step 11.
 - Spec 001 completely, except the installation documentation (step 15).
 - Application shell from the UI concept: sidebar frame, routing, settings page frame with section navigation, toasts, skeletons.
 - First-run wizard step 1 (account).
-- Logo and favicon: provided by the owner before implementation starts.
+- Logo: the files in `assets/logo/`, a light and a dark variant. The MVP uses the light variant. The favicon is derived from it as a square image.
 
 ### 4. Server configuration and first-run wizard
 
@@ -111,8 +111,9 @@ Wardroom can first be used for reading after step 11.
 ### 15. Polish and documentation
 
 - Quick switcher (`Ctrl+K` / `⌘K`), settings section "About", accessibility pass against WCAG 2.2 AA.
-- README: quick start with the reference Compose file, first-run wizard, backups, updates, password reset (spec 001), lost key file (spec 002).
-- README advanced section: keeping the encryption key outside `/config` (ADR 0025). Not part of the quick start.
+- README: introduction, quick start with the reference Compose file, first-run wizard, link list to the user guide (ADR 0031).
+- User guide (`docs/user-guide.md`): backups, updates, password reset (spec 001), lost key file (spec 002), and an advanced section on keeping the encryption key outside `/config` (ADR 0025, 0031).
+- The README and the user guide were written early, on 2026-11-19. In this step: check both against the finished application and replace the screenshot placeholder in the README with a real screenshot.
 
 ### 16. Release pipeline
 
@@ -121,7 +122,7 @@ Wardroom can first be used for reading after step 11.
 ## Working on a step
 
 1. Read this plan, `CLAUDE.md`, the step's specs and the ADRs and documents they reference.
-2. Create a branch `step-NN-short-title` from `main`. Set the step to `In progress`.
+2. Create a branch `feature/step-NN-short-title` from `main`. Set the step to `In progress`.
 3. Implement the step's scope and its specs' testing requirements. Keep to the step; note anything that belongs elsewhere under "Notes" below.
 4. Run the full build and tests (`mvnw verify` must pass, ADR 0030); start the application and check the step's feature in the browser.
 5. Set the step to `In review` and summarize for the owner: what was built, how to try it, deviations and open points. The owner reviews; commits and pull requests are made when the owner asks.
@@ -133,4 +134,16 @@ Wardroom can first be used for reading after step 11.
 
 Progress notes, deviations and findings, newest first.
 
-- None yet.
+**Step 1, project skeleton (2026-11-19)**
+
+- A tenth module, `platform`, holds the technical code all modules share: data directory, database startup, logging helpers, API error handling. The generated jOOQ classes are an open module of their own.
+- The first migration creates `wardroom_user`, so that the code generation and the startup tests have a real table. Step 3 uses it.
+- A new, empty database is migrated without a backup; a backup is written only when an existing database has pending migrations.
+- `WARDROOM_LOG_LEVEL` applies to Wardroom's own output. Libraries follow it only when it is stricter than `INFO`; at `DEBUG` they stay at `INFO`.
+- Requests that fail with a `500` are logged with method, path and stack trace. Other failed requests (`4xx`) are not logged.
+- The accent color is the blue of the logo, `#0374cf`.
+- The runtime image installs `curl`, because the base image has no tool for the `HEALTHCHECK`.
+- The frontend uses React Router 7 and TypeScript 5.9, not the newest major versions: ADR 0007 names React Router 7, and the API client generator requires TypeScript 5.
+- Not verified locally: the build stage of the Dockerfile. The runtime stage was checked with the jar built by Maven. To be checked on the first build outside the development machine.
+- When committing: mark `mvnw` and `docker/entrypoint.sh` as executable in Git (`git update-index --chmod=+x`), otherwise the CI workflow cannot start the wrapper.
+- For step 3: `.dockerignore` excludes `assets/`. Copy the logo into the frontend sources or remove that line when the logo is used.

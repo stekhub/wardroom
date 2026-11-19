@@ -1,0 +1,12 @@
+# Text files are stored with LF in the repository.
+* text=auto
+
+# Scripts that run on Linux, also inside the container, must keep LF on every platform.
+*.sh text eol=lf
+mvnw text eol=lf
+Dockerfile text eol=lf
+*.cmd text eol=crlf
+
+# NNTP test fixtures are kept byte-for-byte: the protocol requires CRLF line endings, and
+# malformed fixtures must stay exactly as they are (ADR 0008).
+src/test/resources/nntp/** -text

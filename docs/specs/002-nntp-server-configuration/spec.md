@@ -183,4 +183,4 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 4. Server endpoints, validation and the removal cleanup.
 5. Trigger of the group list fetch on creation; circuit breaker reset on save.
 6. Frontend: server form (first run and settings page), connection test, save warning, removal confirmation, invalid credentials notice.
-7. Installation documentation: back up `/config` as a whole; what happens if the key file is lost. An advanced README section, outside the quick start, explains keeping the key outside `/config` with a Docker secret and how to move an existing key (ADR 0025).
+7. Installation documentation: back up `/config` as a whole; what happens if the key file is lost. An advanced section of the user guide, outside the quick start, explains keeping the key outside `/config` with a Docker secret and how to move an existing key (ADR 0025, [ADR 0031](../../architecture/decisions/0031-user-guide.md)).

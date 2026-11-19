@@ -1,24 +1,25 @@
-# Compiled class file
+# Build output
+target/
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+*.log
 hs_err_pid*
 replay_pid*
+
+# Local data directory of the development profile
+/config/
+
+# Frontend
+node_modules/
+# Generated from openapi.json at build time (ADR 0027)
+frontend/src/api/schema.d.ts
+
+# IDEs and operating systems
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+.DS_Store
+Thumbs.db

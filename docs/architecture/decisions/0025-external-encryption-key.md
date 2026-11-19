@@ -1,6 +1,6 @@
 # 0025. External encryption key
 
-- Status: Accepted
+- Status: Accepted; documentation location superseded by [0031](0031-user-guide.md)
 - Date: 2026-11-18
 - Extends: credential encryption in [spec 002](../../specs/002-nntp-server-configuration/spec.md) and the storage of [ADR 0009](0009-packaging-and-deployment.md)
 
