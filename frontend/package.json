@@ -5,10 +5,10 @@
   "type": "module",
   "packageManager": "pnpm@12.21.0",
   "scripts": {
-    "dev": "pnpm run generate && vite",
+    "dev": "openapi-typescript ../openapi.json -o src/api/schema.d.ts && vite",
     "generate": "openapi-typescript ../openapi.json -o src/api/schema.d.ts",
-    "build": "pnpm run generate && tsc -b && vite build",
-    "check": "pnpm run lint && pnpm run format:check && pnpm run test",
+    "build": "openapi-typescript ../openapi.json -o src/api/schema.d.ts && tsc -b && vite build",
+    "check": "eslint . && prettier --check . && vitest run",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
