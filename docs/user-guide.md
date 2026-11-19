@@ -126,3 +126,5 @@ docker build -t ghcr.io/stekhub/wardroom:latest .
 ```
 
 Then start it with the Compose file from the [quick install](../README.md#quick-install).
+
+If you want to change Wardroom, read the [contribution guidelines](../CONTRIBUTING.md).

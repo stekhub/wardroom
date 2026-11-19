@@ -73,3 +73,8 @@ The [user guide](docs/user-guide.md) covers everything beyond the quick install:
 - [Troubleshooting](docs/user-guide.md#troubleshooting): forgotten password, lost key file, more detail in the log
 - [Advanced: keeping the encryption key outside the data directory](docs/user-guide.md#advanced-keeping-the-encryption-key-outside-the-data-directory)
 - [Building from source](docs/user-guide.md#building-from-source)
+
+For people who want to work on Wardroom:
+
+- [Contribution guidelines](CONTRIBUTING.md): how to report problems and send changes.
+- [AI guidelines](docs/ai-guidelines.md): Wardroom is built with the help of an AI coding assistant. This document explains how, and which rules keep humans in control.
