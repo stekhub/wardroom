@@ -37,17 +37,17 @@ final class CommonsNetClient implements NntpClient {
     private static final int MESSAGE_LINE_MAX_LENGTH = 200;
     private static final String ACTION_CONNECTION_CLOSED = "connection-closed";
 
-    private final NntpServerSettings server;
-    private final WireClient wire = new WireClient();
-    private final ProtocolAnomalyLog anomalies = new ProtocolAnomalyLog(log);
+    private final NntpServerSettings serverSettings;
+    private final WireClient wireClient = new WireClient();
+    private final ProtocolAnomalyLog anomalyLog = new ProtocolAnomalyLog(log);
 
     private NntpCapabilities capabilities = NntpCapabilities.unsupported();
     private boolean postingAllowedByGreeting;
     private boolean broken;
     private boolean closed;
 
-    private CommonsNetClient(NntpServerSettings server) {
-        this.server = server;
+    private CommonsNetClient(NntpServerSettings serverSettings) {
+        this.serverSettings = serverSettings;
     }
 
     /**
@@ -55,8 +55,8 @@ final class CommonsNetClient implements NntpClient {
      *
      * @throws NntpException when a step fails; the connection is closed then
      */
-    static CommonsNetClient open(NntpServerSettings server, NntpTimings timings, SSLContext sslContext) {
-        CommonsNetClient client = new CommonsNetClient(server);
+    static CommonsNetClient open(NntpServerSettings serverSettings, NntpTimings timings, SSLContext sslContext) {
+        CommonsNetClient client = new CommonsNetClient(serverSettings);
         try {
             client.connect(timings, sslContext);
             return client;
@@ -68,21 +68,21 @@ final class CommonsNetClient implements NntpClient {
     }
 
     private void connect(NntpTimings timings, SSLContext sslContext) {
-        wire.setConnectTimeout(Math.toIntExact(timings.connectTimeout().toMillis()));
-        wire.setDefaultTimeout(Math.toIntExact(timings.readTimeout().toMillis()));
-        wire.addProtocolCommandListener(new CommandLog(log, server.serverId()));
-        if (server.tlsMode() == NntpTlsMode.IMPLICIT) {
-            wire.setSocketFactory(new TlsSocketFactory(sslContext.getSocketFactory(), server.host()));
+        wireClient.setConnectTimeout(Math.toIntExact(timings.connectTimeout().toMillis()));
+        wireClient.setDefaultTimeout(Math.toIntExact(timings.readTimeout().toMillis()));
+        wireClient.addProtocolCommandListener(new CommandLog(log, serverSettings.serverId()));
+        if (serverSettings.tlsMode() == NntpTlsMode.IMPLICIT) {
+            wireClient.setSocketFactory(new TlsSocketFactory(sslContext.getSocketFactory(), serverSettings.host()));
         }
         try {
             // Reads the greeting as well; with TLS the handshake happens here.
-            wire.connect(server.host(), server.port());
+            wireClient.connect(serverSettings.host(), serverSettings.port());
         } catch (IOException e) {
             throw failure(e, null);
         }
         checkGreeting();
         capabilities = requestCapabilities();
-        if (server.authenticates()) {
+        if (serverSettings.authenticates()) {
             authenticate();
             // A server may offer more after the login, so what was read before is no longer valid (RFC 3977, 5.2).
             capabilities = requestCapabilities();
@@ -90,7 +90,7 @@ final class CommonsNetClient implements NntpClient {
     }
 
     private void checkGreeting() {
-        switch (wire.getReplyCode()) {
+        switch (wireClient.getReplyCode()) {
             case POSTING_ALLOWED -> postingAllowedByGreeting = true;
             case POSTING_PROHIBITED -> postingAllowedByGreeting = false;
             case ACCESS_DENIED -> throw refused();
@@ -100,15 +100,15 @@ final class CommonsNetClient implements NntpClient {
 
     private NntpCapabilities requestCapabilities() {
         String command = "CAPABILITIES";
-        int code;
+        int responseCode;
         List<String> lines;
         try {
-            code = wire.sendCommand(command);
-            if (code != CAPABILITY_LIST) {
+            responseCode = wireClient.sendCommand(command);
+            if (responseCode != CAPABILITY_LIST) {
                 // Servers from before RFC 3977 do not know the command. They are still usable (spec 002).
                 return NntpCapabilities.unsupported();
             }
-            lines = wire.readMultiLineResponse();
+            lines = wireClient.readMultiLineResponse();
         } catch (IOException e) {
             throw failure(e, command);
         }
@@ -124,21 +124,21 @@ final class CommonsNetClient implements NntpClient {
 
     private void authenticate() {
         String command = "AUTHINFO USER";
-        int code;
+        int responseCode;
         try {
-            code = wire.authinfoUser(server.username());
-            if (code == PASSWORD_REQUIRED) {
+            responseCode = wireClient.authinfoUser(serverSettings.username());
+            if (responseCode == PASSWORD_REQUIRED) {
                 command = "AUTHINFO PASS";
-                code = wire.authinfoPass(server.password());
+                responseCode = wireClient.authinfoPass(serverSettings.password());
             }
         } catch (IOException e) {
             throw failure(e, command);
         }
-        switch (code) {
+        switch (responseCode) {
             case AUTHENTICATION_ACCEPTED -> {
             }
             case AUTHENTICATION_FAILED, AUTHENTICATION_REJECTED -> throw new NntpException(NntpFailureType.AUTH_FAILED,
-                    "The server rejected the user name or password (" + code + ")");
+                    "The server rejected the user name or password (" + responseCode + ")");
             case ACCESS_DENIED -> throw refused();
             default -> throw unexpectedResponse(command);
         }
@@ -156,7 +156,7 @@ final class CommonsNetClient implements NntpClient {
 
     /** @return whether further commands can be sent on this connection */
     boolean isUsable() {
-        return !closed && !broken && wire.isConnected();
+        return !closed && !broken && wireClient.isConnected();
     }
 
     @Override
@@ -165,22 +165,22 @@ final class CommonsNetClient implements NntpClient {
             return;
         }
         closed = true;
-        if (wire.isConnected()) {
+        if (wireClient.isConnected()) {
             if (!broken) {
                 try {
-                    wire.setSoTimeout(QUIT_TIMEOUT_MILLIS);
-                    wire.quit();
+                    wireClient.setSoTimeout(QUIT_TIMEOUT_MILLIS);
+                    wireClient.quit();
                 } catch (IOException e) {
-                    log.debug("NNTP server={} did not answer QUIT", server.serverId());
+                    log.debug("NNTP server={} did not answer QUIT", serverSettings.serverId());
                 }
             }
             try {
-                wire.disconnect();
+                wireClient.disconnect();
             } catch (IOException e) {
-                log.debug("NNTP server={} could not be disconnected cleanly", server.serverId());
+                log.debug("NNTP server={} could not be disconnected cleanly", serverSettings.serverId());
             }
         }
-        anomalies.finish();
+        anomalyLog.finish();
     }
 
     private NntpException refused() {
@@ -190,11 +190,11 @@ final class CommonsNetClient implements NntpClient {
     /** The server answered with a response code that the protocol does not allow at this point. */
     private NntpException unexpectedResponse(String command) {
         broken = true;
-        anomalies.report(ProtocolAnomaly.builder()
+        anomalyLog.report(ProtocolAnomaly.builder()
                 .kind(ProtocolAnomalyKind.RESPONSE_UNEXPECTED_CODE)
                 .command(command)
                 .action(ACTION_CONNECTION_CLOSED)
-                .raw(wire.getReplyString())
+                .raw(wireClient.getReplyString())
                 .build());
         String where = command == null ? "as greeting" : "to " + command;
         return new NntpException(NntpFailureType.PROTOCOL, "Unexpected response " + where + ": " + replyLine());
@@ -203,14 +203,14 @@ final class CommonsNetClient implements NntpClient {
     private NntpException failure(IOException e, String command) {
         broken = true;
         if (e instanceof MalformedServerReplyException) {
-            anomalies.report(ProtocolAnomaly.builder()
+            anomalyLog.report(ProtocolAnomaly.builder()
                     .kind(ProtocolAnomalyKind.RESPONSE_MALFORMED_LINE)
                     .command(command)
                     .action(ACTION_CONNECTION_CLOSED)
                     .raw(malformedLine(e))
                     .build());
         }
-        return NntpFailures.fromIo(e, server.host(), server.port());
+        return NntpFailures.fromIo(e, serverSettings.host(), serverSettings.port());
     }
 
     /** The library puts the offending line at the end of its message, after "reply: ". */
@@ -221,7 +221,7 @@ final class CommonsNetClient implements NntpClient {
     }
 
     private String replyLine() {
-        String reply = wire.getReplyString();
+        String reply = wireClient.getReplyString();
         return LogSafe.escape(reply == null ? "" : reply.strip(), MESSAGE_LINE_MAX_LENGTH);
     }
 }

@@ -29,7 +29,7 @@ class FrontendConfiguration implements WebMvcConfigurer {
 
     static class FrontendResourceResolver extends PathResourceResolver {
 
-        private final Resource index = new ClassPathResource("static/index.html");
+        private final Resource indexPage = new ClassPathResource("static/index.html");
 
         @Override
         protected Resource getResource(String resourcePath, Resource location) throws IOException {
@@ -37,7 +37,7 @@ class FrontendConfiguration implements WebMvcConfigurer {
             if (resource != null) {
                 return resource;
             }
-            return isFrontendRoute(resourcePath) && index.isReadable() ? index : null;
+            return isFrontendRoute(resourcePath) && indexPage.isReadable() ? indexPage : null;
         }
 
         /** A frontend route is not a backend path and does not name a file; a missing file stays a 404. */

@@ -16,51 +16,51 @@ import javax.net.ssl.SSLSocketFactory;
  */
 final class TlsSocketFactory extends SocketFactory {
 
-    private final SSLSocketFactory delegate;
+    private final SSLSocketFactory sslSocketFactory;
     private final String host;
 
-    TlsSocketFactory(SSLSocketFactory delegate, String host) {
-        this.delegate = delegate;
+    TlsSocketFactory(SSLSocketFactory sslSocketFactory, String host) {
+        this.sslSocketFactory = sslSocketFactory;
         this.host = host;
     }
 
     @Override
     public Socket createSocket() throws IOException {
-        return verifying(delegate.createSocket());
+        return verifying(sslSocketFactory.createSocket());
     }
 
     @Override
     public Socket createSocket(String host, int port) throws IOException {
-        return verifying(delegate.createSocket(host, port));
+        return verifying(sslSocketFactory.createSocket(host, port));
     }
 
     @Override
     public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
-        return verifying(delegate.createSocket(host, port, localHost, localPort));
+        return verifying(sslSocketFactory.createSocket(host, port, localHost, localPort));
     }
 
     @Override
     public Socket createSocket(InetAddress host, int port) throws IOException {
-        return verifying(delegate.createSocket(host, port));
+        return verifying(sslSocketFactory.createSocket(host, port));
     }
 
     @Override
     public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort)
             throws IOException {
-        return verifying(delegate.createSocket(address, port, localAddress, localPort));
+        return verifying(sslSocketFactory.createSocket(address, port, localAddress, localPort));
     }
 
     private Socket verifying(Socket socket) {
-        SSLSocket tls = (SSLSocket) socket;
-        SSLParameters parameters = tls.getSSLParameters();
+        SSLSocket tlsSocket = (SSLSocket) socket;
+        SSLParameters sslParameters = tlsSocket.getSSLParameters();
         // "HTTPS" is the name of the standard host name check (RFC 2818); it is not specific to HTTP.
-        parameters.setEndpointIdentificationAlgorithm("HTTPS");
+        sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
         if (isHostName(host)) {
             // The server name is sent in the handshake, so a server with several certificates picks the right one.
-            parameters.setServerNames(List.of(new SNIHostName(host)));
+            sslParameters.setServerNames(List.of(new SNIHostName(host)));
         }
-        tls.setSSLParameters(parameters);
-        return tls;
+        tlsSocket.setSSLParameters(sslParameters);
+        return tlsSocket;
     }
 
     private static boolean isHostName(String host) {

@@ -41,9 +41,9 @@ public class PooledNntpConnections implements NntpConnections, DisposableBean {
     private final CommonsNetNntpConnector connector;
     private final NntpTimings timings;
     private final CircuitBreakerRegistry circuitBreakers;
-    private final RetryTemplate retrying;
-    private final RetryTemplate singleAttempt = new RetryTemplate(RetryPolicy.withMaxRetries(0));
-    private final Map<Long, ServerConnectionPool> pools = new ConcurrentHashMap<>();
+    private final RetryTemplate retryTemplate;
+    private final RetryTemplate singleAttemptTemplate = new RetryTemplate(RetryPolicy.withMaxRetries(0));
+    private final Map<Long, ServerConnectionPool> connectionPools = new ConcurrentHashMap<>();
 
     @Autowired
     public PooledNntpConnections(CommonsNetNntpConnector connector) {
@@ -62,56 +62,57 @@ public class PooledNntpConnections implements NntpConnections, DisposableBean {
                 .failureRateThreshold(100)
                 .waitDurationInOpenState(timings.circuitOpenDuration())
                 .permittedNumberOfCallsInHalfOpenState(1)
-                .ignoreException(e -> !countsAsFailure(e))
+                .ignoreException(exception -> !countsAsFailure(exception))
                 .build());
         this.circuitBreakers.getEventPublisher().onEntryAdded(added -> added.getAddedEntry().getEventPublisher()
                 .onStateTransition(PooledNntpConnections::logStateTransition));
-        this.retrying = new RetryTemplate(RetryPolicy.builder()
+        this.retryTemplate = new RetryTemplate(RetryPolicy.builder()
                 .maxRetries(RETRIES)
                 .delay(timings.firstRetryDelay())
                 .multiplier(BACKOFF_MULTIPLIER)
-                .predicate(e -> e instanceof NntpException failure && failure.type().retryable())
+                .predicate(exception -> exception instanceof NntpException failure && failure.type().retryable())
                 .build());
     }
 
     @Override
-    public <T> T background(NntpServerSettings server, NntpAction<T> action) {
-        return execute(retrying, server, false, action);
+    public <T> T background(NntpServerSettings serverSettings, NntpAction<T> action) {
+        return execute(retryTemplate, serverSettings, false, action);
     }
 
     @Override
-    public <T> T interactive(NntpServerSettings server, NntpAction<T> action) {
-        return execute(retrying, server, true, action);
+    public <T> T interactive(NntpServerSettings serverSettings, NntpAction<T> action) {
+        return execute(retryTemplate, serverSettings, true, action);
     }
 
     @Override
-    public <T> T interactiveWithoutRetry(NntpServerSettings server, NntpAction<T> action) {
-        return execute(singleAttempt, server, true, action);
+    public <T> T interactiveWithoutRetry(NntpServerSettings serverSettings, NntpAction<T> action) {
+        return execute(singleAttemptTemplate, serverSettings, true, action);
     }
 
     @Override
     public void reset(long serverId) {
-        ServerConnectionPool pool = pools.get(serverId);
-        if (pool != null) {
-            pool.closeIdle();
+        ServerConnectionPool connectionPool = connectionPools.get(serverId);
+        if (connectionPool != null) {
+            connectionPool.closeIdle();
         }
         circuitBreaker(serverId).reset();
     }
 
     @Override
     public void destroy() {
-        pools.values().forEach(ServerConnectionPool::retire);
-        pools.clear();
+        connectionPools.values().forEach(ServerConnectionPool::retire);
+        connectionPools.clear();
     }
 
-    private <T> T execute(RetryTemplate retry, NntpServerSettings server, boolean interactive, NntpAction<T> action) {
+    private <T> T execute(RetryTemplate template, NntpServerSettings serverSettings, boolean interactive,
+            NntpAction<T> action) {
         try {
-            return retry.execute(() -> attempt(server, interactive, action));
+            return template.execute(() -> attempt(serverSettings, interactive, action));
         } catch (RetryException e) {
             switch (e.getCause()) {
                 case NntpException failure -> {
-                    if (failure.type().retryable() && retry == retrying) {
-                        log.warn("NNTP request to server {} failed after {} attempts: {}", server.serverId(),
+                    if (failure.type().retryable() && template == retryTemplate) {
+                        log.warn("NNTP request to server {} failed after {} attempts: {}", serverSettings.serverId(),
                                 e.getRetryCount() + 1, failure.getMessage());
                     }
                     throw failure;
@@ -123,10 +124,10 @@ public class PooledNntpConnections implements NntpConnections, DisposableBean {
         }
     }
 
-    private <T> T attempt(NntpServerSettings server, boolean interactive, NntpAction<T> action) {
+    private <T> T attempt(NntpServerSettings serverSettings, boolean interactive, NntpAction<T> action) {
         try {
-            return circuitBreaker(server.serverId())
-                    .executeSupplier(() -> poolFor(server).run(server, interactive, action));
+            return circuitBreaker(serverSettings.serverId())
+                    .executeSupplier(() -> poolFor(serverSettings).run(serverSettings, interactive, action));
         } catch (CallNotPermittedException e) {
             throw new NntpException(NntpFailureType.CIRCUIT_OPEN,
                     "The server failed repeatedly and is not contacted for a while", e);
@@ -138,20 +139,20 @@ public class PooledNntpConnections implements NntpConnections, DisposableBean {
     }
 
     /** A changed connection limit replaces the pool; the old one closes its connections as they become free. */
-    private ServerConnectionPool poolFor(NntpServerSettings server) {
-        return pools.compute(server.serverId(), (id, pool) -> {
-            if (pool != null && pool.maxConnections() == server.maxConnections()) {
-                return pool;
+    private ServerConnectionPool poolFor(NntpServerSettings serverSettings) {
+        return connectionPools.compute(serverSettings.serverId(), (id, connectionPool) -> {
+            if (connectionPool != null && connectionPool.maxConnections() == serverSettings.maxConnections()) {
+                return connectionPool;
             }
-            if (pool != null) {
-                pool.retire();
+            if (connectionPool != null) {
+                connectionPool.retire();
             }
-            return new ServerConnectionPool(server.maxConnections(), timings, connector);
+            return new ServerConnectionPool(serverSettings.maxConnections(), timings, connector);
         });
     }
 
-    private static boolean countsAsFailure(Throwable e) {
-        return e instanceof NntpException failure && failure.type().countedByCircuitBreaker();
+    private static boolean countsAsFailure(Throwable exception) {
+        return exception instanceof NntpException failure && failure.type().countedByCircuitBreaker();
     }
 
     private static void logStateTransition(CircuitBreakerOnStateTransitionEvent event) {

@@ -44,7 +44,7 @@ public final class MockNntpServer implements AutoCloseable {
     private static final MockReply UNKNOWN_COMMAND = MockReply.lines("500 Unknown command");
 
     private final ServerSocket serverSocket;
-    private final ExecutorService threads = Executors.newVirtualThreadPerTaskExecutor();
+    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final Map<String, Script> scripts = new ConcurrentHashMap<>();
     private final Script greeting = new Script().reply("200 Mock NNTP server ready, posting allowed");
     private final List<String> commands = new CopyOnWriteArrayList<>();
@@ -55,7 +55,7 @@ public final class MockNntpServer implements AutoCloseable {
     private MockNntpServer(ServerSocket serverSocket) {
         this.serverSocket = serverSocket;
         on("QUIT").reply("205 Bye");
-        threads.execute(this::acceptConnections);
+        executor.execute(this::acceptConnections);
     }
 
     /** Starts a server without TLS. */
@@ -109,7 +109,7 @@ public final class MockNntpServer implements AutoCloseable {
         for (Socket socket : openSockets) {
             socket.close();
         }
-        threads.shutdownNow();
+        executor.shutdownNow();
     }
 
     /** The replies to one command: some that are given once, in order, and then one that is given every time. */
@@ -147,7 +147,7 @@ public final class MockNntpServer implements AutoCloseable {
                 Socket socket = serverSocket.accept();
                 connectionCount.incrementAndGet();
                 openSockets.add(socket);
-                threads.execute(() -> serve(socket));
+                executor.execute(() -> serve(socket));
             } catch (IOException e) {
                 return;
             }
@@ -156,15 +156,15 @@ public final class MockNntpServer implements AutoCloseable {
 
     private void serve(Socket socket) {
         try (socket) {
-            InputStream in = new BufferedInputStream(socket.getInputStream());
-            OutputStream out = socket.getOutputStream();
-            if (!perform(greeting.next(), in, out)) {
+            InputStream input = new BufferedInputStream(socket.getInputStream());
+            OutputStream output = socket.getOutputStream();
+            if (!perform(greeting.next(), input, output)) {
                 return;
             }
             String line;
-            while ((line = readLine(in)) != null) {
+            while ((line = readLine(input)) != null) {
                 commands.add(line);
-                if (!perform(replyTo(line), in, out) || line.equalsIgnoreCase("QUIT")) {
+                if (!perform(replyTo(line), input, output) || line.equalsIgnoreCase("QUIT")) {
                     return;
                 }
             }
@@ -188,56 +188,56 @@ public final class MockNntpServer implements AutoCloseable {
     }
 
     /** @return whether the connection stays open */
-    private boolean perform(MockReply reply, InputStream in, OutputStream out)
+    private boolean perform(MockReply reply, InputStream input, OutputStream output)
             throws IOException, InterruptedException {
         if (!reply.delay().isZero()) {
             Thread.sleep(reply.delay());
         }
         switch (reply.kind()) {
-            case SEND -> send(out, reply.data());
+            case SEND -> send(output, reply.data());
             case DROP -> {
                 return false;
             }
             case SILENCE -> {
-                while (in.read() >= 0) {
+                while (input.read() >= 0) {
                     // Swallow whatever the client sends until it gives up and closes the connection.
                 }
                 return false;
             }
             case ARTICLE -> {
-                send(out, reply.data());
+                send(output, reply.data());
                 List<String> lines = new ArrayList<>();
                 String line;
-                while ((line = readLine(in)) != null && !line.equals(".")) {
+                while ((line = readLine(input)) != null && !line.equals(".")) {
                     lines.add(line);
                 }
                 postedArticles.add(String.join("\r\n", lines) + "\r\n");
-                send(out, reply.rest());
+                send(output, reply.rest());
             }
             case TWO_PARTS -> {
-                send(out, reply.data());
+                send(output, reply.data());
                 reply.gate().await();
-                send(out, reply.rest());
+                send(output, reply.rest());
             }
         }
         return true;
     }
 
-    private static void send(OutputStream out, byte[] bytes) throws IOException {
-        out.write(bytes);
-        out.flush();
+    private static void send(OutputStream output, byte[] bytes) throws IOException {
+        output.write(bytes);
+        output.flush();
     }
 
     /** Reads one line ended by CRLF, as bytes, so that nothing is lost to a character set. */
-    private static String readLine(InputStream in) throws IOException {
+    private static String readLine(InputStream input) throws IOException {
         ByteArrayOutputStream line = new ByteArrayOutputStream();
-        int b;
-        while ((b = in.read()) >= 0) {
-            if (b == '\n') {
+        int nextByte;
+        while ((nextByte = input.read()) >= 0) {
+            if (nextByte == '\n') {
                 String text = line.toString(StandardCharsets.ISO_8859_1);
                 return text.endsWith("\r") ? text.substring(0, text.length() - 1) : text;
             }
-            line.write(b);
+            line.write(nextByte);
         }
         return null;
     }

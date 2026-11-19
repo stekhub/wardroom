@@ -34,11 +34,11 @@ public record MockReply(Kind kind, byte[] data, byte[] rest, CountDownLatch gate
 
     /** Sends a file from {@code src/test/resources/nntp} byte for byte. */
     public static MockReply fixture(String name) {
-        try (InputStream in = MockReply.class.getResourceAsStream("/nntp/" + name)) {
-            if (in == null) {
+        try (InputStream input = MockReply.class.getResourceAsStream("/nntp/" + name)) {
+            if (input == null) {
                 throw new IllegalArgumentException("No NNTP fixture named " + name);
             }
-            return raw(in.readAllBytes());
+            return raw(input.readAllBytes());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

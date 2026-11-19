@@ -21,19 +21,19 @@ class NntpModuleTest {
 
     @Test
     void applicationProvidesTheConnectorAndThePooledConnections() throws IOException {
-        try (MockNntpServer server = MockNntpServer.start()) {
-            server.on("CAPABILITIES").reply(MockReply.fixture("capabilities-reader.txt"));
-            NntpServerSettings settings = new NntpServerSettings(42, "localhost", server.port(), NntpTlsMode.NONE,
-                    null, null, 2);
+        try (MockNntpServer mockServer = MockNntpServer.start()) {
+            mockServer.on("CAPABILITIES").reply(MockReply.fixture("capabilities-reader.txt"));
+            NntpServerSettings serverSettings = new NntpServerSettings(42, "localhost", mockServer.port(),
+                    NntpTlsMode.NONE, null, null, 2);
 
-            try (NntpClient client = connector.connect(settings)) {
+            try (NntpClient client = connector.connect(serverSettings)) {
                 assertThat(client.capabilities().has("OVER")).isTrue();
             }
-            boolean reader = connections.interactive(settings, client -> client.capabilities().has("READER"));
-            connections.reset(settings.serverId());
+            boolean reader = connections.interactive(serverSettings, client -> client.capabilities().has("READER"));
+            connections.reset(serverSettings.serverId());
 
             assertThat(reader).isTrue();
-            assertThat(server.connectionCount()).isEqualTo(2);
+            assertThat(mockServer.connectionCount()).isEqualTo(2);
         }
     }
 }

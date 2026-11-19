@@ -36,74 +36,74 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 @ExtendWith(OutputCaptureExtension.class)
 class PooledNntpConnectionsTest {
 
-    private MockNntpServer server;
+    private MockNntpServer mockServer;
     private PooledNntpConnections connections;
-    private final ExecutorService threads = Executors.newVirtualThreadPerTaskExecutor();
+    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
     @BeforeEach
     void start() throws Exception {
-        server = MockNntpServer.start();
+        mockServer = MockNntpServer.start();
         connections = new PooledNntpConnections(new CommonsNetNntpConnector(FAST, SSLContext.getDefault()), FAST);
     }
 
     @AfterEach
     void stop() throws IOException {
-        threads.shutdownNow();
+        executor.shutdownNow();
         connections.destroy();
-        server.close();
+        mockServer.close();
     }
 
     @Test
     void connectionIsReusedForTheNextAction() {
-        connections.background(plain(server), NntpClient::capabilities);
-        connections.interactive(plain(server), NntpClient::capabilities);
+        connections.background(plain(mockServer), NntpClient::capabilities);
+        connections.interactive(plain(mockServer), NntpClient::capabilities);
 
-        assertThat(server.connectionCount()).isEqualTo(1);
+        assertThat(mockServer.connectionCount()).isEqualTo(1);
     }
 
     @Test
     void connectionIsClosedWhenTheActionFails() {
-        assertThatThrownBy(() -> connections.background(plain(server), client -> {
+        assertThatThrownBy(() -> connections.background(plain(mockServer), client -> {
             throw new IllegalStateException("the caller's own error");
         })).isInstanceOf(IllegalStateException.class).hasMessage("the caller's own error");
 
-        connections.background(plain(server), NntpClient::capabilities);
+        connections.background(plain(mockServer), NntpClient::capabilities);
 
-        assertThat(server.connectionCount()).isEqualTo(2);
+        assertThat(mockServer.connectionCount()).isEqualTo(2);
     }
 
     @Test
     void changedSettingsGetANewConnection() {
-        NntpServerSettings before = plain(server);
+        NntpServerSettings before = plain(mockServer);
         NntpServerSettings after = new NntpServerSettings(before.serverId(), "127.0.0.1", before.port(),
                 before.tlsMode(), null, null, before.maxConnections());
 
         connections.background(before, NntpClient::capabilities);
         connections.background(after, NntpClient::capabilities);
 
-        assertThat(server.connectionCount()).isEqualTo(2);
-        assertThat(server.commands()).containsOnlyOnce("QUIT");
+        assertThat(mockServer.connectionCount()).isEqualTo(2);
+        assertThat(mockServer.commands()).containsOnlyOnce("QUIT");
     }
 
     @Test
     void connectionThatWasIdleTooLongIsReplaced() {
         connections = withoutReuse();
 
-        connections.background(plain(server), NntpClient::capabilities);
-        connections.background(plain(server), NntpClient::capabilities);
+        connections.background(plain(mockServer), NntpClient::capabilities);
+        connections.background(plain(mockServer), NntpClient::capabilities);
 
-        assertThat(server.connectionCount()).isEqualTo(2);
+        assertThat(mockServer.connectionCount()).isEqualTo(2);
     }
 
     @Test
     void backgroundWorkLeavesOneConnectionForInteractiveActions() throws Exception {
-        NntpServerSettings settings = plain(server, 3);
+        NntpServerSettings serverSettings = plain(mockServer, 3);
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch twoRunning = new CountDownLatch(2);
         AtomicInteger started = new AtomicInteger();
         List<Future<?>> background = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
-            background.add(threads.submit(() -> connections.background(settings, client -> {
+            background.add(executor.submit(() -> connections.background(serverSettings, client -> {
                 started.incrementAndGet();
                 twoRunning.countDown();
                 await(release);
@@ -113,26 +113,26 @@ class PooledNntpConnectionsTest {
         assertThat(twoRunning.await(5, TimeUnit.SECONDS)).isTrue();
 
         // All background connections are busy and a third job is waiting; the interactive action still runs.
-        String result = connections.interactive(settings, client -> "interactive ran");
+        String result = connections.interactive(serverSettings, client -> "interactive ran");
 
         assertThat(result).isEqualTo("interactive ran");
         assertThat(started).hasValue(2);
-        assertThat(server.connectionCount()).isEqualTo(3);
+        assertThat(mockServer.connectionCount()).isEqualTo(3);
 
         release.countDown();
         for (Future<?> job : background) {
             job.get(5, TimeUnit.SECONDS);
         }
         assertThat(started).hasValue(3);
-        assertThat(server.connectionCount()).isEqualTo(3);
+        assertThat(mockServer.connectionCount()).isEqualTo(3);
     }
 
     @Test
     void interactiveActionFailsWhenNoConnectionBecomesFreeInTime() throws Exception {
-        NntpServerSettings settings = plain(server, 1);
+        NntpServerSettings serverSettings = plain(mockServer, 1);
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch running = new CountDownLatch(1);
-        Future<?> background = threads.submit(() -> connections.background(settings, client -> {
+        Future<?> background = executor.submit(() -> connections.background(serverSettings, client -> {
             running.countDown();
             await(release);
             return null;
@@ -140,44 +140,44 @@ class PooledNntpConnectionsTest {
         assertThat(running.await(5, TimeUnit.SECONDS)).isTrue();
 
         NntpException failure = catchThrowableOfType(NntpException.class,
-                () -> connections.interactive(settings, NntpClient::capabilities));
+                () -> connections.interactive(serverSettings, NntpClient::capabilities));
 
         assertThat(failure.type()).isEqualTo(NntpFailureType.NO_CONNECTION_AVAILABLE);
         release.countDown();
         background.get(5, TimeUnit.SECONDS);
-        assertThat(server.connectionCount()).isEqualTo(1);
+        assertThat(mockServer.connectionCount()).isEqualTo(1);
     }
 
     @Test
     void failedAttemptIsRetriedUntilItSucceeds() {
-        server.greeting().once(MockReply.drop()).once(MockReply.lines("400 Try again later"));
+        mockServer.greeting().once(MockReply.drop()).once(MockReply.lines("400 Try again later"));
 
-        String result = connections.background(plain(server), client -> "done");
+        String result = connections.background(plain(mockServer), client -> "done");
 
         assertThat(result).isEqualTo("done");
-        assertThat(server.connectionCount()).isEqualTo(3);
+        assertThat(mockServer.connectionCount()).isEqualTo(3);
     }
 
     @Test
     void givesUpAfterThreeAttemptsAndLogsAWarning(CapturedOutput output) {
-        server.greeting().reply(MockReply.drop());
+        mockServer.greeting().reply(MockReply.drop());
 
         NntpException failure = catchThrowableOfType(NntpException.class,
-                () -> connections.background(plain(server), NntpClient::capabilities));
+                () -> connections.background(plain(mockServer), NntpClient::capabilities));
 
         assertThat(failure.type()).isEqualTo(NntpFailureType.CONNECTION_LOST);
-        assertThat(server.connectionCount()).isEqualTo(3);
+        assertThat(mockServer.connectionCount()).isEqualTo(3);
         assertThat(output).contains("WARN").contains("NNTP request to server 1 failed after 3 attempts");
     }
 
     @Test
     void actionWithoutRetryRunsOnce() {
-        server.greeting().reply(MockReply.drop());
+        mockServer.greeting().reply(MockReply.drop());
 
-        assertThatThrownBy(() -> connections.interactiveWithoutRetry(plain(server), NntpClient::capabilities))
+        assertThatThrownBy(() -> connections.interactiveWithoutRetry(plain(mockServer), NntpClient::capabilities))
                 .isInstanceOf(NntpException.class);
 
-        assertThat(server.connectionCount()).isEqualTo(1);
+        assertThat(mockServer.connectionCount()).isEqualTo(1);
     }
 
     @Test
@@ -202,79 +202,79 @@ class PooledNntpConnectionsTest {
     @Test
     void circuitOpensAfterFiveFailuresInARowAndClosesAfterASuccessfulTrial(CapturedOutput output)
             throws InterruptedException {
-        server.greeting().reply(MockReply.drop());
-        NntpServerSettings settings = plain(server);
+        mockServer.greeting().reply(MockReply.drop());
+        NntpServerSettings serverSettings = plain(mockServer);
 
-        assertThat(failureOf(settings)).isEqualTo(NntpFailureType.CONNECTION_LOST);
+        assertThat(failureOf(serverSettings)).isEqualTo(NntpFailureType.CONNECTION_LOST);
         // The fourth and fifth failure open the circuit, which ends the retries.
-        assertThat(failureOf(settings)).isEqualTo(NntpFailureType.CIRCUIT_OPEN);
-        assertThat(server.connectionCount()).isEqualTo(5);
+        assertThat(failureOf(serverSettings)).isEqualTo(NntpFailureType.CIRCUIT_OPEN);
+        assertThat(mockServer.connectionCount()).isEqualTo(5);
         assertThat(output).contains("Circuit opened for NNTP server 1");
 
         // While the circuit is open the server is not contacted.
-        assertThat(failureOf(settings)).isEqualTo(NntpFailureType.CIRCUIT_OPEN);
-        assertThat(server.connectionCount()).isEqualTo(5);
+        assertThat(failureOf(serverSettings)).isEqualTo(NntpFailureType.CIRCUIT_OPEN);
+        assertThat(mockServer.connectionCount()).isEqualTo(5);
 
         // After the waiting time one trial is allowed. It succeeds, and the circuit closes.
-        server.greeting().reply("200 Back again");
+        mockServer.greeting().reply("200 Back again");
         Thread.sleep(FAST.circuitOpenDuration().plusMillis(100));
-        connections.background(settings, NntpClient::capabilities);
-        connections.background(settings, NntpClient::capabilities);
+        connections.background(serverSettings, NntpClient::capabilities);
+        connections.background(serverSettings, NntpClient::capabilities);
 
-        assertThat(server.connectionCount()).isEqualTo(6);
+        assertThat(mockServer.connectionCount()).isEqualTo(6);
         assertThat(output).contains("Circuit closed again for NNTP server 1");
     }
 
     @Test
     void failedTrialOpensTheCircuitAgain() throws InterruptedException {
-        server.greeting().reply(MockReply.drop());
-        NntpServerSettings settings = plain(server);
-        failureOf(settings);
-        failureOf(settings);
-        assertThat(server.connectionCount()).isEqualTo(5);
+        mockServer.greeting().reply(MockReply.drop());
+        NntpServerSettings serverSettings = plain(mockServer);
+        failureOf(serverSettings);
+        failureOf(serverSettings);
+        assertThat(mockServer.connectionCount()).isEqualTo(5);
 
         Thread.sleep(FAST.circuitOpenDuration().plusMillis(100));
 
         // One trial reaches the server and fails; the retry is refused by the circuit that opened again.
-        assertThat(failureOf(settings)).isEqualTo(NntpFailureType.CIRCUIT_OPEN);
-        assertThat(server.connectionCount()).isEqualTo(6);
+        assertThat(failureOf(serverSettings)).isEqualTo(NntpFailureType.CIRCUIT_OPEN);
+        assertThat(mockServer.connectionCount()).isEqualTo(6);
     }
 
     @Test
     void successBetweenFailuresKeepsTheCircuitClosed() {
         // Without reuse every action opens a new connection, so every action meets the scripted greetings.
         connections = withoutReuse();
-        NntpServerSettings settings = plain(server);
+        NntpServerSettings serverSettings = plain(mockServer);
         for (int round = 0; round < 3; round++) {
             // Two failures, then the third attempt succeeds: six failures in total, but never five in a row.
-            server.greeting().once(MockReply.drop()).once(MockReply.drop());
-            connections.background(settings, NntpClient::capabilities);
+            mockServer.greeting().once(MockReply.drop()).once(MockReply.drop());
+            connections.background(serverSettings, NntpClient::capabilities);
         }
 
-        connections.background(settings, NntpClient::capabilities);
+        connections.background(serverSettings, NntpClient::capabilities);
 
-        assertThat(server.connectionCount()).isEqualTo(10);
+        assertThat(mockServer.connectionCount()).isEqualTo(10);
     }
 
     @Test
     void resetClosesTheCircuitAndTheIdleConnections() {
-        NntpServerSettings settings = plain(server);
-        connections.background(settings, NntpClient::capabilities);
-        server.greeting().reply(MockReply.drop());
-        connections.reset(settings.serverId());
-        assertThat(server.commands()).containsOnlyOnce("QUIT");
-        failureOf(settings);
-        assertThat(failureOf(settings)).isEqualTo(NntpFailureType.CIRCUIT_OPEN);
+        NntpServerSettings serverSettings = plain(mockServer);
+        connections.background(serverSettings, NntpClient::capabilities);
+        mockServer.greeting().reply(MockReply.drop());
+        connections.reset(serverSettings.serverId());
+        assertThat(mockServer.commands()).containsOnlyOnce("QUIT");
+        failureOf(serverSettings);
+        assertThat(failureOf(serverSettings)).isEqualTo(NntpFailureType.CIRCUIT_OPEN);
 
-        server.greeting().reply("200 Ready");
-        connections.reset(settings.serverId());
+        mockServer.greeting().reply("200 Ready");
+        connections.reset(serverSettings.serverId());
 
-        connections.background(settings, NntpClient::capabilities);
+        connections.background(serverSettings, NntpClient::capabilities);
     }
 
-    private NntpFailureType failureOf(NntpServerSettings settings) {
+    private NntpFailureType failureOf(NntpServerSettings serverSettings) {
         NntpException failure = catchThrowableOfType(NntpException.class,
-                () -> connections.background(settings, NntpClient::capabilities));
+                () -> connections.background(serverSettings, NntpClient::capabilities));
         assertThat(failure).as("the request must fail").isNotNull();
         return failure.type();
     }

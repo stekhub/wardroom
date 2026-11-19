@@ -14,5 +14,5 @@ public interface NntpConnector {
      * @return the open connection; the caller closes it
      * @throws NntpException when any of these steps fails
      */
-    NntpClient connect(NntpServerSettings server);
+    NntpClient connect(NntpServerSettings serverSettings);
 }

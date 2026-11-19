@@ -39,10 +39,11 @@ final class NntpFailures {
                     "Cannot connect to " + target + ": " + detail(noRoute), noRoute);
             case SocketTimeoutException timeout -> new NntpException(NntpFailureType.TIMEOUT,
                     "The server " + target + " did not answer in time", timeout);
-            case SSLException tls when isCertificateProblem(tls) -> new NntpException(NntpFailureType.TLS_CERTIFICATE,
-                    "The certificate of " + target + " is not trusted: " + detail(rootCause(tls)), tls);
-            case SSLException tls -> new NntpException(NntpFailureType.TLS_HANDSHAKE,
-                    "Could not set up TLS with " + target + ": " + detail(tls), tls);
+            case SSLException tlsFailure when isCertificateProblem(tlsFailure) -> new NntpException(
+                    NntpFailureType.TLS_CERTIFICATE,
+                    "The certificate of " + target + " is not trusted: " + detail(rootCause(tlsFailure)), tlsFailure);
+            case SSLException tlsFailure -> new NntpException(NntpFailureType.TLS_HANDSHAKE,
+                    "Could not set up TLS with " + target + ": " + detail(tlsFailure), tlsFailure);
             default -> new NntpException(NntpFailureType.CONNECTION_LOST,
                     "The connection to " + target + " failed: " + detail(e), e);
         };

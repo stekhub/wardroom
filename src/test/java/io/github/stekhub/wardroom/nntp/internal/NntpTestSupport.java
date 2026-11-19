@@ -18,19 +18,19 @@ final class NntpTestSupport {
     private NntpTestSupport() {
     }
 
-    static NntpServerSettings plain(MockNntpServer server, int maxConnections) {
-        return new NntpServerSettings(1, "localhost", server.port(), NntpTlsMode.NONE, null, null, maxConnections);
+    static NntpServerSettings plain(MockNntpServer mockServer, int maxConnections) {
+        return new NntpServerSettings(1, "localhost", mockServer.port(), NntpTlsMode.NONE, null, null, maxConnections);
     }
 
-    static NntpServerSettings plain(MockNntpServer server) {
-        return plain(server, 4);
+    static NntpServerSettings plain(MockNntpServer mockServer) {
+        return plain(mockServer, 4);
     }
 
-    static NntpServerSettings tls(MockNntpServer server) {
-        return new NntpServerSettings(1, "localhost", server.port(), NntpTlsMode.IMPLICIT, null, null, 4);
+    static NntpServerSettings tls(MockNntpServer mockServer) {
+        return new NntpServerSettings(1, "localhost", mockServer.port(), NntpTlsMode.IMPLICIT, null, null, 4);
     }
 
-    static NntpServerSettings tlsWithLogin(MockNntpServer server) {
-        return new NntpServerSettings(1, "localhost", server.port(), NntpTlsMode.IMPLICIT, USERNAME, PASSWORD, 4);
+    static NntpServerSettings tlsWithLogin(MockNntpServer mockServer) {
+        return new NntpServerSettings(1, "localhost", mockServer.port(), NntpTlsMode.IMPLICIT, USERNAME, PASSWORD, 4);
     }
 }

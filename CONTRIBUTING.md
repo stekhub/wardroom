@@ -60,6 +60,7 @@ More commands are listed in the [user guide](docs/user-guide.md#building-from-so
 **Both**
 
 - Write code that is easy to read. Prefer the explicit solution to the clever one.
+- Names say what a thing is, in full words: `serverSettings` and `wireClient`, not `server` and `wire`.
 - Comments explain why, not what.
 
 ## Using AI tools

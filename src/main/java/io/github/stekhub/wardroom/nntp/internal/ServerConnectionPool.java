@@ -25,10 +25,10 @@ final class ServerConnectionPool {
     private final CommonsNetNntpConnector connector;
     private final Semaphore allConnections;
     private final Semaphore backgroundConnections;
-    private final Deque<IdleConnection> idle = new ArrayDeque<>();
+    private final Deque<IdleConnection> idleConnections = new ArrayDeque<>();
     private boolean retired;
 
-    private record IdleConnection(CommonsNetClient client, NntpServerSettings settings, long idleSinceNanos) {
+    private record IdleConnection(CommonsNetClient client, NntpServerSettings serverSettings, long idleSinceNanos) {
     }
 
     ServerConnectionPool(int maxConnections, NntpTimings timings, CommonsNetNntpConnector connector) {
@@ -43,10 +43,10 @@ final class ServerConnectionPool {
         return maxConnections;
     }
 
-    <T> T run(NntpServerSettings settings, boolean interactive, NntpAction<T> action) {
+    <T> T run(NntpServerSettings serverSettings, boolean interactive, NntpAction<T> action) {
         acquire(interactive);
         try {
-            CommonsNetClient client = borrow(settings);
+            CommonsNetClient client = borrow(serverSettings);
             boolean succeeded = false;
             try {
                 T result = action.run(client);
@@ -54,7 +54,7 @@ final class ServerConnectionPool {
                 return result;
             } finally {
                 if (succeeded && client.isUsable()) {
-                    giveBack(client, settings);
+                    giveBack(client, serverSettings);
                 } else {
                     client.close();
                 }
@@ -107,13 +107,14 @@ final class ServerConnectionPool {
         }
     }
 
-    private CommonsNetClient borrow(NntpServerSettings settings) {
+    private CommonsNetClient borrow(NntpServerSettings serverSettings) {
         List<CommonsNetClient> unusable = new ArrayList<>();
         CommonsNetClient reusable = null;
         synchronized (this) {
-            while (reusable == null && !idle.isEmpty()) {
-                IdleConnection candidate = idle.pop();
-                if (candidate.settings().equals(settings) && isFresh(candidate) && candidate.client().isUsable()) {
+            while (reusable == null && !idleConnections.isEmpty()) {
+                IdleConnection candidate = idleConnections.pop();
+                if (candidate.serverSettings().equals(serverSettings) && isFresh(candidate)
+                        && candidate.client().isUsable()) {
                     reusable = candidate.client();
                 } else {
                     unusable.add(candidate.client());
@@ -121,17 +122,17 @@ final class ServerConnectionPool {
             }
         }
         unusable.forEach(CommonsNetClient::close);
-        return reusable != null ? reusable : connector.open(settings);
+        return reusable != null ? reusable : connector.open(serverSettings);
     }
 
     private boolean isFresh(IdleConnection connection) {
         return System.nanoTime() - connection.idleSinceNanos() < timings.idleLifetime().toNanos();
     }
 
-    private void giveBack(CommonsNetClient client, NntpServerSettings settings) {
+    private void giveBack(CommonsNetClient client, NntpServerSettings serverSettings) {
         synchronized (this) {
             if (!retired) {
-                idle.push(new IdleConnection(client, settings, System.nanoTime()));
+                idleConnections.push(new IdleConnection(client, serverSettings, System.nanoTime()));
                 return;
             }
         }
@@ -140,8 +141,8 @@ final class ServerConnectionPool {
 
     private List<CommonsNetClient> drainIdle() {
         synchronized (this) {
-            List<CommonsNetClient> clients = idle.stream().map(IdleConnection::client).toList();
-            idle.clear();
+            List<CommonsNetClient> clients = idleConnections.stream().map(IdleConnection::client).toList();
+            idleConnections.clear();
             return clients;
         }
     }

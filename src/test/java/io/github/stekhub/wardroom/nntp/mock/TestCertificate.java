@@ -46,8 +46,8 @@ public final class TestCertificate {
                     throw new IllegalStateException("keytool failed: " + output);
                 }
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
-                try (InputStream in = Files.newInputStream(file)) {
-                    keyStore.load(in, PASSWORD);
+                try (InputStream input = Files.newInputStream(file)) {
+                    keyStore.load(input, PASSWORD);
                 }
                 return new TestCertificate(keyStore);
             } finally {
@@ -76,18 +76,18 @@ public final class TestCertificate {
     }
 
     /**
-     * @param server the server that presents this certificate
+     * @param mockServer the server that presents this certificate
      * @return the TLS configuration of a client that trusts the certificate it sees when it connects to the
      *         server, and nothing else. Normally that is this certificate. On a machine where security software
      *         intercepts TLS, also for local connections, the client sees a re-signed copy instead; that copy is
      *         then trusted, so the tests can run there as well.
      */
-    public SSLContext trustingClientContext(MockNntpServer server) {
+    public SSLContext trustingClientContext(MockNntpServer mockServer) {
         try {
             KeyStore trusted = KeyStore.getInstance("PKCS12");
             trusted.load(null, null);
             trusted.setCertificateEntry(ALIAS, keyStore.getCertificate(ALIAS));
-            trusted.setCertificateEntry("as-seen", certificateSeenByClients(server));
+            trusted.setCertificateEntry("as-seen", certificateSeenByClients(mockServer));
             TrustManagerFactory trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             trust.init(trusted);
             SSLContext context = SSLContext.getInstance("TLS");
@@ -98,7 +98,7 @@ public final class TestCertificate {
         }
     }
 
-    private static X509Certificate certificateSeenByClients(MockNntpServer server)
+    private static X509Certificate certificateSeenByClients(MockNntpServer mockServer)
             throws GeneralSecurityException, IOException {
         AtomicReference<X509Certificate> seen = new AtomicReference<>();
         SSLContext acceptAll = SSLContext.getInstance("TLS");
@@ -117,7 +117,7 @@ public final class TestCertificate {
                 return new X509Certificate[0];
             }
         }}, null);
-        try (SSLSocket probe = (SSLSocket) acceptAll.getSocketFactory().createSocket("localhost", server.port())) {
+        try (SSLSocket probe = (SSLSocket) acceptAll.getSocketFactory().createSocket("localhost", mockServer.port())) {
             probe.startHandshake();
         }
         return seen.get();

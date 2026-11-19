@@ -27,12 +27,12 @@ public class CommonsNetNntpConnector implements NntpConnector {
     }
 
     @Override
-    public NntpClient connect(NntpServerSettings server) {
-        return open(server);
+    public NntpClient connect(NntpServerSettings serverSettings) {
+        return open(serverSettings);
     }
 
-    CommonsNetClient open(NntpServerSettings server) {
-        return CommonsNetClient.open(server, timings, sslContext);
+    CommonsNetClient open(NntpServerSettings serverSettings) {
+        return CommonsNetClient.open(serverSettings, timings, sslContext);
     }
 
     private static SSLContext defaultSslContext() {

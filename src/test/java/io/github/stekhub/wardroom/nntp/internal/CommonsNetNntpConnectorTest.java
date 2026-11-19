@@ -40,7 +40,7 @@ class CommonsNetNntpConnectorTest {
     private static TestCertificate localhostCertificate;
     private static TestCertificate otherHostCertificate;
 
-    private MockNntpServer server;
+    private MockNntpServer mockServer;
     private CommonsNetNntpConnector connector;
 
     @BeforeAll
@@ -51,13 +51,13 @@ class CommonsNetNntpConnectorTest {
 
     @BeforeEach
     void startServer() throws Exception {
-        server = MockNntpServer.start();
+        mockServer = MockNntpServer.start();
         connector = new CommonsNetNntpConnector(FAST, SSLContext.getDefault());
     }
 
     @AfterEach
     void stopServer() throws IOException {
-        server.close();
+        mockServer.close();
     }
 
     @Nested
@@ -65,9 +65,9 @@ class CommonsNetNntpConnectorTest {
 
         @Test
         void readsTheGreetingAndTheCapabilities() {
-            server.on("CAPABILITIES").reply(MockReply.fixture("capabilities-reader.txt"));
+            mockServer.on("CAPABILITIES").reply(MockReply.fixture("capabilities-reader.txt"));
 
-            try (NntpClient client = connector.connect(plain(server))) {
+            try (NntpClient client = connector.connect(plain(mockServer))) {
                 assertThat(client.postingAllowedByGreeting()).isTrue();
                 assertThat(client.capabilities().supported()).isTrue();
                 assertThat(client.capabilities().has("READER")).isTrue();
@@ -77,14 +77,14 @@ class CommonsNetNntpConnectorTest {
                         "OVERVIEW.FMT");
             }
 
-            assertThat(server.commands()).containsExactly("CAPABILITIES", "QUIT");
+            assertThat(mockServer.commands()).containsExactly("CAPABILITIES", "QUIT");
         }
 
         @Test
         void greeting201MeansPostingIsNotAllowed() {
-            server.greeting().reply("201 Ready, no posting");
+            mockServer.greeting().reply("201 Ready, no posting");
 
-            try (NntpClient client = connector.connect(plain(server))) {
+            try (NntpClient client = connector.connect(plain(mockServer))) {
                 assertThat(client.postingAllowedByGreeting()).isFalse();
             }
         }
@@ -92,7 +92,7 @@ class CommonsNetNntpConnectorTest {
         @Test
         void serverWithoutCapabilitiesCommandIsStillUsable() {
             // The mock answers unscripted commands with 500, like a server from before RFC 3977.
-            try (NntpClient client = connector.connect(plain(server))) {
+            try (NntpClient client = connector.connect(plain(mockServer))) {
                 assertThat(client.capabilities().supported()).isFalse();
                 assertThat(client.capabilities().has("READER")).isFalse();
             }
@@ -100,12 +100,12 @@ class CommonsNetNntpConnectorTest {
 
         @Test
         void closingTwiceIsHarmless() {
-            NntpClient client = connector.connect(plain(server));
+            NntpClient client = connector.connect(plain(mockServer));
 
             client.close();
             client.close();
 
-            assertThat(server.commands()).containsOnlyOnce("QUIT");
+            assertThat(mockServer.commands()).containsOnlyOnce("QUIT");
         }
     }
 
@@ -114,23 +114,23 @@ class CommonsNetNntpConnectorTest {
 
         @Test
         void accessDeniedIsRefused() {
-            server.greeting().reply("502 Access denied for your address");
+            mockServer.greeting().reply("502 Access denied for your address");
 
-            assertFailure(plain(server), NntpFailureType.SERVER_REFUSED).hasMessageContaining("502 Access denied");
+            assertFailure(plain(mockServer), NntpFailureType.SERVER_REFUSED).hasMessageContaining("502 Access denied");
         }
 
         @Test
         void serviceUnavailableIsRefused() {
-            server.greeting().reply("400 Too many connections");
+            mockServer.greeting().reply("400 Too many connections");
 
-            assertFailure(plain(server), NntpFailureType.SERVER_REFUSED);
+            assertFailure(plain(mockServer), NntpFailureType.SERVER_REFUSED);
         }
 
         @Test
         void unexpectedCodeIsAProtocolAnomaly(CapturedOutput output) {
-            server.greeting().reply("299 What is this");
+            mockServer.greeting().reply("299 What is this");
 
-            assertFailure(plain(server), NntpFailureType.PROTOCOL).hasMessageContaining("299 What is this");
+            assertFailure(plain(mockServer), NntpFailureType.PROTOCOL).hasMessageContaining("299 What is this");
 
             assertThat(output).contains("PROTOCOL_ANOMALY kind=response.unexpected-code action=connection-closed"
                     + " raw=\"299 What is this\"");
@@ -138,9 +138,9 @@ class CommonsNetNntpConnectorTest {
 
         @Test
         void lineWithoutResponseCodeIsAProtocolAnomaly(CapturedOutput output) {
-            server.greeting().reply("Welcome to my server");
+            mockServer.greeting().reply("Welcome to my server");
 
-            assertFailure(plain(server), NntpFailureType.PROTOCOL);
+            assertFailure(plain(mockServer), NntpFailureType.PROTOCOL);
 
             assertThat(output).contains("PROTOCOL_ANOMALY kind=response.malformed-line action=connection-closed"
                     + " raw=\"Welcome to my server\"");
@@ -148,9 +148,10 @@ class CommonsNetNntpConnectorTest {
 
         @Test
         void serverLineCannotForgeALogLine(CapturedOutput output) {
-            server.greeting().reply(MockReply.raw("299 odd\rforged-entry\r\n".getBytes(StandardCharsets.ISO_8859_1)));
+            mockServer.greeting().reply(
+                    MockReply.raw("299 odd\rforged-entry\r\n".getBytes(StandardCharsets.ISO_8859_1)));
 
-            assertFailure(plain(server), NntpFailureType.PROTOCOL);
+            assertFailure(plain(mockServer), NntpFailureType.PROTOCOL);
 
             assertThat(output.getOut().lines().filter(line -> line.startsWith("forged-entry"))).isEmpty();
             assertThat(output).contains("299 odd\\rforged-entry");
@@ -158,24 +159,24 @@ class CommonsNetNntpConnectorTest {
 
         @Test
         void droppedConnectionIsConnectionLost() {
-            server.greeting().reply(MockReply.drop());
+            mockServer.greeting().reply(MockReply.drop());
 
-            assertFailure(plain(server), NntpFailureType.CONNECTION_LOST);
+            assertFailure(plain(mockServer), NntpFailureType.CONNECTION_LOST);
         }
 
         @Test
         void silentServerIsATimeout() {
-            server.greeting().reply(MockReply.silence());
+            mockServer.greeting().reply(MockReply.silence());
 
-            assertFailure(plain(server), NntpFailureType.TIMEOUT);
+            assertFailure(plain(mockServer), NntpFailureType.TIMEOUT);
         }
 
         @Test
         void closedPortIsUnreachable() throws IOException {
-            NntpServerSettings settings = plain(server);
-            server.close();
+            NntpServerSettings serverSettings = plain(mockServer);
+            mockServer.close();
 
-            assertFailure(settings, NntpFailureType.UNREACHABLE);
+            assertFailure(serverSettings, NntpFailureType.UNREACHABLE);
         }
     }
 
@@ -184,17 +185,17 @@ class CommonsNetNntpConnectorTest {
 
         @Test
         void listWithoutItsTerminatingDotIsATimeout() {
-            server.on("CAPABILITIES").reply("101 Capability list:", "VERSION 2");
+            mockServer.on("CAPABILITIES").reply("101 Capability list:", "VERSION 2");
 
             // The list never ends, so the client waits for the next line until the read timeout.
-            assertFailure(plain(server), NntpFailureType.TIMEOUT);
+            assertFailure(plain(mockServer), NntpFailureType.TIMEOUT);
         }
 
         @Test
         void serviceUnavailableIsRefused() {
-            server.on("CAPABILITIES").reply("400 Shutting down");
+            mockServer.on("CAPABILITIES").reply("400 Shutting down");
 
-            assertFailure(plain(server), NntpFailureType.SERVER_REFUSED);
+            assertFailure(plain(mockServer), NntpFailureType.SERVER_REFUSED);
         }
     }
 
@@ -243,7 +244,7 @@ class CommonsNetNntpConnectorTest {
 
         @Test
         void serverThatDoesNotSpeakTlsIsAHandshakeFailure() {
-            assertFailure(tls(server), NntpFailureType.TLS_HANDSHAKE);
+            assertFailure(tls(mockServer), NntpFailureType.TLS_HANDSHAKE);
         }
 
         @Test
@@ -327,16 +328,16 @@ class CommonsNetNntpConnectorTest {
 
         @Test
         void textFormDoesNotContainThePassword() {
-            NntpServerSettings settings = new NntpServerSettings(1, "localhost", 563, NntpTlsMode.IMPLICIT, USERNAME,
-                    PASSWORD, 4);
+            NntpServerSettings serverSettings = new NntpServerSettings(1, "localhost", 563, NntpTlsMode.IMPLICIT,
+                    USERNAME, PASSWORD, 4);
 
-            assertThat(settings.toString()).doesNotContain(PASSWORD).contains("localhost");
+            assertThat(serverSettings.toString()).doesNotContain(PASSWORD).contains("localhost");
         }
     }
 
-    private org.assertj.core.api.AbstractThrowableAssert<?, NntpException> assertFailure(NntpServerSettings settings,
-            NntpFailureType expected) {
-        NntpException failure = catchThrowableOfType(NntpException.class, () -> connector.connect(settings));
+    private org.assertj.core.api.AbstractThrowableAssert<?, NntpException> assertFailure(
+            NntpServerSettings serverSettings, NntpFailureType expected) {
+        NntpException failure = catchThrowableOfType(NntpException.class, () -> connector.connect(serverSettings));
         assertThat(failure).as("connecting must fail").isNotNull();
         assertThat(failure.type()).isEqualTo(expected);
         return assertThat(failure);

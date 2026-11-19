@@ -44,6 +44,7 @@ Wardroom is a free, open-source (AGPL), self-hosted NNTP Usenet client with a mo
 - Configuration via `@ConfigurationProperties` records with Bean Validation. Records for value objects and DTOs. Lombok only for `@RequiredArgsConstructor`, `@Slf4j`, `@Builder`; no `@Data` on domain classes.
 - NNTP only through Wardroom's own `NntpClient` adapter around Apache Commons Net; circuit breaker with Resilience4j and retries with Spring Framework, as in ADR 0006 and 0026.
 - API errors as Problem Details (RFC 9457).
+- Variable, field and parameter names say what the thing is, in full words that match its type: `serverSettings` and `wireClient`, not `server` and `wire`. No abbreviations and no single letters, except `e` in a catch block and loop counters.
 
 **Frontend** (ADR 0007, UI concept)
 

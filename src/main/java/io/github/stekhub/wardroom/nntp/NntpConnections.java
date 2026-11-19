@@ -15,7 +15,7 @@ public interface NntpConnections {
      *
      * @throws NntpException when the work failed after all attempts or the circuit breaker is open
      */
-    <T> T background(NntpServerSettings server, NntpAction<T> action);
+    <T> T background(NntpServerSettings serverSettings, NntpAction<T> action);
 
     /**
      * Runs an action the user is waiting for, for example opening an article. Waits at most 30 seconds for a free
@@ -24,13 +24,13 @@ public interface NntpConnections {
      * @throws NntpException as for background work, and with {@link NntpFailureType#NO_CONNECTION_AVAILABLE} when
      *                       no connection became free in time
      */
-    <T> T interactive(NntpServerSettings server, NntpAction<T> action);
+    <T> T interactive(NntpServerSettings serverSettings, NntpAction<T> action);
 
     /**
      * Like {@link #interactive(NntpServerSettings, NntpAction)}, but with a single attempt. For actions that must
      * not run twice, such as posting.
      */
-    <T> T interactiveWithoutRetry(NntpServerSettings server, NntpAction<T> action);
+    <T> T interactiveWithoutRetry(NntpServerSettings serverSettings, NntpAction<T> action);
 
     /**
      * Closes the idle connections to the server and closes its circuit breaker. To be called when the settings of
