@@ -94,16 +94,19 @@ test('the settings page lists the sections with the selected one in the URL, and
     'About',
     'Log out',
   ])
+  // The router changes the URL first and renders the new location a moment later.
+  await waitFor(() => {
+    expect(within(navigation).getByRole('link', { name: 'Server' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  })
   expect(window.location.pathname).toBe('/settings/server')
-  expect(within(navigation).getByRole('link', { name: 'Server' })).toHaveAttribute(
-    'aria-current',
-    'page',
-  )
 
   await userEvent.click(within(navigation).getByRole('link', { name: 'Account' }))
 
+  expect(await screen.findByRole('heading', { name: 'Account' })).toBeVisible()
   expect(window.location.pathname).toBe('/settings/account')
-  expect(screen.getByRole('heading', { name: 'Account' })).toBeVisible()
   expect(screen.getByText('owner')).toBeVisible()
 })
 
