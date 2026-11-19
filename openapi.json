@@ -182,7 +182,7 @@
         },
         "responses" : {
           "204" : {
-            "description" : "Password changed"
+            "description" : "Password changed and logged out"
           },
           "400" : {
             "content" : {
@@ -195,7 +195,7 @@
             "description" : "The current password is wrong or the new one breaks a rule"
           }
         },
-        "summary" : "Changes the password and ends all other sessions",
+        "summary" : "Changes the password and ends all sessions, including the current one",
         "tags" : [ "Authentication" ]
       }
     },

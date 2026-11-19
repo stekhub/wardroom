@@ -50,7 +50,7 @@ Creating the single Wardroom account at first start, logging in and out, session
 **Password change**
 
 - On the settings page; requires the current password and the new password (entered twice in the frontend).
-- Ends all other sessions; the current session stays logged in.
+- Ends all sessions, including the current one. The owner logs in again with the new password.
 
 **Password reset**
 
@@ -67,7 +67,7 @@ All endpoints are under `/api/auth`. Request and response bodies are JSON. Error
 | `POST /api/auth/login` | Public | `{ "username", "password" }` | `204` logged in; `401` invalid credentials; `429` throttled, with `Retry-After` |
 | `POST /api/auth/logout` | Logged in | | `204` |
 | `GET /api/auth/me` | Logged in | | `200 { "username" }`; `401` |
-| `PUT /api/auth/password` | Logged in | `{ "currentPassword", "newPassword" }` | `204`; `400` validation or wrong current password |
+| `PUT /api/auth/password` | Logged in | `{ "currentPassword", "newPassword" }` | `204` password changed and logged out; `400` validation or wrong current password |
 
 **Access rules for everything else**
 
@@ -120,7 +120,7 @@ Integration tests against a real SQLite database:
 - Throttling starts after the fifth failure, doubles up to 60 seconds and resets after a successful login.
 - A session survives an application restart and ends after the inactivity timeout; an unreadable stored session is treated as logged out.
 - Logout ends the session.
-- Password change requires the current password and ends other sessions but not the current one.
+- Password change requires the current password and ends all sessions, including the current one.
 - Protected endpoints return `401` without a session; state-changing requests without the CSRF token return `403`.
 - Validation boundaries for username and password lengths.
 

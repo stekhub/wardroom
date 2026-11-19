@@ -102,11 +102,10 @@ class AccountService {
     }
 
     /**
-     * Changes the password and ends all sessions except the given one.
-     *
-     * @param currentSessionId the session that stays logged in
+     * Changes the password and ends all sessions, including the one that changed it. A copy of a session ID that
+     * somebody else holds is worthless afterwards.
      */
-    void changePassword(String username, String currentPassword, String newPassword, String currentSessionId) {
+    void changePassword(String username, String currentPassword, String newPassword) {
         if (!credentialsMatch(username, currentPassword)) {
             throw new FieldValidationException("currentPassword", "The current password is wrong.");
         }
@@ -115,9 +114,9 @@ class AccountService {
 
         transactionOperations.executeWithoutResult(status -> {
             accountRepository.updatePasswordHash(username, passwordHash);
-            accountRepository.deleteSessionsExcept(currentSessionId);
+            accountRepository.deleteAllSessions();
         });
-        log.info("The password was changed; all other sessions were ended");
+        log.info("The password was changed; all sessions were ended");
     }
 
     /** Always computes one password hash, also for an unknown username or a password that is too long to be valid. */

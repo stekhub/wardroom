@@ -336,8 +336,9 @@ class AuthenticationTest {
     }
 
     @Test
-    void passwordChangeEndsOtherSessionsButNotTheCurrentOne() {
+    void passwordChangeEndsAllSessionsIncludingTheCurrentOne() {
         setUp(browser);
+        String sessionOfThisBrowser = browser.cookieValue(SESSION_COOKIE);
         TestBrowser otherBrowser = new TestBrowser(mvc);
         logIn(otherBrowser, USERNAME, PASSWORD);
         assertThat(otherBrowser.get("/api/auth/me")).hasStatusOk();
@@ -345,11 +346,20 @@ class AuthenticationTest {
         assertThat(browser.put("/api/auth/password", json("currentPassword", PASSWORD, "newPassword", OTHER_PASSWORD)))
                 .hasStatus(HttpStatus.NO_CONTENT);
 
-        assertThat(browser.get("/api/auth/me")).as("the current session stays logged in").hasStatusOk();
+        assertThat(browser.get("/api/auth/me")).as("the browser that changed the password is logged out").hasStatus(
+                HttpStatus.UNAUTHORIZED);
         assertThat(otherBrowser.get("/api/auth/me")).as("the other session has ended").hasStatus(
                 HttpStatus.UNAUTHORIZED);
+        TestBrowser browserWithACopyOfTheSession = new TestBrowser(mvc);
+        browserWithACopyOfTheSession.setCookie(SESSION_COOKIE, sessionOfThisBrowser);
+        assertThat(browserWithACopyOfTheSession.get("/api/auth/me"))
+                .as("a copied session ID of the browser that changed the password is worthless")
+                .hasStatus(HttpStatus.UNAUTHORIZED);
+        assertThat(database.fetchCount(SPRING_SESSION)).isZero();
+
         assertThat(logIn(new TestBrowser(mvc), USERNAME, PASSWORD)).hasStatus(HttpStatus.UNAUTHORIZED);
-        assertThat(logIn(new TestBrowser(mvc), USERNAME, OTHER_PASSWORD)).hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(logIn(browser, USERNAME, OTHER_PASSWORD)).hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(browser.get("/api/auth/me")).hasStatusOk();
     }
 
     // Access rules

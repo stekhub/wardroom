@@ -31,7 +31,7 @@ test('the button is enabled once something was entered', async () => {
   expect(screen.getByRole('button', { name: 'Change password' })).toBeEnabled()
 })
 
-test('changing the password sends both passwords, shows a toast and empties the form', async () => {
+test('changing the password sends both passwords, says so and shows the login page', async () => {
   await openAccountSection()
   let sentBody: unknown
   server.use(
@@ -44,11 +44,10 @@ test('changing the password sends both passwords, shows a toast and empties the 
   await fillIn(PASSWORD, NEW_PASSWORD, NEW_PASSWORD)
   await userEvent.click(screen.getByRole('button', { name: 'Change password' }))
 
-  expect(await screen.findByText('Password changed. Other browsers were logged out.')).toBeVisible()
+  expect(await screen.findByRole('heading', { name: 'Log in' })).toBeVisible()
+  expect(screen.getByText('Password changed. Log in with your new password.')).toBeVisible()
   expect(sentBody).toEqual({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD })
-  expect(screen.getByLabelText('Current password')).toHaveValue('')
-  expect(screen.getByLabelText('New password')).toHaveValue('')
-  expect(screen.getByRole('button', { name: 'Change password' })).toBeDisabled()
+  expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument()
 })
 
 test('a wrong current password is shown at its field', async () => {

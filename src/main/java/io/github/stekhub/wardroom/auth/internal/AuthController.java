@@ -101,8 +101,9 @@ class AuthController {
         return new CurrentAccount(authentication.getName());
     }
 
-    @Operation(summary = "Changes the password and ends all other sessions", operationId = "changePassword")
-    @ApiResponse(responseCode = "204", description = "Password changed")
+    @Operation(summary = "Changes the password and ends all sessions, including the current one",
+            operationId = "changePassword")
+    @ApiResponse(responseCode = "204", description = "Password changed and logged out")
     @ApiResponse(responseCode = "400", description = "The current password is wrong or the new one breaks a rule",
             content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
     @PutMapping("/password")
@@ -110,7 +111,9 @@ class AuthController {
     void changePassword(@Valid @RequestBody PasswordChangeRequest passwordChangeRequest,
             Authentication authentication, HttpServletRequest request) {
         accountService.changePassword(authentication.getName(), passwordChangeRequest.currentPassword(),
-                passwordChangeRequest.newPassword(), request.getSession().getId());
+                passwordChangeRequest.newPassword());
+        endSession(request);
+        SecurityContextHolder.clearContext();
     }
 
     /**

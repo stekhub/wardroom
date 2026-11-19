@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { api } from '@/api/client'
 import { problemMessage, UNEXPECTED_ERROR } from '@/api/problem'
-import { useAuthState } from '@/auth/authState'
+import { useAuthState, useShowLoginPage } from '@/auth/authState'
 import { newPasswordRule, PASSWORDS_DIFFER } from '@/auth/rules'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
@@ -23,13 +23,16 @@ const passwordForm = z
 
 type PasswordForm = z.infer<typeof passwordForm>
 
-/** The settings section "Account": changing the password (spec 001). */
+/**
+ * The settings section "Account": changing the password (spec 001). A changed password logs out
+ * everywhere, also here, so the login page follows.
+ */
 export function AccountSection() {
   const authState = useAuthState()
+  const showLoginPage = useShowLoginPage()
   const {
     register,
     handleSubmit,
-    reset,
     setError,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<PasswordForm>({
@@ -42,8 +45,9 @@ export function AccountSection() {
       body: { currentPassword: form.currentPassword, newPassword: form.newPassword },
     })
     if (response.ok) {
-      reset()
-      toast.success('Password changed. Other browsers were logged out.')
+      // The backend has ended all sessions, this one included (spec 001).
+      toast.success('Password changed. Log in with your new password.')
+      showLoginPage()
       return
     }
     if (response.status === 400) {

@@ -49,8 +49,4 @@ class AccountRepository {
     void deleteAllSessions() {
         database.deleteFrom(SPRING_SESSION).execute();
     }
-
-    void deleteSessionsExcept(String sessionId) {
-        database.deleteFrom(SPRING_SESSION).where(SPRING_SESSION.SESSION_ID.ne(sessionId)).execute();
-    }
 }

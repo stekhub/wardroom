@@ -41,7 +41,19 @@ export function useAuthState() {
   })
 }
 
-/** Asks the backend again, after a login, a logout or a session that ended. */
+/**
+ * Shows the login page after the backend has ended the session, and forgets everything that was
+ * loaded for the account.
+ */
+export function useShowLoginPage() {
+  const queryClient = useQueryClient()
+  return useCallback(() => {
+    queryClient.setQueryData<AuthState>(AUTH_STATE_KEY, { status: 'anonymous' })
+    queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== AUTH_STATE_KEY[0] })
+  }, [queryClient])
+}
+
+/** Asks the backend again, after a login or a session that ended. */
 export function useRefreshAuthState() {
   const queryClient = useQueryClient()
   return useCallback(

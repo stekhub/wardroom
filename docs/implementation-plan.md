@@ -154,6 +154,7 @@ Decisions made during the step, open to a veto:
 - Logins are checked one after the other, so parallel attempts cannot get around the throttling.
 - A password that is too long to be valid is answered like a wrong password (`401`), not with `400`.
 - A wrong current password at the password change is not throttled. Spec 001 only throttles the login.
+- Changed in the review: a password change ends all sessions, including the current one, and the owner logs in again. Before, the current session stayed logged in, and a copy of its session ID in other hands would have stayed valid. Spec 001 was changed accordingly.
 - Validation errors of all endpoints have one shape: `detail` is the first failed rule, and `errors` lists every failed field with its rule.
 - Files below `/assets` may be kept by the browser for a year, because their names change with their content. Everything else is checked with the server on every page load.
 - The settings navigation shows all six sections of the UI concept. A section whose feature is not built yet says so.

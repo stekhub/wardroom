@@ -1,10 +1,9 @@
-import { useQueryClient } from '@tanstack/react-query'
 import { LogOut } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
 import { toast } from 'sonner'
 import { api } from '@/api/client'
 import { UNEXPECTED_ERROR } from '@/api/problem'
-import { AUTH_STATE_KEY, type AuthState } from '@/auth/authState'
+import { useShowLoginPage } from '@/auth/authState'
 import { PageHeader } from '@/pages/PageHeader'
 import { SETTINGS_SECTIONS } from '@/settings/sections'
 
@@ -16,14 +15,12 @@ const navigationEntry =
  * the right. The section is part of the URL. "Log out" is an action at the end, not a section.
  */
 export function SettingsPage() {
-  const queryClient = useQueryClient()
+  const showLoginPage = useShowLoginPage()
 
   async function logOut() {
     const { response } = await api.POST('/api/auth/logout')
     if (response.ok || response.status === 401) {
-      // The login page is shown, and nothing that was loaded for the account stays in the browser's memory.
-      queryClient.setQueryData<AuthState>(AUTH_STATE_KEY, { status: 'anonymous' })
-      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== AUTH_STATE_KEY[0] })
+      showLoginPage()
       return
     }
     toast.error(UNEXPECTED_ERROR)
