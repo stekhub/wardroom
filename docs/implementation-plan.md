@@ -111,6 +111,7 @@ Wardroom can first be used for reading after step 11.
 ### 15. Polish and documentation
 
 - Quick switcher (`Ctrl+K` / `⌘K`), settings section "About", accessibility pass against WCAG 2.2 AA.
+- Shorter sessions without "Remember me" (decided by the owner, part of the MVP): a session from a login without "Remember me", and the session after setup, ends after 30 minutes of inactivity. A session with "Remember me" keeps the 7 days. The server enforces both, so the option no longer depends on the browser dropping the cookie. Change spec 001 with the implementation. To be decided then: whether requests the open page sends on its own count as activity, and how an article that is being written survives a session that ended (spec 009).
 - Application version in backup names (ADR 0032): store the version at every start, name the backup after the stored version, log both versions, and adapt the cleanup of old backups to the new file name. Add the section on going back to an earlier version to the user guide.
 - README: introduction, quick start with the reference Compose file, first-run wizard, link list to the user guide (ADR 0031).
 - User guide (`docs/user-guide.md`): backups, updates, password reset (spec 001), lost key file (spec 002), and an advanced section on keeping the encryption key outside `/config` (ADR 0025, 0031).
@@ -150,6 +151,7 @@ Decisions made during the step, open to a veto:
 - Username: surrounding whitespace is removed at setup and at login. Apart from that, the username is stored as entered and compared exactly, including upper and lower case. Spec 001 says "stored as entered" and "after trimming"; this is how both were read.
 - Lengths of username and password are counted in characters, not in bytes. An emoji is one character.
 - Changed in the review: a session ends after 7 days of inactivity instead of 30, and the login page has the option "Remember me". Without it the session cookie ends with the browser session; with it the browser keeps the cookie and the server enforces the 7 days. Before, there was no such option and every cookie was kept for 400 days. Spec 001 was changed accordingly.
+- Also decided in the review, for step 15: a session without "Remember me" will end after 30 minutes of inactivity. Until then it ends after 7 days like every session.
 - A login always gets a new session; a session the browser had before is ended.
 - Logins are checked one after the other, so parallel attempts cannot get around the throttling.
 - A password that is too long to be valid is answered like a wrong password (`401`), not with `400`.
