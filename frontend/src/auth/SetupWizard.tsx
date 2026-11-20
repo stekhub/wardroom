@@ -7,12 +7,10 @@ import { problemMessage, UNEXPECTED_ERROR } from '@/api/problem'
 import { useRefreshAuthState } from '@/auth/authState'
 import { EntryPage } from '@/auth/EntryPage'
 import { newPasswordRule, PASSWORDS_DIFFER, usernameRule } from '@/auth/rules'
+import { WizardSteps } from '@/auth/WizardSteps'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
-
-const WIZARD_STEPS = ['Account', 'Server'] as const
 
 const accountForm = z
   .object({
@@ -27,40 +25,9 @@ const accountForm = z
 
 type AccountForm = z.infer<typeof accountForm>
 
-/** The step indicator of the first-run wizard: 1 Account · 2 Server (UI concept). */
-function WizardSteps({ current }: { current: (typeof WIZARD_STEPS)[number] }) {
-  return (
-    <ol aria-label="Setup steps" className="flex items-center justify-center gap-3 text-sm">
-      {WIZARD_STEPS.map((step, index) => {
-        const isCurrent = step === current
-        return (
-          <li
-            key={step}
-            aria-current={isCurrent ? 'step' : undefined}
-            className={cn(
-              'flex items-center gap-2',
-              isCurrent ? 'font-medium text-foreground' : 'text-muted-foreground',
-            )}
-          >
-            <span
-              className={cn(
-                'flex size-6 items-center justify-center rounded-full text-xs',
-                isCurrent ? 'bg-primary text-primary-foreground' : 'bg-muted',
-              )}
-            >
-              {index + 1}
-            </span>
-            {step}
-          </li>
-        )
-      })}
-    </ol>
-  )
-}
-
 /**
  * Step 1 of the first-run wizard: the account (spec 001). Completing it creates the account and
- * logs in. Step 2, the server, belongs to the server configuration.
+ * logs in. Step 2, the server, follows as soon as the owner is logged in.
  */
 export function SetupWizard() {
   const refreshAuthState = useRefreshAuthState()

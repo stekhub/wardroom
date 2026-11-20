@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/shell/AppSidebar'
+import { CredentialsNotice } from '@/shell/CredentialsNotice'
 
 /** The sidebar component remembers in this cookie whether the owner collapsed it. */
 function sidebarWasCollapsed(): boolean {
@@ -17,6 +18,7 @@ export function AppShell() {
         <div className="p-2 md:hidden">
           <SidebarTrigger />
         </div>
+        <CredentialsNotice />
         <Outlet />
       </SidebarInset>
     </SidebarProvider>

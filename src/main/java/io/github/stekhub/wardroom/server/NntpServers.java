@@ -1,0 +1,27 @@
+package io.github.stekhub.wardroom.server;
+
+import io.github.stekhub.wardroom.nntp.NntpException;
+import io.github.stekhub.wardroom.nntp.NntpServerSettings;
+import java.util.Optional;
+
+/**
+ * What other modules need from the configured NNTP server to talk to it (spec 002).
+ */
+public interface NntpServers {
+
+    /**
+     * Returns the settings of a server in the form the NNTP adapter takes. The stored password is decrypted for
+     * this call and not kept anywhere; the caller hands the settings to the adapter and does not keep them either.
+     *
+     * @return the settings, or empty when no server has this ID
+     * @throws NntpException with the type {@code AUTH_FAILED} when the stored password cannot be decrypted. The
+     *                       credentials of the server are then marked as invalid
+     */
+    Optional<NntpServerSettings> connectionSettings(long serverId);
+
+    /**
+     * Records that the server rejected the stored credentials ({@code 481}, ADR 0006). The owner is asked to enter
+     * them again; saving new credentials clears the mark.
+     */
+    void markCredentialsInvalid(long serverId);
+}

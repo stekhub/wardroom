@@ -1,6 +1,76 @@
 {
   "components" : {
     "schemas" : {
+      "ConnectionTestFailure" : {
+        "properties" : {
+          "message" : {
+            "description" : "Names the cause; never contains credentials",
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "UNREACHABLE", "TIMEOUT", "TLS_CERTIFICATE", "TLS_HANDSHAKE", "AUTH_FAILED", "SERVER_REFUSED", "PROTOCOL" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "message", "type" ],
+        "type" : "object"
+      },
+      "ConnectionTestRequest" : {
+        "properties" : {
+          "authMethod" : {
+            "enum" : [ "NONE", "USER_PASS" ],
+            "type" : "string"
+          },
+          "host" : {
+            "type" : "string"
+          },
+          "id" : {
+            "description" : "The stored server whose password is used when the password is empty or absent",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "maxConnections" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "password" : {
+            "type" : "string"
+          },
+          "port" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "tlsMode" : {
+            "enum" : [ "IMPLICIT", "NONE" ],
+            "type" : "string"
+          },
+          "username" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "authMethod", "host", "maxConnections", "name", "port", "tlsMode" ],
+        "type" : "object"
+      },
+      "ConnectionTestResult" : {
+        "properties" : {
+          "failure" : {
+            "$ref" : "#/components/schemas/ConnectionTestFailure",
+            "description" : "null on success"
+          },
+          "postingAllowed" : {
+            "description" : "Whether the server offers posting; null when the test failed",
+            "type" : "boolean"
+          },
+          "success" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "success" ],
+        "type" : "object"
+      },
       "CurrentAccount" : {
         "properties" : {
           "username" : {
@@ -64,6 +134,104 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "SavedServer" : {
+        "properties" : {
+          "connectionTest" : {
+            "$ref" : "#/components/schemas/ConnectionTestResult",
+            "description" : "The server is saved also when this test failed"
+          },
+          "server" : {
+            "$ref" : "#/components/schemas/Server"
+          }
+        },
+        "required" : [ "connectionTest", "server" ],
+        "type" : "object"
+      },
+      "Server" : {
+        "properties" : {
+          "authMethod" : {
+            "enum" : [ "NONE", "USER_PASS" ],
+            "type" : "string"
+          },
+          "credentialsInvalid" : {
+            "description" : "The server rejected the stored credentials, or the stored password can no longer be read; the owner has to enter them again",
+            "type" : "boolean"
+          },
+          "host" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "maxConnections" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "passwordStored" : {
+            "description" : "Whether a password is stored; the password itself is never returned",
+            "type" : "boolean"
+          },
+          "port" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "tlsMode" : {
+            "enum" : [ "IMPLICIT", "NONE" ],
+            "type" : "string"
+          },
+          "username" : {
+            "description" : "null unless the authentication is USER_PASS",
+            "type" : "string"
+          }
+        },
+        "required" : [ "authMethod", "credentialsInvalid", "host", "id", "maxConnections", "name", "passwordStored", "port", "tlsMode" ],
+        "type" : "object"
+      },
+      "ServerRequest" : {
+        "properties" : {
+          "authMethod" : {
+            "description" : "USER_PASS needs the TLS mode IMPLICIT",
+            "enum" : [ "NONE", "USER_PASS" ],
+            "type" : "string"
+          },
+          "host" : {
+            "description" : "Host name or IP address, 1 to 253 characters",
+            "type" : "string"
+          },
+          "maxConnections" : {
+            "description" : "1 to 50",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "description" : "1 to 64 characters; surrounding whitespace is removed",
+            "type" : "string"
+          },
+          "password" : {
+            "description" : "1 to 255 characters. Needed for USER_PASS when no password is stored; empty or absent keeps the stored one",
+            "type" : "string"
+          },
+          "port" : {
+            "description" : "1 to 65535",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "tlsMode" : {
+            "enum" : [ "IMPLICIT", "NONE" ],
+            "type" : "string"
+          },
+          "username" : {
+            "description" : "Needed for USER_PASS, 1 to 255 characters",
+            "type" : "string"
+          }
+        },
+        "required" : [ "authMethod", "host", "maxConnections", "name", "port", "tlsMode" ],
         "type" : "object"
       },
       "SetupRequest" : {
@@ -263,6 +431,211 @@
         },
         "summary" : "Creates the account and logs in",
         "tags" : [ "Authentication" ]
+      }
+    },
+    "/api/servers" : {
+      "get" : {
+        "operationId" : "listServers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/Server"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The configured servers"
+          }
+        },
+        "summary" : "Lists the servers: none or one",
+        "tags" : [ "Servers" ]
+      },
+      "post" : {
+        "operationId" : "createServer",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ServerRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SavedServer"
+                }
+              }
+            },
+            "description" : "Saved, also when the connection test failed"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "A field breaks a rule"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "A server already exists"
+          }
+        },
+        "summary" : "Adds the server and tests the connection",
+        "tags" : [ "Servers" ]
+      }
+    },
+    "/api/servers/connection-test" : {
+      "post" : {
+        "operationId" : "testServerConnection",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ConnectionTestRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConnectionTestResult"
+                }
+              }
+            },
+            "description" : "The result; a failed test is a result, not an error"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "A field breaks a rule"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No server has the given ID"
+          }
+        },
+        "summary" : "Tests a connection with the given values without saving them",
+        "tags" : [ "Servers" ]
+      }
+    },
+    "/api/servers/{serverId}" : {
+      "delete" : {
+        "operationId" : "deleteServer",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "serverId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Removed"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No server has this ID"
+          }
+        },
+        "summary" : "Removes the server and everything that belongs to it",
+        "tags" : [ "Servers" ]
+      },
+      "put" : {
+        "operationId" : "updateServer",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "serverId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ServerRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SavedServer"
+                }
+              }
+            },
+            "description" : "Saved, also when the connection test failed"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "A field breaks a rule"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No server has this ID"
+          }
+        },
+        "summary" : "Changes the server and tests the connection",
+        "tags" : [ "Servers" ]
       }
     }
   },
