@@ -411,6 +411,34 @@ class ServerEndpointsTest {
     }
 
     @Test
+    void incompleteCapabilityListLeavesPostingToTheGreeting() throws IOException {
+        try (MockNntpServer sparseServer = MockNntpServer.start()) {
+            sparseServer.on("CAPABILITIES").reply("101 Capabilities list:", "VERSION 1", "AUTHINFO USER PASS", ".");
+
+            assertThat(browser.post("/api/servers/connection-test",
+                    json(with(serverWithoutLogin(), "port", sparseServer.port()))))
+                    .bodyJson().extractingPath("$.postingAllowed").isEqualTo(true);
+
+            sparseServer.greeting().reply("201 Ready, no posting");
+            assertThat(browser.post("/api/servers/connection-test",
+                    json(with(serverWithoutLogin(), "port", sparseServer.port()))))
+                    .bodyJson().extractingPath("$.postingAllowed").isEqualTo(false);
+        }
+    }
+
+    @Test
+    void completeCapabilityListWithoutPostMeansNoPosting() throws IOException {
+        try (MockNntpServer readOnlyServer = MockNntpServer.start()) {
+            readOnlyServer.on("CAPABILITIES").reply("101 Capability list:", "VERSION 2", "READER", ".");
+
+            assertThat(browser.post("/api/servers/connection-test",
+                    json(with(serverWithoutLogin(), "port", readOnlyServer.port()))))
+                    .as("the greeting says 200, the capability list is the newer and more exact answer")
+                    .bodyJson().extractingPath("$.postingAllowed").isEqualTo(false);
+        }
+    }
+
+    @Test
     void unreachableServerIsReported() throws IOException {
         assertFailedTest(with(serverWithoutLogin(), "port", closedPort()), "UNREACHABLE");
     }

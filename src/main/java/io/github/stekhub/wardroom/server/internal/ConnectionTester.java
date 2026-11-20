@@ -41,12 +41,17 @@ class ConnectionTester {
     }
 
     /**
-     * A server that lists its capabilities says there whether this client may post. An older server says it only
-     * in its greeting.
+     * Whether the server offers posting. A capability list that names {@code POST} says so. A list that names
+     * {@code READER} but not {@code POST} is a complete list of a server that does not offer posting. Every other
+     * server is judged by its greeting: older servers have no capability list, and some servers send a list that
+     * names only a few of the things they can do.
      */
     private static boolean postingAllowed(NntpClient client) {
         NntpCapabilities capabilities = client.capabilities();
-        return capabilities.supported() ? capabilities.has("POST") : client.postingAllowedByGreeting();
+        if (capabilities.has("POST")) {
+            return true;
+        }
+        return !capabilities.has("READER") && client.postingAllowedByGreeting();
     }
 
     /** The adapter knows more failure types than the result of the connection test has (spec 002). */

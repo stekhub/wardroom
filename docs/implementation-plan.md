@@ -152,7 +152,7 @@ What was built:
 Decisions made during the step, open to a veto:
 
 - `CONNECTION_LOST` in the connection test (left open in step 2): a server that closes the connection during the test is reported as `SERVER_REFUSED`. Spec 002 keeps its seven failure types. The other choice is an eighth type in the spec.
-- The connection test result has a third field, `postingAllowed`. Spec 002 requires that the result reports this but shows no field for it. A server that lists its capabilities is asked there; an older server says it in its greeting.
+- The connection test result has a third field, `postingAllowed`. Spec 002 requires that the result reports this but shows no field for it. Posting is offered when the capability list names `POST`. A list that names `READER` but not `POST` means no posting. In every other case the greeting decides (`200` or `201`).
 - The connection test of the form answers `404` when the given `id` does not exist. Spec 002 lists only `200` and `400` for this endpoint.
 - Where the password is decrypted. Spec 002 says only the NNTP adapter decrypts. Since step 2 the adapter takes the password in clear text in its settings. The server module therefore decrypts at the moment it builds these settings, and nobody keeps them. Following the spec literally would move the key into the NNTP module.
 - Credentials are marked as invalid in three cases: the server answers `481` to the test that runs with saving; another module reports a `481` through `NntpServers`; the stored password cannot be decrypted. The mark is cleared when new credentials are saved, and when a test that runs with saving logs in successfully. The test of the form alone, without saving, never changes the mark.
@@ -169,6 +169,7 @@ Decisions made during the step, open to a veto:
 Findings:
 
 - On the development machine, a connection test with `localhost:119` was answered with `400` although nothing of Wardroom listens there. The security software of the machine handles that port. This does not affect Wardroom.
+- Found by the owner with a real server: its capability list names only `VERSION 1` and `AUTHINFO USER PASS`, although it offers reading and posting. A capability list can therefore be incomplete. The posting rule above was changed for this. Step 5 must not rely on the list either when it decides about `MODE READER`, `LIST` and `OVER`.
 - A toast stays as long as the mouse is over it. In a narrow window it covered the "Remove server" button at the right edge, so the button is now next to the other two.
 
 Left for later steps:
