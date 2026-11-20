@@ -1,8 +1,13 @@
 package io.github.stekhub.wardroom.groups.internal;
 
+import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE;
+import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE_LOCATION;
 import static io.github.stekhub.wardroom.jooq.Tables.NEWSGROUP;
 import static io.github.stekhub.wardroom.jooq.Tables.NNTP_SERVER;
+import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
 import static io.github.stekhub.wardroom.jooq.Tables.SPRING_SESSION;
+import static io.github.stekhub.wardroom.jooq.Tables.SUBSCRIPTION;
+import static io.github.stekhub.wardroom.jooq.Tables.SYNCED_RANGE;
 import static io.github.stekhub.wardroom.jooq.Tables.WARDROOM_USER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -32,6 +37,11 @@ final class GroupListTestSupport {
 
     /** Empties the tables and creates the account. */
     static TestBrowser loggedInOwner(MockMvcTester mvc, DSLContext database) {
+        database.deleteFrom(READ_STATE).execute();
+        database.deleteFrom(ARTICLE_LOCATION).execute();
+        database.deleteFrom(ARTICLE).execute();
+        database.deleteFrom(SYNCED_RANGE).execute();
+        database.deleteFrom(SUBSCRIPTION).execute();
         database.deleteFrom(NEWSGROUP).execute();
         database.deleteFrom(NNTP_SERVER).execute();
         database.deleteFrom(SPRING_SESSION).execute();

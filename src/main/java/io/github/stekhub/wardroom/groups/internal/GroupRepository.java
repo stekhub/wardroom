@@ -1,6 +1,7 @@
 package io.github.stekhub.wardroom.groups.internal;
 
 import static io.github.stekhub.wardroom.jooq.Tables.NEWSGROUP;
+import static io.github.stekhub.wardroom.jooq.Tables.SUBSCRIPTION;
 
 import io.github.stekhub.wardroom.nntp.NntpActiveGroup;
 import io.github.stekhub.wardroom.nntp.NntpGroupDescription;
@@ -34,7 +35,8 @@ class GroupRepository {
      *
      * @param description {@code null} when the server gave none
      */
-    record StoredGroup(long id, String name, String description, PostingStatus postingStatus) {
+    record StoredGroup(long id, String name, String description, PostingStatus postingStatus,
+                       boolean subscribed) {
     }
 
     /** Which groups changed their place in the list of the server at the end of a refresh. */
@@ -130,14 +132,16 @@ class GroupRepository {
      * @return one page of the groups the server still has, ordered by name
      */
     List<StoredGroup> findPage(long serverId, List<String> searchWords, long offset, int size) {
-        return database.select(NEWSGROUP.ID, NEWSGROUP.NAME, NEWSGROUP.DESCRIPTION, NEWSGROUP.POSTING_STATUS)
+        return database.select(NEWSGROUP.ID, NEWSGROUP.NAME, NEWSGROUP.DESCRIPTION, NEWSGROUP.POSTING_STATUS,
+                        SUBSCRIPTION.ID)
                 .from(NEWSGROUP)
+                .leftJoin(SUBSCRIPTION).on(SUBSCRIPTION.NEWSGROUP_ID.eq(NEWSGROUP.ID))
                 .where(listedAndMatching(serverId, searchWords))
                 .orderBy(NEWSGROUP.NAME)
                 .limit(size)
                 .offset(offset)
                 .fetch(row -> new StoredGroup(row.value1(), row.value2(), row.value3(),
-                        PostingStatus.valueOf(row.value4())));
+                        PostingStatus.valueOf(row.value4()), row.value5() != null));
     }
 
     /** @return how many groups {@link #findPage(long, List, long, int)} has over all pages */

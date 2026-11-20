@@ -45,6 +45,7 @@ Wardroom aims for a modern, clean look comparable to current web applications.
 
 - **Components:** shadcn/ui throughout, with one set of design tokens (colors, radii, spacing) defined once in Tailwind. One accent color; everything else neutral.
 - **Typography:** Inter, bundled with the application (no font is loaded from elsewhere). Article text uses a comfortable line length: the thread page's content column is at most 768 px wide.
+- **Content width:** the discover view, the group view and the thread page show their content in one column of at most 768 px, centered in the area next to the sidebar. The column keeps its width when the sidebar is collapsed. The settings page is not centered.
 - **Surfaces:** cards with rounded corners, a light border and a soft shadow on hover; generous whitespace.
 - **Logo:** the files in `assets/logo/`. The application uses the light variant. The favicon is the logo centered on a square canvas.
 - **Icons:** Lucide everywhere. Icon-only buttons have a tooltip and an accessible label.

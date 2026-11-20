@@ -22,8 +22,8 @@ Subscribing and unsubscribing, the subscription list in the sidebar, and marking
 
 - With the subscribe toggle in a discover row or the group header ([UI concept](../../product/ui-concept.md#interaction-rules)). One click, no dialog.
 - Subscribing starts the group's first synchronization immediately, in the background, with the instance's initial depth (ADR 0019).
-- Subscribing to an already subscribed group has no effect.
-- Removed groups cannot be subscribed to.
+- Subscribing to an already subscribed group has no effect, also when the server has removed the group since.
+- Removed groups that are not subscribed cannot be subscribed to.
 
 **Subscription list (sidebar)**
 
@@ -62,7 +62,7 @@ All endpoints require a session and the CSRF token for state-changing requests (
 | Method and path | Request | Responses |
 |---|---|---|
 | `GET /api/subscriptions` | | `200` list of subscriptions |
-| `PUT /api/groups/{id}/subscription` | | `204` subscribed (also if already subscribed); `404` unknown group; `409` group removed |
+| `PUT /api/groups/{id}/subscription` | | `204` subscribed (also if already subscribed, even when the group is removed); `404` unknown group; `409` group removed and not subscribed |
 | `DELETE /api/groups/{id}/subscription` | | `204` unsubscribed (also if not subscribed); `404` unknown group |
 | `POST /api/groups/{id}/mark-all-read` | | `204`; `404` unknown group; `409` not subscribed |
 
@@ -73,12 +73,15 @@ All endpoints require a session and the CSRF token for state-changing requests (
   "groupId": 42,
   "serverId": 1,
   "name": "comp.lang.java.programmer",
+  "description": "Programming in the Java language.",
   "postingStatus": "ALLOWED",
   "removed": false,
   "unreadCount": 12,
   "sync": { "running": false, "lastSyncedAt": 1795000000000, "error": null }
 }
 ```
+
+`description` is `null` when the server gave none. The frontend needs it for the group icon, which is derived from name and description ([Group Icons](../../product/group-icons.md)); so a group has the same icon in the sidebar and in the discover view.
 
 The `subscribed` flag in the group list of [spec 003](../003-newsgroup-discovery/spec.md) uses the same data.
 
@@ -99,7 +102,7 @@ The `subscribed` flag in the group list of [spec 003](../003-newsgroup-discovery
 | Situation | Behavior |
 |---|---|
 | Unknown group ID | `404` |
-| Subscribing to a removed group | `409` |
+| Subscribing to a removed group that is not subscribed | `409` |
 | Mark all as read on a group that is not subscribed | `409` |
 | First synchronization fails | Subscription stays; the sidebar shows the failure icon with the error |
 | Unsubscribe while the group is synchronizing | The synchronization is cancelled; the unsubscribe completes |
@@ -113,7 +116,7 @@ The `subscribed` flag in the group list of [spec 003](../003-newsgroup-discovery
 Integration tests against a real SQLite database and the mock NNTP server (ADR 0008):
 
 - Subscribing stores the subscription and starts the first synchronization; repeating it changes nothing.
-- Subscribing to a removed group returns `409`.
+- Subscribing to a removed group returns `409`; for a removed group that is subscribed already it returns `204`.
 - Unsubscribing removes the group's locations, articles without remaining locations and their read state, and keeps crossposts located in another subscribed group.
 - Unsubscribing during a running synchronization leaves no locations of the group behind.
 - Unread count excludes stubs and read articles and includes expired locations.
