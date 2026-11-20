@@ -52,6 +52,13 @@ public final class TestBrowser {
         return exchange(mvc.get().uri(path));
     }
 
+    /** Sends the query parameters as a browser does: every value is encoded, whatever characters it has. */
+    public MvcTestResult get(String path, Map<String, String> queryParameters) {
+        MockMvcRequestBuilder request = mvc.get().uri(path);
+        queryParameters.forEach(request::queryParam);
+        return exchange(request);
+    }
+
     public MvcTestResult post(String path) {
         return exchange(withCsrfToken(mvc.post().uri(path)));
     }

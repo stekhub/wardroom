@@ -6,6 +6,7 @@ import io.github.stekhub.wardroom.nntp.NntpFailureType;
 import io.github.stekhub.wardroom.nntp.NntpServerSettings;
 import io.github.stekhub.wardroom.server.NntpServers;
 import io.github.stekhub.wardroom.server.ServerCreated;
+import io.github.stekhub.wardroom.server.ServerRemovalCleanup;
 import io.github.stekhub.wardroom.server.internal.ServerFailures.ServerExistsException;
 import io.github.stekhub.wardroom.server.internal.ServerFailures.ServerNotFoundException;
 import io.github.stekhub.wardroom.server.internal.ServerRequests.ConnectionFailureType;
@@ -21,6 +22,7 @@ import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
@@ -40,6 +42,11 @@ class ServerService implements NntpServers {
     private final NntpConnections connections;
     private final TransactionOperations transactionOperations;
     private final ApplicationEventPublisher eventPublisher;
+    /**
+     * Looked up when a server is removed, not when this service is created: the modules that clean up also ask
+     * this service for the settings of the server.
+     */
+    private final ObjectProvider<ServerRemovalCleanup> removalCleanups;
 
     /** Servers are saved one after the other, so two requests at the same time cannot both add a server. */
     private final ReentrantLock saveLock = new ReentrantLock();
@@ -95,10 +102,15 @@ class ServerService implements NntpServers {
         return testAfterSaving(updated, validServer.newPassword());
     }
 
+    /** Removes the server and, in the same transaction, everything other modules store for it. */
     void remove(long serverId) {
-        if (!serverRepository.delete(serverId)) {
-            throw new ServerNotFoundException();
-        }
+        transactionOperations.executeWithoutResult(status -> {
+            if (serverRepository.findById(serverId).isEmpty()) {
+                throw new ServerNotFoundException();
+            }
+            removalCleanups.forEach(removalCleanup -> removalCleanup.removeServerData(serverId));
+            serverRepository.delete(serverId);
+        });
         connections.reset(serverId);
         log.info("The server {} was removed", serverId);
     }

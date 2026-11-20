@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.web.util.DisconnectedClientHelper;
 
 /**
  * Answers every API error as Problem Details (RFC 9457). The base class covers the errors Spring MVC raises itself,
@@ -52,9 +53,18 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     /**
      * An error nobody expected. It is logged with method, path and stack trace (ADR 0029); the response says nothing
      * about the cause, because the message could contain internal details.
+     *
+     * <p>A browser that closes the connection before it has the whole response is not an error of the application:
+     * it happens when a page is reloaded or left. Nobody is there to read an answer, so there is none, and the log
+     * gets one line at {@code DEBUG}.
      */
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
+        if (DisconnectedClientHelper.isClientDisconnectedException(exception)) {
+            log.debug("The client closed the connection during {} {}", LogSafe.escape(request.getMethod()),
+                    LogSafe.escape(request.getRequestURI()));
+            return null;
+        }
         log.error("Unexpected error in {} {}", LogSafe.escape(request.getMethod()),
                 LogSafe.escape(request.getRequestURI()), exception);
         return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,

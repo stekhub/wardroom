@@ -1,0 +1,8 @@
+215 Newsgroups follow
+example.talk 20 1 y
+example.announce 9 3 m
+example.archive 5000000000 1 n
+example.local 0 1 x
+example.junk 11 12 j
+example.alias 0 0 =example.talk
+.

@@ -40,9 +40,18 @@ Fetching and caching article content, extracting and decoding the plain-text bod
 - Line breaks are kept; text wraps to the available width.
 - Quoted lines (starting with `>`) get a colored bar per quote level. Quoted blocks longer than 5 lines are collapsed behind "show quoted text".
 - The signature (everything after a line consisting of `-- `) is shown dimmed.
-- `http` and `https` URLs are clickable and open in a new tab with `rel="noopener noreferrer"`. No other schemes are linked.
+- `http` and `https` URLs are clickable. No other schemes are linked. A click does not open the target itself but the leaving page, see below.
 - A per-article "fixed width" toggle switches to a monospace font for ASCII art and tables; it is not remembered.
 - A per-article "show all headers" toggle shows the stored raw header block.
+
+**Leaving page**
+
+- A link in an article opens the leaving page of Wardroom in a new tab, with `rel="noopener noreferrer"`. The tab with the article keeps its reading position.
+- The page has the path `/leaving` and gets the target address as the query parameter `url`. It needs a login like every other view.
+- It says "You are leaving Wardroom" and shows the complete target address as plain text. The domain is set apart from the rest of the address, because a long address can hide where it leads.
+- "Continue" loads the target in the same tab. "Stay" closes the tab; where the browser does not allow a page to close its tab, it leads to the start page of Wardroom.
+- The page checks the address again. For anything but a valid `http` or `https` address it says "This link cannot be opened" and offers no "Continue".
+- Every link asks. There is no "do not ask again" and no list of trusted sites in the MVP.
 
 **Card excerpt**
 
@@ -101,6 +110,7 @@ Article content is untrusted. Nothing in it is ever executed, rendered as HTML o
 
 - **Not stored, not sent to the browser:** HTML parts, attachments and binary content. Only their name, media type and size are kept, for the notice (ADR 0014). Attachments are never decoded, saved as files or offered for download.
 - **Rendered as text:** the body and all headers are inserted as escaped text. `dangerouslySetInnerHTML` is never used for article data; links are built as React elements from URLs that passed the `http`/`https` check.
+- **Leaving page:** anyone can build a link to it with any target, so it trusts nothing in its address: the target is checked again, shown as text only and never opened without a click. The target site gets no referrer and no handle on a Wardroom tab.
 - **No remote resources:** no images, styles or other resources referenced by an article are loaded.
 - **Content Security Policy** on all pages: scripts only from Wardroom itself, no inline scripts; styles from Wardroom itself and inline, because UI components insert their own styles; images only from Wardroom itself and `data:`; the pages cannot be shown inside a frame. This is a second line of defense if escaping ever fails.
 - **Further headers:** `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` on all responses.
@@ -121,6 +131,8 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 Frontend component tests:
 
 - Quote levels and collapsing, signature, links with only `http`/`https`, `format=flowed` unwrapping, fixed-width toggle.
+- A link in an article leads to the leaving page, not to the target.
+- Leaving page: it shows the target address and its domain; "Continue" leads to the target; an address with another scheme or an invalid one offers no "Continue".
 - Article text containing HTML and script tags is shown literally.
 
 ## Implementation tasks
@@ -131,3 +143,4 @@ Frontend component tests:
 4. Content, retry and read endpoints.
 5. Content Security Policy header.
 6. Frontend: lazy content loading on the thread page, read marking, article text rendering, toggles, author icons, card excerpt.
+7. Frontend: the leaving page.

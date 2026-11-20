@@ -198,6 +198,10 @@ public final class MockNntpServer implements AutoCloseable {
             case DROP -> {
                 return false;
             }
+            case CUT_OFF -> {
+                send(output, reply.data());
+                return false;
+            }
             case SILENCE -> {
                 while (input.read() >= 0) {
                     // Swallow whatever the client sends until it gives up and closes the connection.

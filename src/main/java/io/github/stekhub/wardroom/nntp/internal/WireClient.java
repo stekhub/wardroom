@@ -4,8 +4,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import org.apache.commons.net.io.DotTerminatedMessageReader;
 import org.apache.commons.net.nntp.NNTPClient;
+import org.apache.commons.net.nntp.NNTPConnectionClosedException;
 
 /**
  * The Commons Net client with the one thing it lacks for commands it has no method for, such as
@@ -28,5 +30,23 @@ final class WireClient extends NNTPClient {
             }
         }
         return lines;
+    }
+
+    /**
+     * Hands out the lines that follow the status line one by one, up to the terminating dot, with dot-stuffing
+     * undone. Nothing is collected, so the answer may be of any length.
+     *
+     * @throws NNTPConnectionClosedException when the connection ends before the terminating dot. A reader of the
+     *                                       library would end quietly there, and a list cut short would look complete
+     */
+    void forEachResponseLine(Consumer<String> lineConsumer) throws IOException {
+        String line;
+        while ((line = _reader_.readLine()) != null) {
+            if (line.equals(".")) {
+                return;
+            }
+            lineConsumer.accept(line.startsWith(".") ? line.substring(1) : line);
+        }
+        throw new NNTPConnectionClosedException("The connection ended in the middle of an answer");
     }
 }

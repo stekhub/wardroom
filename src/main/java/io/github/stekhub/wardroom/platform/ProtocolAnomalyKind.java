@@ -7,6 +7,18 @@ package io.github.stekhub.wardroom.platform;
  */
 public enum ProtocolAnomalyKind {
 
+    /** A line of a {@code LIST ACTIVE} response that is not a group name, two numbers and a status. */
+    LIST_ACTIVE_MALFORMED_LINE("list.malformed-active-line"),
+
+    /** A line of a {@code LIST NEWSGROUPS} response that does not start with a group name. */
+    LIST_NEWSGROUPS_MALFORMED_LINE("list.malformed-newsgroups-line"),
+
+    /**
+     * A description in a {@code LIST NEWSGROUPS} response that is the rest of a {@code LIST ACTIVE} line: two numbers
+     * and a status.
+     */
+    LIST_NEWSGROUPS_MALFORMED_DESCRIPTION("list.malformed-description"),
+
     /** A line of an {@code OVER} or {@code XOVER} response that cannot be split into the expected fields. */
     OVERVIEW_MALFORMED_LINE("overview.malformed-line"),
 

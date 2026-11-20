@@ -42,14 +42,34 @@ export const TEST_SERVER: Server = {
   credentialsInvalid: false,
 }
 
+type Group = components['schemas']['Group']
+type GroupListRefreshStatus = components['schemas']['GroupListRefreshStatus']
+
+/** The refresh status of a group list that was fetched and is not being fetched now. */
+export const IDLE_REFRESH: GroupListRefreshStatus = {
+  running: false,
+  groupsReceived: 0,
+  refreshedAt: 1_795_000_000_000,
+}
+
+/** Builds a group as the backend returns it. */
+export function testGroup(id: number, name: string, overrides: Partial<Group> = {}): Group {
+  return { id, name, postingStatus: 'ALLOWED', subscribed: false, ...overrides }
+}
+
 /**
  * The backend with an account, asked by a browser that is logged in. Unless a test says
- * otherwise, a server is configured, so the application itself is shown.
+ * otherwise, a server is configured, so the application itself is shown, and the group list of
+ * the server is empty.
  */
 export function backendLoggedIn(username = 'owner', servers: Server[] = [TEST_SERVER]) {
   server.use(
     http.get('/api/auth/me', () => HttpResponse.json({ username })),
     http.get('/api/servers', () => HttpResponse.json(servers)),
+    http.get('/api/servers/:serverId/groups', () =>
+      HttpResponse.json({ items: [], page: 0, size: 50, total: 0 }),
+    ),
+    http.get('/api/servers/:serverId/groups/refresh', () => HttpResponse.json(IDLE_REFRESH)),
   )
 }
 

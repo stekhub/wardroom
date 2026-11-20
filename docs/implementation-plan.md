@@ -9,8 +9,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 1 | Project skeleton | ADR 0002, 0003, 0004, 0007, 0008, 0009, 0024, 0027, 0028, 0029, 0030 | Done |
 | 2 | NNTP foundation | ADR 0005, 0006, 0016, 0026; open question 1 | Done |
 | 3 | Authentication and application shell | Spec 001; UI concept | Done |
-| 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | In review |
-| 5 | Newsgroup discovery | Spec 003; group icons | Not started |
+| 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | Done |
+| 5 | Newsgroup discovery | Spec 003; group icons | In review |
 | 6 | Subscriptions | Spec 004 | Not started |
 | 7 | Synchronization core | Spec 005 | Not started |
 | 8 | Load older, load more, jump to date | Spec 005; ADR 0021, 0022 | Not started |
@@ -90,7 +90,8 @@ Wardroom can first be used for reading after step 11.
 
 ### 10. Article reading
 
-- Spec 007 completely: content fetch, Mime4j extraction, read marking, Content Security Policy, author icons, excerpts.
+- Spec 007 completely: content fetch, Mime4j extraction, read marking, Content Security Policy, author icons, excerpts, leaving page.
+- Before the links are built: propose to the owner a rule for where a URL in the text ends (a full stop or a closing bracket after it, angle brackets, an address broken over two lines). Spec 007 has none.
 
 ### 11. Discussion view
 
@@ -137,6 +138,71 @@ Wardroom can first be used for reading after step 11.
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 5, newsgroup discovery (2026-11-20)**
+
+What was built:
+
+- NNTP adapter: `LIST ACTIVE` and `LIST NEWSGROUPS`, both read line by line while the answer arrives, and `MODE READER`.
+- Backend: the table `newsgroup` with all columns of the data model, the refresh job, the three endpoints of spec 003 below `/api/servers/{id}/groups`, the search, and the schedule of ADR 0020.
+- Frontend: the group icon function with the tables of Group Icons, and the discover view with search, paging, the refresh button, the progress, the time of the last refresh and the error of the last failed one.
+- Removing the server now deletes its groups. Other modules do this through `ServerRemovalCleanup` of the server module, in the transaction that removes the server.
+
+Decided by the owner:
+
+- Group Icons contradicted itself. The rule says that topic segments are tried from the last to the first, and `programmer` was a keyword of `code-xml`. The example says that `comp.lang.java.programmer` gets `coffee` through `java`. With the rule, it got `code-xml`. Decided: `programmer` is no longer a keyword and is in the list of ignored segments. The example stays.
+
+Found by the owner while testing with a real server:
+
+- The discover view stayed empty until the refresh button was pressed. The server existed before this step, so nothing had fetched its list yet. The view now fetches a list that was never fetched when it is opened.
+- The group icon in a discover row was small next to two lines of text. It is 40 px now; Group Icons says so.
+- The log showed an error with two stack traces when the browser closed the connection while a file of the frontend was sent. The error handler now recognizes this case, writes no answer and logs one line at `DEBUG`.
+- The descriptions showed the group name. See the finding on descriptions below.
+- The search has no index of its own. It reads all groups of the server for every request, once for the page and once for the count. Measured by the owner in the browser against a real server with 111,526 groups: about 90 ms per search. Decided: good enough for now. If it gets too slow, the first step is to count only when the search text changes, the second a full-text index in a new migration.
+
+Decisions made during the step, open to a veto:
+
+- `MODE READER` (left open in step 2): it is sent once per connection, before the first reading command, unless the capability list names `READER`. `200` and `201` confirm it; a server that does not know the command is read anyway; `502` and `480` fail the action. The connection test does not send it, so its commands are unchanged.
+- `LIST NEWSGROUPS` is left out only when the capability list has a `LIST` line that does not name `NEWSGROUPS`. A list without a `LIST` line may be incomplete (finding of step 4), and a server without a capability list is asked as well. Spec 003 says "unless `CAPABILITIES` shows the server does not support it".
+- The interval of the scheduled refresh is fixed at 24 hours, the default of `sync.group_list_interval_hours`. The setting itself and the table `app_setting` come with the settings section "Synchronization" in step 7.
+- The schedule looks once a minute for group lists that are due. After a restart, the time of a failed refresh is not known any more, so a list that is due is fetched at the first look.
+- The schedule leaves a server alone while its credentials are invalid. Every attempt would be another rejected login.
+- Every failed refresh is followed by a scheduled attempt one hour later, also a failed manual one. ADR 0020 names the failed scheduled refresh.
+- Response `480` (login required) to a reading command is reported as "the server refused", with the message "The server requires a login". It does not mark the credentials as invalid; that stays reserved for a rejected login.
+- The search text may have at most 200 characters; a longer one is answered with `400`. Spec 003 has no limit.
+- `page` below 0 and `size` outside 1 to 100 are answered with `400`, with field and rule. Spec 003 lists only `200` and `404` for this endpoint.
+- `groupsReceived` in the refresh status keeps the number of the last refresh after it has ended, and is 0 after a restart.
+- `subscribed` is `false` for every group until step 6.
+- A group that the server lists twice is stored once. A description without text does not replace a stored description. A description for a group that is not in the group list is ignored.
+- Group names are decoded like descriptions: UTF-8, otherwise ISO-8859-1.
+- New protocol anomaly kinds: `list.malformed-active-line`, `list.malformed-newsgroups-line` and `list.malformed-description`.
+- The property `wardroom.group-list.automatic-refresh` switches off the refresh for a new server and the schedule. It exists for the tests of other features, which would otherwise find unexpected connections on their mock servers. It is not documented for people who run Wardroom.
+- Frontend: search text and page are part of the URL (`/discover?q=java&page=2`), so the back button and bookmarks work. The search starts 300 ms after the last key press.
+- Frontend: a group shows the badge "Moderated" or "No posting"; a group that allows posting shows none. The subscribe toggle comes with step 6.
+- Frontend, asked for by the owner in the review: when the discover view is opened and the group list was never fetched, the view starts the fetch itself. It does not do so after a failed fetch or while the credentials are invalid; then the owner presses the button. Before, a server that existed already had no list until the schedule looked, one minute after the start.
+- Frontend: while a refresh runs, the status is asked for once a second. The list on the page is loaded again when the refresh ends, not while it runs.
+- Group icons: a name that consists of a country hierarchy alone, such as `de`, keeps it as its hierarchy.
+
+Findings:
+
+- A transaction that read first and wrote later failed when another request had written in between (`SQLITE_BUSY_SNAPSHOT`). SQLite does not wait in that case. The test with 100,000 groups found it: marking removed groups collided with the session update of a status request. Every transaction now takes the write lock when it begins and waits for it up to the busy timeout. This also covers adding a server, which reads before it writes.
+- A reader of the NNTP library ends quietly when the connection closes in the middle of a multi-line answer. A list cut short would look complete, and groups would be marked as removed. The adapter reads the lines itself and reports a lost connection.
+- A real server sent no real description for any of its groups. For most groups the description was the group name; for about 1,900 groups of the classic hierarchies it was the rest of a `LIST ACTIVE` line, such as `0000015957 0000000001 y`. Decided by the owner: both count as no description, and the second is logged as a protocol anomaly. Spec 003 says so now. The raw lines were not kept, so that the server sent them this way is concluded from the stored data, not seen on the connection.
+- Lucide has renamed four icons of the keyword table: `circle-help` to `circle-question-mark`, `laugh` to `face-grinning`, `music` to `eighth-notes`, `waves` to `waves-horizontal`. The table in Group Icons has the new names.
+- The server service and the cleanup of the groups module need each other, so the service looks the cleanups up when a server is removed, not when it is created.
+- New frontend component from shadcn/ui: `badge`.
+
+Left for later steps:
+
+- The subscribe toggle in the discover rows, and `subscribed` in the group list (step 6).
+- The setting `sync.group_list_interval_hours` and its field in the settings section "Synchronization" (step 7).
+- The quick switcher searches the discover view (step 15).
+
+Not verified:
+
+- By hand, the feature was tried with the built jar against a small local server without TLS: 8,400 groups, a list that breaks off, and a list with half of the groups. The refresh against a real server was tried by the owner, not by the author of the code.
+- The contrast of the twelve circle colors against the white symbol was calculated from the color values, not measured in a browser. The lowest value is about 3.2:1.
+- The image build.
 
 **Step 4, server configuration and first-run wizard (2026-11-20)**
 

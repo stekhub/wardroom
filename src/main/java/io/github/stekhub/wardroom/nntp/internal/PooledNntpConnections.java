@@ -80,6 +80,11 @@ class PooledNntpConnections implements NntpConnections, DisposableBean {
     }
 
     @Override
+    public <T> T backgroundWithoutRetry(NntpServerSettings serverSettings, NntpAction<T> action) {
+        return execute(singleAttemptTemplate, serverSettings, false, action);
+    }
+
+    @Override
     public <T> T interactive(NntpServerSettings serverSettings, NntpAction<T> action) {
         return execute(retryTemplate, serverSettings, true, action);
     }

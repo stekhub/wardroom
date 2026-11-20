@@ -1,9 +1,11 @@
 package io.github.stekhub.wardroom.nntp.internal;
 
+import io.github.stekhub.wardroom.nntp.NntpActiveGroup;
 import io.github.stekhub.wardroom.nntp.NntpCapabilities;
 import io.github.stekhub.wardroom.nntp.NntpClient;
 import io.github.stekhub.wardroom.nntp.NntpException;
 import io.github.stekhub.wardroom.nntp.NntpFailureType;
+import io.github.stekhub.wardroom.nntp.NntpGroupDescription;
 import io.github.stekhub.wardroom.nntp.NntpServerSettings;
 import io.github.stekhub.wardroom.nntp.NntpTlsMode;
 import io.github.stekhub.wardroom.platform.LogSafe;
@@ -16,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import javax.net.ssl.SSLContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.net.MalformedServerReplyException;
@@ -27,6 +30,8 @@ final class CommonsNetClient implements NntpClient {
     private static final int POSTING_ALLOWED = 200;
     private static final int POSTING_PROHIBITED = 201;
     private static final int CAPABILITY_LIST = 101;
+    private static final int LIST_FOLLOWS = 215;
+    private static final int AUTHENTICATION_REQUIRED = 480;
     private static final int AUTHENTICATION_ACCEPTED = 281;
     private static final int PASSWORD_REQUIRED = 381;
     private static final int AUTHENTICATION_FAILED = 481;
@@ -36,6 +41,7 @@ final class CommonsNetClient implements NntpClient {
     private static final int QUIT_TIMEOUT_MILLIS = 5_000;
     private static final int MESSAGE_LINE_MAX_LENGTH = 200;
     private static final String ACTION_CONNECTION_CLOSED = "connection-closed";
+    private static final String ACTION_SKIPPED = "skipped";
 
     private final NntpServerSettings serverSettings;
     private final WireClient wireClient = new WireClient();
@@ -43,6 +49,7 @@ final class CommonsNetClient implements NntpClient {
 
     private NntpCapabilities capabilities = NntpCapabilities.unsupported();
     private boolean postingAllowedByGreeting;
+    private boolean readerModeEnsured;
     private boolean broken;
     private boolean closed;
 
@@ -154,6 +161,131 @@ final class CommonsNetClient implements NntpClient {
         return postingAllowedByGreeting;
     }
 
+    @Override
+    public void listActive(Consumer<NntpActiveGroup> groupConsumer) {
+        ensureReaderMode();
+        String command = "LIST ACTIVE";
+        int responseCode = send(command, "LIST", "ACTIVE");
+        switch (responseCode) {
+            case LIST_FOLLOWS -> {
+            }
+            case AUTHENTICATION_REQUIRED -> throw loginRequired();
+            case ACCESS_DENIED -> throw refused();
+            default -> throw unexpectedResponse(command);
+        }
+        readList(command, line -> {
+            NntpActiveGroup group = parseActiveGroup(line);
+            if (group == null) {
+                reportSkippedLine(ProtocolAnomalyKind.LIST_ACTIVE_MALFORMED_LINE, command, line);
+            } else {
+                groupConsumer.accept(group);
+            }
+        });
+    }
+
+    @Override
+    public boolean listNewsgroups(Consumer<NntpGroupDescription> descriptionConsumer) {
+        ensureReaderMode();
+        String command = "LIST NEWSGROUPS";
+        if (send(command, "LIST", "NEWSGROUPS") != LIST_FOLLOWS) {
+            // A server does not have to offer descriptions (spec 003).
+            log.debug("NNTP server={} rejected {}: {}", serverSettings.serverId(), command, replyLine());
+            return false;
+        }
+        readList(command, line -> {
+            NntpGroupDescription description = parseGroupDescription(line);
+            if (description == null) {
+                reportSkippedLine(ProtocolAnomalyKind.LIST_NEWSGROUPS_MALFORMED_LINE, command, line);
+            } else {
+                descriptionConsumer.accept(description);
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Sends {@code MODE READER} before the first reading command, unless the server said that it is a reading
+     * server already. Some servers offer the reading commands only after it, and a capability list may be
+     * incomplete, so its silence is no reason to leave the command out (RFC 3977, section 5.3).
+     */
+    private void ensureReaderMode() {
+        if (readerModeEnsured) {
+            return;
+        }
+        if (!capabilities.has("READER")) {
+            String command = "MODE READER";
+            switch (send(command, "MODE", "READER")) {
+                case AUTHENTICATION_REQUIRED -> throw loginRequired();
+                case ACCESS_DENIED -> throw refused();
+                // 200 and 201 confirm the mode. A server that does not know the command needs no switch.
+                default -> {
+                }
+            }
+        }
+        readerModeEnsured = true;
+    }
+
+    /** @return the response code of the status line */
+    private int send(String command, String keyword, String argument) {
+        try {
+            return wireClient.sendCommand(keyword, argument);
+        } catch (IOException e) {
+            throw failure(e, command);
+        }
+    }
+
+    /** Reads a multi-line answer line by line. After a failure in the middle, the connection is not used again. */
+    private void readList(String command, Consumer<String> lineConsumer) {
+        try {
+            wireClient.forEachResponseLine(lineConsumer);
+        } catch (IOException e) {
+            throw failure(e, command);
+        } catch (RuntimeException e) {
+            // The receiver of the lines failed; the rest of the answer is still on its way.
+            broken = true;
+            throw e;
+        } finally {
+            anomalyLog.finish();
+        }
+    }
+
+    /** @return the entry, or {@code null} when the line is not a group name, two numbers and a status */
+    static NntpActiveGroup parseActiveGroup(String line) {
+        String[] fields = line.strip().split("\\s+");
+        if (fields.length != 4 || fields[0].isEmpty()) {
+            return null;
+        }
+        try {
+            long highWatermark = Long.parseLong(fields[1]);
+            long lowWatermark = Long.parseLong(fields[2]);
+            if (highWatermark < 0 || lowWatermark < 0) {
+                return null;
+            }
+            return new NntpActiveGroup(WireText.decode(fields[0]), highWatermark, lowWatermark, fields[3]);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** @return the description, or {@code null} when the line does not start with a group name */
+    static NntpGroupDescription parseGroupDescription(String line) {
+        String[] fields = line.split("\\s+", 2);
+        if (fields[0].isEmpty()) {
+            return null;
+        }
+        String description = fields.length < 2 ? "" : WireText.decode(fields[1]).strip();
+        return new NntpGroupDescription(WireText.decode(fields[0]), description);
+    }
+
+    private void reportSkippedLine(ProtocolAnomalyKind kind, String command, String line) {
+        anomalyLog.report(ProtocolAnomaly.builder()
+                .kind(kind)
+                .command(command)
+                .action(ACTION_SKIPPED)
+                .raw(line)
+                .build());
+    }
+
     /** @return whether further commands can be sent on this connection */
     boolean isUsable() {
         return !closed && !broken && wireClient.isConnected();
@@ -185,6 +317,11 @@ final class CommonsNetClient implements NntpClient {
 
     private NntpException refused() {
         return new NntpException(NntpFailureType.SERVER_REFUSED, "The server refused access: " + replyLine());
+    }
+
+    private NntpException loginRequired() {
+        return new NntpException(NntpFailureType.SERVER_REFUSED,
+                "The server requires a login (" + AUTHENTICATION_REQUIRED + ")");
     }
 
     /** The server answered with a response code that the protocol does not allow at this point. */

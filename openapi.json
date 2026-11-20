@@ -80,6 +80,80 @@
         "required" : [ "username" ],
         "type" : "object"
       },
+      "Group" : {
+        "properties" : {
+          "description" : {
+            "description" : "null when the server gave none; to be shown as text only",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "description" : "Comes from the server; to be shown as text only",
+            "type" : "string"
+          },
+          "postingStatus" : {
+            "enum" : [ "ALLOWED", "NOT_ALLOWED", "MODERATED" ],
+            "type" : "string"
+          },
+          "subscribed" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "id", "name", "postingStatus", "subscribed" ],
+        "type" : "object"
+      },
+      "GroupListRefreshStatus" : {
+        "properties" : {
+          "error" : {
+            "description" : "Why the last refresh failed; null when it succeeded",
+            "type" : "string"
+          },
+          "groupsReceived" : {
+            "description" : "The groups received by the running refresh, or by the last one",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "refreshedAt" : {
+            "description" : "The time of the last successful refresh in milliseconds; null when none has succeeded",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "running" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "groupsReceived", "running" ],
+        "type" : "object"
+      },
+      "GroupPage" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Group"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "description" : "From 0",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total" : {
+            "description" : "The number of groups over all pages",
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total" ],
+        "type" : "object"
+      },
       "LoginRequest" : {
         "properties" : {
           "password" : {
@@ -636,6 +710,159 @@
         },
         "summary" : "Changes the server and tests the connection",
         "tags" : [ "Servers" ]
+      }
+    },
+    "/api/servers/{serverId}/groups" : {
+      "get" : {
+        "operationId" : "listGroups",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "serverId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Search text. A group matches when every word appears in its name or its description; at most 200 characters",
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "From 0",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "description" : "1 to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 50,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GroupPage"
+                }
+              }
+            },
+            "description" : "One page of the groups the server still has"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "A parameter breaks a rule"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No server has this ID"
+          }
+        },
+        "summary" : "Lists the groups of the server by name, one page at a time",
+        "tags" : [ "Groups" ]
+      }
+    },
+    "/api/servers/{serverId}/groups/refresh" : {
+      "get" : {
+        "operationId" : "getGroupListRefreshStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "serverId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GroupListRefreshStatus"
+                }
+              }
+            },
+            "description" : "The refresh status"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No server has this ID"
+          }
+        },
+        "summary" : "Says whether a refresh is running and how the last one ended",
+        "tags" : [ "Groups" ]
+      },
+      "post" : {
+        "operationId" : "refreshGroupList",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "serverId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "description" : "A refresh was started or is running already"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No server has this ID"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The credentials of the server are invalid"
+          }
+        },
+        "summary" : "Starts a refresh of the group list",
+        "tags" : [ "Groups" ]
       }
     }
   },
