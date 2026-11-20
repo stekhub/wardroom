@@ -20,6 +20,12 @@ public interface NntpServers {
     Optional<NntpServerSettings> connectionSettings(long serverId);
 
     /**
+     * @return whether the login of the server is known not to work. Work that would only be another rejected login
+     *         is left out then. {@code false} when no server has this ID
+     */
+    boolean credentialsInvalid(long serverId);
+
+    /**
      * Records that the server rejected the stored credentials ({@code 481}, ADR 0006). The owner is asked to enter
      * them again; saving new credentials clears the mark.
      */

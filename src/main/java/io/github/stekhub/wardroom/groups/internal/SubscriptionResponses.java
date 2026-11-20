@@ -24,9 +24,10 @@ final class SubscriptionResponses {
                                 @NotNull int unreadCount,
                                 @NotNull SyncStatus sync) {
 
-        static SubscriptionResponse of(StoredSubscription subscription) {
-            // The synchronization comes with spec 005; until then none is running.
-            SyncStatus sync = new SyncStatus(false, subscription.lastSyncedAt(), subscription.lastSyncError());
+        /** @param synchronizing whether the group is being synchronized right now */
+        static SubscriptionResponse of(StoredSubscription subscription, boolean synchronizing) {
+            SyncStatus sync = new SyncStatus(synchronizing, subscription.lastSyncedAt(),
+                    subscription.lastSyncError());
             return new SubscriptionResponse(subscription.groupId(), subscription.serverId(), subscription.name(),
                     subscription.description(), subscription.postingStatus(), subscription.removed(),
                     subscription.unreadCount(), sync);

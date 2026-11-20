@@ -14,6 +14,7 @@ class CommonsNetNntpConnector implements NntpConnector {
 
     private final NntpTimings timings;
     private final SSLContext sslContext;
+    private final OverviewFormats overviewFormats = new OverviewFormats();
 
     /** Uses the timeouts of ADR 0026 and the trust store of the Java runtime (ADR 0016). */
     @Autowired
@@ -32,7 +33,12 @@ class CommonsNetNntpConnector implements NntpConnector {
     }
 
     CommonsNetClient open(NntpServerSettings serverSettings) {
-        return CommonsNetClient.open(serverSettings, timings, sslContext);
+        return CommonsNetClient.open(serverSettings, timings, sslContext, overviewFormats);
+    }
+
+    /** The overview format of the server is asked again by the next connection that needs it. */
+    void forgetOverviewFormat(long serverId) {
+        overviewFormats.forget(serverId);
     }
 
     private static SSLContext defaultSslContext() {

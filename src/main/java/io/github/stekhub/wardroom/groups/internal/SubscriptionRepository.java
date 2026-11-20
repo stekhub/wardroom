@@ -7,6 +7,7 @@ import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
 import static io.github.stekhub.wardroom.jooq.Tables.SUBSCRIPTION;
 import static io.github.stekhub.wardroom.jooq.Tables.SYNCED_RANGE;
 
+import io.github.stekhub.wardroom.groups.SubscribedGroups.SubscribedGroup;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -72,13 +73,72 @@ class SubscriptionRepository {
                         row.value9()));
     }
 
-    /** Stores the subscription. A group that is subscribed already stays as it is. */
+    /** @return the subscribed groups as the synchronization needs them, ordered by name */
+    List<SubscribedGroup> findSubscribedGroups() {
+        return database.select(NEWSGROUP.ID, NEWSGROUP.SERVER_ID, NEWSGROUP.NAME)
+                .from(SUBSCRIPTION)
+                .join(NEWSGROUP).on(NEWSGROUP.ID.eq(SUBSCRIPTION.NEWSGROUP_ID))
+                .orderBy(NEWSGROUP.NAME)
+                .fetch(row -> new SubscribedGroup(row.value1(), row.value2(), row.value3()));
+    }
+
+    /** @return the group, or empty when it is not subscribed or no group has this ID */
+    Optional<SubscribedGroup> findSubscribedGroup(long groupId) {
+        return database.select(NEWSGROUP.ID, NEWSGROUP.SERVER_ID, NEWSGROUP.NAME)
+                .from(SUBSCRIPTION)
+                .join(NEWSGROUP).on(NEWSGROUP.ID.eq(SUBSCRIPTION.NEWSGROUP_ID))
+                .where(NEWSGROUP.ID.eq((int) groupId))
+                .fetchOptional(row -> new SubscribedGroup(row.value1(), row.value2(), row.value3()));
+    }
+
+    /**
+     * Stores the subscription. A group that is subscribed already stays as it is. What an earlier subscription
+     * left about its synchronizations is cleared: the new one starts with a first synchronization.
+     */
     void subscribe(long groupId) {
-        database.insertInto(SUBSCRIPTION, SUBSCRIPTION.NEWSGROUP_ID)
+        int added = database.insertInto(SUBSCRIPTION, SUBSCRIPTION.NEWSGROUP_ID)
                 .values((int) groupId)
                 .onConflict(SUBSCRIPTION.NEWSGROUP_ID)
                 .doNothing()
                 .execute();
+        if (added > 0) {
+            database.update(NEWSGROUP)
+                    .setNull(NEWSGROUP.LAST_SYNCED_AT)
+                    .setNull(NEWSGROUP.LAST_SYNC_ERROR)
+                    .where(NEWSGROUP.ID.eq((int) groupId))
+                    .execute();
+        }
+    }
+
+    void setWatermarks(long groupId, long lowWatermark, long highWatermark) {
+        database.update(NEWSGROUP)
+                .set(NEWSGROUP.LOW_WATERMARK, lowWatermark)
+                .set(NEWSGROUP.HIGH_WATERMARK, highWatermark)
+                .where(NEWSGROUP.ID.eq((int) groupId))
+                .execute();
+    }
+
+    void setSynchronized(long groupId, long syncedAt) {
+        database.update(NEWSGROUP)
+                .set(NEWSGROUP.LAST_SYNCED_AT, syncedAt)
+                .setNull(NEWSGROUP.LAST_SYNC_ERROR)
+                .where(NEWSGROUP.ID.eq((int) groupId))
+                .execute();
+    }
+
+    void setSynchronizationError(long groupId, String error) {
+        database.update(NEWSGROUP)
+                .set(NEWSGROUP.LAST_SYNC_ERROR, error)
+                .where(NEWSGROUP.ID.eq((int) groupId))
+                .execute();
+    }
+
+    /**
+     * Steps 2 to 4 of the unsubscribe cleanup, for a group that stays subscribed: the server has renumbered it
+     * (spec 005). To be called in one transaction.
+     */
+    void removeArticles(long groupId) {
+        deleteArticleData(DSL.select(NEWSGROUP.ID).from(NEWSGROUP).where(NEWSGROUP.ID.eq((int) groupId)));
     }
 
     /**
@@ -114,6 +174,10 @@ class SubscriptionRepository {
 
     private void deleteGroupData(Select<Record1<Integer>> groupIds) {
         database.deleteFrom(SUBSCRIPTION).where(SUBSCRIPTION.NEWSGROUP_ID.in(groupIds)).execute();
+        deleteArticleData(groupIds);
+    }
+
+    private void deleteArticleData(Select<Record1<Integer>> groupIds) {
         database.deleteFrom(ARTICLE_LOCATION).where(ARTICLE_LOCATION.NEWSGROUP_ID.in(groupIds)).execute();
         // The read state goes with its article (ON DELETE CASCADE).
         database.deleteFrom(ARTICLE)

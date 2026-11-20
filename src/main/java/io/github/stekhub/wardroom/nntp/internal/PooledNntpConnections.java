@@ -101,6 +101,7 @@ class PooledNntpConnections implements NntpConnections, DisposableBean {
             connectionPool.closeIdle();
         }
         circuitBreaker(serverId).reset();
+        connector.forgetOverviewFormat(serverId);
     }
 
     @Override

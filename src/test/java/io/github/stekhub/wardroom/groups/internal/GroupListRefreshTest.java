@@ -412,6 +412,23 @@ class GroupListRefreshTest {
     }
 
     @Test
+    void scheduleFollowsTheIntervalOfTheSettings() {
+        assertThat(browser.put("/api/settings",
+                "{\"syncIntervalMinutes\": 15, \"initialDepth\": 500, \"groupListIntervalHours\": 2}")).hasStatusOk();
+        long refreshedAt = refreshAndWait(browser, serverId).get("refreshedAt").asLong();
+
+        groupListSchedule.startDueRefreshes(refreshedAt + 2 * HOUR.toMillis() - 1);
+        awaitRefreshEnd(browser, serverId);
+
+        assertThat(listActiveCommands()).as("the interval has not passed").isEqualTo(1);
+
+        groupListSchedule.startDueRefreshes(refreshedAt + 2 * HOUR.toMillis());
+        awaitRefreshEnd(browser, serverId);
+
+        assertThat(listActiveCommands()).isEqualTo(2);
+    }
+
+    @Test
     void scheduleTriesAgainOneHourAfterAFailedRefresh() {
         mockServer.on("LIST ACTIVE").reply("502 Not today");
         long before = System.currentTimeMillis();

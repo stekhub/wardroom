@@ -22,6 +22,15 @@ public enum ProtocolAnomalyKind {
     /** A line of an {@code OVER} or {@code XOVER} response that cannot be split into the expected fields. */
     OVERVIEW_MALFORMED_LINE("overview.malformed-line"),
 
+    /** A line of an {@code OVER} or {@code XOVER} response whose Message-ID field is empty. */
+    OVERVIEW_MISSING_MESSAGE_ID("overview.missing-message-id"),
+
+    /** A {@code LIST OVERVIEW.FMT} response that does not name all fields Wardroom reads. */
+    OVERVIEW_UNUSABLE_FORMAT("overview.unusable-format"),
+
+    /** A {@code 211} response to {@code GROUP} without the article count and the two watermarks. */
+    GROUP_MALFORMED_RESPONSE("group.malformed-response"),
+
     /** A status line that does not start with a three-digit response code. */
     RESPONSE_MALFORMED_LINE("response.malformed-line"),
 

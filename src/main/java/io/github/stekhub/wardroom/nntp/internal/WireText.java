@@ -34,4 +34,15 @@ final class WireText {
             return line;
         }
     }
+
+    /**
+     * The opposite of {@link #decode(String)}, for text that is sent to the server, such as a group name: the
+     * library writes every character as one ISO-8859-1 byte, so the UTF-8 bytes are handed to it as characters.
+     */
+    static String encode(String text) {
+        if (text.chars().allMatch(character -> character < 0x80)) {
+            return text;
+        }
+        return new String(text.getBytes(StandardCharsets.UTF_8), StandardCharsets.ISO_8859_1);
+    }
 }

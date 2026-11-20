@@ -10,11 +10,13 @@ import { SETTINGS_SECTIONS } from '@/settings/sections'
 import { ServerSection } from '@/settings/ServerSection'
 import { EmptySettingsSection } from '@/settings/SettingsSectionFrame'
 import { SettingsPage } from '@/settings/SettingsPage'
+import { SynchronizationSection } from '@/settings/SynchronizationSection'
 import { AppShell } from '@/shell/AppShell'
 
 /** The sections that are built; the others say that there is nothing to set yet. */
 const SECTION_CONTENT: Record<string, ReactNode> = {
   server: <ServerSection />,
+  synchronization: <SynchronizationSection />,
   account: <AccountSection />,
 }
 

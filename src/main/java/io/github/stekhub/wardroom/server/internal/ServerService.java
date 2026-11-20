@@ -149,6 +149,11 @@ class ServerService implements NntpServers {
     }
 
     @Override
+    public boolean credentialsInvalid(long serverId) {
+        return serverRepository.findById(serverId).map(StoredServer::credentialsInvalid).orElse(false);
+    }
+
+    @Override
     public void markCredentialsInvalid(long serverId) {
         serverRepository.setCredentialsInvalid(serverId, true);
         log.warn("The server {} rejected the stored username and password. Enter them again in the server "

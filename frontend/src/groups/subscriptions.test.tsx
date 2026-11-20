@@ -253,6 +253,41 @@ test('"Mark all as read" asks the backend and shows the new unread count', async
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 })
 
+// The refresh button (spec 005)
+
+test('the refresh button starts a synchronization and shows that it is running', async () => {
+  const backend = backendWithSubscriptions([testSubscription(5, 'example.talk')])
+  server.use(
+    http.post('/api/groups/:groupId/sync', ({ params }) => {
+      backend.requests.push(`SYNC ${String(params.groupId)}`)
+      backend.subscriptions = [testSubscription(5, 'example.talk', { sync: { running: true } })]
+      return new HttpResponse(null, { status: 202 })
+    }),
+  )
+  openAt('/groups/5')
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Refresh' }))
+
+  expect(await screen.findByRole('button', { name: 'Synchronizing' })).toBeVisible()
+  expect(backend.requests).toEqual(['SYNC 5'])
+  expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
+})
+
+test('a refresh the backend refuses says why', async () => {
+  backendWithSubscriptions([testSubscription(5, 'example.talk')])
+  server.use(
+    http.post('/api/groups/:groupId/sync', () =>
+      problem(409, 'Wardroom cannot log in to the server.'),
+    ),
+  )
+  openAt('/groups/5')
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Refresh' }))
+
+  expect(await screen.findByText('Wardroom cannot log in to the server.')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Refresh' })).toBeVisible()
+})
+
 test('unsubscribing in the group view opens the discover view', async () => {
   const backend = backendWithSubscriptions([testSubscription(5, 'example.talk')])
   openAt('/groups/5')
