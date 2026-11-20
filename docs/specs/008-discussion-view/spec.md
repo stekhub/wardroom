@@ -112,10 +112,13 @@ All endpoints require a session ([spec 001](../001-user-authentication/spec.md))
     }
   ],
   "nextCursor": "opaque",
+  "rangeId": 7,
   "lowWatermarkReached": false,
   "highWatermarkReached": true
 }
 ```
+
+`rangeId` is the synchronized range the list shows: the newest range of the group in the normal view, and the range of the jump in a date view. It is `null` when the group has no range yet. The frontend passes it to extend (spec 005) for "Load older discussions" and "load more".
 
 **Thread**
 

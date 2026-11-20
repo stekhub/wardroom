@@ -12,8 +12,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | Done |
 | 5 | Newsgroup discovery | Spec 003; group icons | Done |
 | 6 | Subscriptions | Spec 004 | Done |
-| 7 | Synchronization core | Spec 005 | In review |
-| 8 | Load older, load more, jump to date | Spec 005; ADR 0021, 0022 | Not started |
+| 7 | Synchronization core | Spec 005 | Done |
+| 8 | Load older, load more, jump to date | Spec 005; ADR 0021, 0022 | In review |
 | 9 | Threading | Spec 006 | Not started |
 | 10 | Article reading | Spec 007 | Not started |
 | 11 | Discussion view | Spec 008 | Not started |
@@ -96,6 +96,7 @@ Wardroom can first be used for reading after step 11.
 ### 11. Discussion view
 
 - Spec 008 completely: thread list, sorting, paging, date view, thread page, mark thread as read.
+- "Load older discussions" in the normal view, with the `rangeId` of the page of thread cards. The backend exists since step 8.
 
 ### 12. Ignoring
 
@@ -138,6 +139,57 @@ Wardroom can first be used for reading after step 11.
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 8, load older, load more, jump to date (2026-11-20)**
+
+What was built:
+
+- Backend, module `sync`: the date search, jump to date, and extending a range downwards and upwards, with `POST /api/groups/{id}/jump` and `POST /api/groups/{id}/ranges/{rangeId}/extend`.
+- A group can have several synchronized ranges now. Ranges that touch are merged.
+- Articles that these steps store arrive read; a stub they fill in is read as well (ADR 0022).
+- Frontend: the date picker in the group header, and the date view at `/groups/{id}?from=YYYY-MM-DD` with its bar, the note about the oldest article and "Load more".
+
+Not built, because it needs a later step:
+
+- "Load older discussions" in the normal group view. The button belongs at the end of the thread list (spec 008), and it needs the ID of the newest range, which no endpoint returns yet. See the first finding. The backend for it exists and is tested.
+- The date view shows no threads yet (step 11). Until then it says which article numbers are loaded.
+- Threads are not recomputed after a step (step 9).
+
+Decisions made during the step, open to a veto:
+
+- Load more and jump to date fetch nothing above the newest range. What is there is new and belongs to the synchronization, which stores it unread. Otherwise a jump to a recent date would mark new articles as read and leave a gap below them that no synchronization fills. So the date search looks between the low watermark and the end of the newest range, and `atNewest` is true for the newest range of the group.
+- A group without any range answers jump with `409`: "This group has not been synchronized yet. Refresh it first." A range from a jump would otherwise count as the newest range, and the next synchronization would fetch everything from there to the high watermark.
+- A step waits for a running synchronization of its group, for at most 30 seconds, and then answers `409`. Spec 005 says that they never run at the same time, and not what the second one does. Unlike unsubscribing, a step does not cancel the synchronization.
+- A step has a single attempt. ADR 0026 says that direct user actions are not retried.
+- A step fetches everything before it stores anything, and stores it in one transaction. With the largest depth these are 10,000 overviews in memory. This is what "nothing is stored" on a failure needs.
+- A step does not store the watermarks it reads, and marks nothing as expired. The synchronization does both.
+- A renumbered group (high watermark below the end of the newest range) answers `409`: "The server has renumbered this group. Refresh it first." The synchronization does the reset.
+- A group the server does not have (`411`) answers `502`. A rejected login marks the credentials and answers `409`.
+- A merged range keeps the ID of the range that was extended. After a jump it is the ID of the new range.
+- `clampedToOldest` is true when the oldest article is dated after the chosen time. `startDate` is the date of the first stored article from the start on that has a date; it is `null` when there is none.
+- The start of a jump is the lower end of the last search interval, as spec 005 says. It lies up to one depth before the first article of the day. In the check by hand, with four articles per day, it was ten days before.
+- In the date search, windows that reach the end of the searched numbers without a dated overview count as "nothing on or after the date there". Only five empty windows in a row fail the search. A group whose oldest articles have no date fails it as well.
+- A day whose date is in the future cannot be chosen in the date picker.
+- Frontend: the note about the oldest article is left out when that article is from the chosen day itself.
+- The property `wardroom.synchronization.load-wait` (30 seconds) is how long a step waits for a synchronization. The tests shorten it. It is not documented for people who run Wardroom.
+
+Findings:
+
+- **A gap in spec 008:** the frontend needs the ID of the newest range to offer "Load older discussions" in the normal view, and no endpoint returns it. The page of thread cards has `lowWatermarkReached` and `highWatermarkReached`, but no range. The owner accepted the proposal: the page of thread cards gets a field `rangeId`, the range the list shows. It is written into spec 008 and comes with step 11.
+- Spec 005 answers a failed jump or extend with `502`, and until now no endpoint did. `ServerFailedException` in the `sync` module is the first; its text is the cause as the NNTP adapter words it.
+- The shadcn/ui component `popover` is new.
+- After choosing a day, the tooltip of the date picker button shows again, because the focus returns to the button. This is how the component library behaves; it goes away with the next click or key.
+
+Verified and not verified:
+
+- `./mvnw verify` passes: 382 backend tests and 125 frontend tests.
+- Tried by hand in a browser with the built jar against a small local server without TLS, with 3,000 articles over two years: a jump to a day a year ago, "Load more" up to the merge with the newest range, a jump to a day before the oldest article, opening a date view whose start is stored already, and the unread count, which stayed the same.
+- Not tried: a real server, a group with millions of articles, a group with wrong or missing dates (only in tests), load older (only in tests, see above).
+
+Left for later steps:
+
+- Recompute threads after load older, load more and jump to date (step 9).
+- "Load older discussions" in the normal view, the threads of the date view, and the range ID the thread list needs (step 11).
 
 **Step 7, synchronization core (2026-11-20)**
 

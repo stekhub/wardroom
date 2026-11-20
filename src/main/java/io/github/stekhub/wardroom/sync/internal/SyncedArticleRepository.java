@@ -2,6 +2,7 @@ package io.github.stekhub.wardroom.sync.internal;
 
 import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE;
 import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE_LOCATION;
+import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
 import static io.github.stekhub.wardroom.jooq.Tables.SYNCED_RANGE;
 
 import io.github.stekhub.wardroom.nntp.NntpOverview;
@@ -41,6 +42,108 @@ class SyncedArticleRepository {
                 .orderBy(SYNCED_RANGE.LAST_NUMBER.desc())
                 .limit(1)
                 .fetchOptional(row -> new SyncedRange(row.value1(), row.value2(), row.value3()));
+    }
+
+    /** @return the range with this ID when it belongs to the group */
+    Optional<SyncedRange> findRange(long groupId, long rangeId) {
+        return database.select(SYNCED_RANGE.ID, SYNCED_RANGE.FIRST_NUMBER, SYNCED_RANGE.LAST_NUMBER)
+                .from(SYNCED_RANGE)
+                .where(SYNCED_RANGE.NEWSGROUP_ID.eq((int) groupId))
+                .and(SYNCED_RANGE.ID.eq((int) rangeId))
+                .fetchOptional(row -> new SyncedRange(row.value1(), row.value2(), row.value3()));
+    }
+
+    /** @return the range of the group that the article number lies in */
+    Optional<SyncedRange> findRangeContaining(long groupId, long articleNumber) {
+        return database.select(SYNCED_RANGE.ID, SYNCED_RANGE.FIRST_NUMBER, SYNCED_RANGE.LAST_NUMBER)
+                .from(SYNCED_RANGE)
+                .where(SYNCED_RANGE.NEWSGROUP_ID.eq((int) groupId))
+                .and(SYNCED_RANGE.FIRST_NUMBER.le(articleNumber))
+                .and(SYNCED_RANGE.LAST_NUMBER.ge(articleNumber))
+                .limit(1)
+                .fetchOptional(row -> new SyncedRange(row.value1(), row.value2(), row.value3()));
+    }
+
+    /** @return the nearest range of the group that ends below the article number */
+    Optional<SyncedRange> findRangeBelow(long groupId, long articleNumber) {
+        return database.select(SYNCED_RANGE.ID, SYNCED_RANGE.FIRST_NUMBER, SYNCED_RANGE.LAST_NUMBER)
+                .from(SYNCED_RANGE)
+                .where(SYNCED_RANGE.NEWSGROUP_ID.eq((int) groupId))
+                .and(SYNCED_RANGE.LAST_NUMBER.lt(articleNumber))
+                .orderBy(SYNCED_RANGE.LAST_NUMBER.desc())
+                .limit(1)
+                .fetchOptional(row -> new SyncedRange(row.value1(), row.value2(), row.value3()));
+    }
+
+    /** @return the nearest range of the group that starts above the article number */
+    Optional<SyncedRange> findRangeAbove(long groupId, long articleNumber) {
+        return database.select(SYNCED_RANGE.ID, SYNCED_RANGE.FIRST_NUMBER, SYNCED_RANGE.LAST_NUMBER)
+                .from(SYNCED_RANGE)
+                .where(SYNCED_RANGE.NEWSGROUP_ID.eq((int) groupId))
+                .and(SYNCED_RANGE.FIRST_NUMBER.gt(articleNumber))
+                .orderBy(SYNCED_RANGE.FIRST_NUMBER)
+                .limit(1)
+                .fetchOptional(row -> new SyncedRange(row.value1(), row.value2(), row.value3()));
+    }
+
+    /** @return the ID of the new range */
+    long insertRange(long groupId, long firstNumber, long lastNumber) {
+        return database.insertInto(SYNCED_RANGE, SYNCED_RANGE.NEWSGROUP_ID, SYNCED_RANGE.FIRST_NUMBER,
+                        SYNCED_RANGE.LAST_NUMBER)
+                .values((int) groupId, firstNumber, lastNumber)
+                .returningResult(SYNCED_RANGE.ID)
+                .fetchOne()
+                .value1();
+    }
+
+    /**
+     * Gives the range its new ends, and merges it with every range of the group that it now touches or overlaps
+     * (ADR 0021). The range keeps its ID; the others are deleted. To be called in a transaction.
+     *
+     * @return the range as it is stored afterwards
+     */
+    SyncedRange growRange(long groupId, long rangeId, long firstNumber, long lastNumber) {
+        long mergedFirst = firstNumber;
+        long mergedLast = lastNumber;
+        while (true) {
+            Optional<SyncedRange> neighbor = database
+                    .select(SYNCED_RANGE.ID, SYNCED_RANGE.FIRST_NUMBER, SYNCED_RANGE.LAST_NUMBER)
+                    .from(SYNCED_RANGE)
+                    .where(SYNCED_RANGE.NEWSGROUP_ID.eq((int) groupId))
+                    .and(SYNCED_RANGE.ID.ne((int) rangeId))
+                    .and(SYNCED_RANGE.FIRST_NUMBER.le(mergedLast + 1))
+                    .and(SYNCED_RANGE.LAST_NUMBER.ge(mergedFirst - 1))
+                    .limit(1)
+                    .fetchOptional(row -> new SyncedRange(row.value1(), row.value2(), row.value3()));
+            if (neighbor.isEmpty()) {
+                break;
+            }
+            mergedFirst = Math.min(mergedFirst, neighbor.get().firstNumber());
+            mergedLast = Math.max(mergedLast, neighbor.get().lastNumber());
+            database.deleteFrom(SYNCED_RANGE).where(SYNCED_RANGE.ID.eq((int) neighbor.get().id())).execute();
+        }
+        database.update(SYNCED_RANGE)
+                .set(SYNCED_RANGE.FIRST_NUMBER, mergedFirst)
+                .set(SYNCED_RANGE.LAST_NUMBER, mergedLast)
+                .where(SYNCED_RANGE.ID.eq((int) rangeId))
+                .execute();
+        return new SyncedRange(rangeId, mergedFirst, mergedLast);
+    }
+
+    /**
+     * @return the date of the first article of the group from this number on that has a date and is not above the
+     *         last number
+     */
+    Optional<Long> findFirstDate(long groupId, long firstNumber, long lastNumber) {
+        return database.select(ARTICLE.DATE)
+                .from(ARTICLE_LOCATION)
+                .join(ARTICLE).on(ARTICLE.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
+                .where(ARTICLE_LOCATION.NEWSGROUP_ID.eq((int) groupId))
+                .and(ARTICLE_LOCATION.ARTICLE_NUMBER.between(firstNumber, lastNumber))
+                .and(ARTICLE.DATE.isNotNull())
+                .orderBy(ARTICLE_LOCATION.ARTICLE_NUMBER)
+                .limit(1)
+                .fetchOptional(ARTICLE.DATE);
     }
 
     /**
@@ -89,6 +192,16 @@ class SyncedArticleRepository {
      * </ul>
      */
     StoredChunk storeOverviews(long groupId, List<NntpOverview> overviews) {
+        return storeOverviews(groupId, overviews, null);
+    }
+
+    /**
+     * Like {@link #storeOverviews(long, List)}, for articles the owner went looking for.
+     *
+     * @param readAt when not {@code null}: an article that is newly stored, and a stub that is filled in, is read
+     *               from this time on (ADR 0022). Articles that were stored before keep their read state.
+     */
+    StoredChunk storeOverviews(long groupId, List<NntpOverview> overviews, Long readAt) {
         int newArticles = 0;
         int filledStubs = 0;
         int newLocations = 0;
@@ -102,11 +215,13 @@ class SyncedArticleRepository {
             if (knownArticle == null) {
                 articleId = insertArticle(overview);
                 newArticles++;
+                markRead(articleId, readAt);
             } else {
                 articleId = knownArticle.value1();
                 if (Boolean.TRUE.equals(knownArticle.value2())) {
                     fillStub(articleId, overview);
                     filledStubs++;
+                    markRead(articleId, readAt);
                 }
             }
             Record2<Integer, Long> knownLocation = database
@@ -141,6 +256,16 @@ class SyncedArticleRepository {
             }
         }
         return new StoredChunk(newArticles, filledStubs, newLocations, movedLocations);
+    }
+
+    private void markRead(int articleId, Long readAt) {
+        if (readAt == null) {
+            return;
+        }
+        database.insertInto(READ_STATE, READ_STATE.ARTICLE_ID, READ_STATE.READ_AT)
+                .values(articleId, readAt)
+                .onConflictDoNothing()
+                .execute();
     }
 
     private int insertArticle(NntpOverview overview) {
