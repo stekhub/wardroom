@@ -1,11 +1,12 @@
-import { CheckCheck } from 'lucide-react'
+import { CheckCheck, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api } from '@/api/client'
-import { UNEXPECTED_ERROR } from '@/api/problem'
+import { problemMessage, UNEXPECTED_ERROR } from '@/api/problem'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { GroupIcon } from '@/groups/GroupIcon'
 import { SubscribeToggle } from '@/groups/SubscribeToggle'
 import {
@@ -17,8 +18,8 @@ import { ReadingColumn } from '@/pages/ReadingColumn'
 
 /**
  * The group view (UI concept): for now its header, with the large group icon, the name, the
- * badges, the subscribe toggle and "Mark all as read" (spec 004). The threads of the group are
- * added by the discussion view.
+ * badges, the subscribe toggle, the refresh button (spec 005) and "Mark all as read" (spec 004).
+ * The threads of the group are added by the discussion view.
  */
 export function GroupPage() {
   const groupId = Number(useParams().groupId)
@@ -59,7 +60,7 @@ export function GroupPage() {
   return (
     <ReadingColumn>
       <GroupHeader subscription={subscription} />
-      <p className="text-sm text-muted-foreground">No articles yet.</p>
+      <p className="text-sm text-muted-foreground">The threads of this group are not shown yet.</p>
     </ReadingColumn>
   )
 }
@@ -78,6 +79,19 @@ function GroupHeader({ subscription }: { subscription: Subscription }) {
     }
     await reloadSubscriptions()
   }
+
+  /** The synchronization runs in the background; the subscription list says how it goes. */
+  async function synchronize() {
+    const { error, response } = await api.POST('/api/groups/{groupId}/sync', {
+      params: { path: { groupId: subscription.groupId } },
+    })
+    if (!response.ok && response.status !== 401) {
+      toast.error(problemMessage(error, UNEXPECTED_ERROR))
+    }
+    await reloadSubscriptions()
+  }
+
+  const synchronizing = subscription.sync.running
 
   return (
     <header className="mb-6 flex flex-wrap items-center gap-4">
@@ -104,6 +118,22 @@ function GroupHeader({ subscription }: { subscription: Subscription }) {
             void navigate('/discover')
           }}
         />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={synchronizing ? 'Synchronizing' : 'Refresh'}
+              onClick={() => void synchronize()}
+            >
+              <RefreshCw
+                className={synchronizing ? 'animate-spin motion-reduce:animate-none' : undefined}
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{synchronizing ? 'Synchronizing…' : 'Refresh'}</TooltipContent>
+        </Tooltip>
         <Button type="button" variant="outline" size="sm" onClick={() => void markAllRead()}>
           <CheckCheck />
           Mark all as read

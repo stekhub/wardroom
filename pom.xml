@@ -31,6 +31,7 @@
         <spring-modulith.version>2.1.2</spring-modulith.version>
         <springdoc.version>3.2.0</springdoc.version>
         <commons-net.version>3.13.0</commons-net.version>
+        <mime4j.version>0.8.15</mime4j.version>
         <resilience4j.version>2.4.0</resilience4j.version>
         <bouncycastle.version>1.87</bouncycastle.version>
 
@@ -113,6 +114,11 @@
             <groupId>commons-net</groupId>
             <artifactId>commons-net</artifactId>
             <version>${commons-net.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.james</groupId>
+            <artifactId>apache-mime4j-dom</artifactId>
+            <version>${mime4j.version}</version>
         </dependency>
         <dependency>
             <groupId>io.github.resilience4j</groupId>

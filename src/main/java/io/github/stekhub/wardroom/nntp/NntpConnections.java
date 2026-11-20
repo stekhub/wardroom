@@ -39,8 +39,8 @@ public interface NntpConnections {
     <T> T interactiveWithoutRetry(NntpServerSettings serverSettings, NntpAction<T> action);
 
     /**
-     * Closes the idle connections to the server and closes its circuit breaker. To be called when the settings of
-     * the server were saved.
+     * Closes the idle connections to the server, closes its circuit breaker and forgets its overview format. To be
+     * called when the settings of the server were saved.
      */
     void reset(long serverId);
 }

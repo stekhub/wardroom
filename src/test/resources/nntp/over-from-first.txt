@@ -1,0 +1,4 @@
+224 Overview information follows
+5	Ada <ada@example.org>	Hello	Wed, 18 Nov 2026 11:06:40 -0000	<a@example.org>		900	12
+7	=?UTF-8?Q?J=C3=BCrgen?= <juergen@example.org>	Re: Hello	Wed, 18 Nov 2026 11:07:40 GMT	<b@example.org>	<a@example.org>	1100	20
+.

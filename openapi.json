@@ -308,6 +308,27 @@
         "required" : [ "authMethod", "host", "maxConnections", "name", "port", "tlsMode" ],
         "type" : "object"
       },
+      "Settings" : {
+        "properties" : {
+          "groupListIntervalHours" : {
+            "description" : "How often the group list is fetched, in hours; 1 to 168",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "initialDepth" : {
+            "description" : "How many overviews a first synchronization fetches at most; 50 to 10000",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "syncIntervalMinutes" : {
+            "description" : "How often all subscribed groups are synchronized, in minutes; 5 to 1440",
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "groupListIntervalHours", "initialDepth", "syncIntervalMinutes" ],
+        "type" : "object"
+      },
       "SetupRequest" : {
         "properties" : {
           "password" : {
@@ -674,6 +695,47 @@
         "tags" : [ "Subscriptions" ]
       }
     },
+    "/api/groups/{groupId}/sync" : {
+      "post" : {
+        "operationId" : "synchronizeGroup",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "groupId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "description" : "A synchronization was started or is running already"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No group has this ID"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The group is not subscribed, or the credentials of the server are invalid"
+          }
+        },
+        "summary" : "Starts the synchronization of the group",
+        "tags" : [ "Synchronization" ]
+      }
+    },
     "/api/servers" : {
       "get" : {
         "operationId" : "listServers",
@@ -1030,6 +1092,62 @@
         },
         "summary" : "Starts a refresh of the group list",
         "tags" : [ "Groups" ]
+      }
+    },
+    "/api/settings" : {
+      "get" : {
+        "operationId" : "getSettings",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Settings"
+                }
+              }
+            },
+            "description" : "The settings"
+          }
+        },
+        "summary" : "Returns the instance settings",
+        "tags" : [ "Settings" ]
+      },
+      "put" : {
+        "operationId" : "saveSettings",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Settings"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Settings"
+                }
+              }
+            },
+            "description" : "The settings as they are stored now"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "A value is outside its range"
+          }
+        },
+        "summary" : "Saves the instance settings",
+        "tags" : [ "Settings" ]
       }
     },
     "/api/subscriptions" : {

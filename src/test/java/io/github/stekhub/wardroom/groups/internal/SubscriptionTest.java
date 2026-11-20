@@ -28,8 +28,8 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * Subscribing, unsubscribing, unread counts and marking a group as read (spec 004), against the whole application
- * and a real SQLite database. The articles are put into the database by the tests; the synchronization that
- * fetches them comes with spec 005.
+ * and a real SQLite database. The articles are put into the database by the tests. Nothing is synchronized here;
+ * what subscribing and unsubscribing do with the synchronization is in {@code SynchronizationAutomaticTest}.
  */
 @IntegrationTest
 class SubscriptionTest {

@@ -11,8 +11,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 3 | Authentication and application shell | Spec 001; UI concept | Done |
 | 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | Done |
 | 5 | Newsgroup discovery | Spec 003; group icons | Done |
-| 6 | Subscriptions | Spec 004 | In review |
-| 7 | Synchronization core | Spec 005 | Not started |
+| 6 | Subscriptions | Spec 004 | Done |
+| 7 | Synchronization core | Spec 005 | In review |
 | 8 | Load older, load more, jump to date | Spec 005; ADR 0021, 0022 | Not started |
 | 9 | Threading | Spec 006 | Not started |
 | 10 | Article reading | Spec 007 | Not started |
@@ -138,6 +138,70 @@ Wardroom can first be used for reading after step 11.
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 7, synchronization core (2026-11-20)**
+
+What was built:
+
+- NNTP adapter: `GROUP`, and `OVER` or `XOVER` with the field order of `LIST OVERVIEW.FMT`. Overview lines are parsed in the adapter: encoded words in `Subject` and `From` are decoded, the date becomes UTC milliseconds.
+- Backend, module `sync`: the synchronization of one group (first and incremental, in chunks, with ranges, expiry and renumbering), the schedule, and `POST /api/groups/{id}/sync`.
+- Backend, module `settings`: the table `app_setting`, and `GET` and `PUT /api/settings`.
+- Migration V6: the columns `subject`, `from`, `date`, `references`, `bytes` and `lines` of `article`, and the table `app_setting` with its three keys.
+- Subscribing starts the first synchronization in the background. Unsubscribing cancels a running one. The subscription list says which groups are being synchronized. With this, the two tests of spec 004 that step 6 left open exist.
+- The schedule of the group list uses the setting `sync.group_list_interval_hours`.
+- Frontend: the refresh button in the group header, and the settings section "Synchronization" with its three fields.
+
+Not built, because it needs a later step:
+
+- Load older, load more and jump to date, with their two endpoints (step 8).
+- Threads are not recomputed after a synchronization (step 9).
+- The cache size limit: the setting `cache.max_size_gb`, the cleanup job, and the fields `maxCacheSizeGb`, `cacheUsedBytes` and `cacheLimitUnreachable` of the settings (step 14). Until then the settings have three fields.
+- The columns of `article` that belong to other specs: `author_key` (spec 010), `parent_id` and `thread_root_id` (spec 006), the content columns (spec 007), `posted_from_newsgroup_id` (spec 009). The step that adds `author_key` has to fill it for the articles that are stored already; spec 010 says so.
+- The group view still has only its header. It says "The threads of this group are not shown yet." until step 11.
+
+Decisions made during the step, open to a veto:
+
+- The first synchronization is fetched in chunks of 1,000 as well, oldest first. Spec 005 names chunks only for the incremental one. So a first synchronization with a large depth that is interrupted keeps what it has.
+- When the low watermark is above the end of the newest range, the synchronization asks from the low watermark on. The range is extended without a gap. The numbers in between do not exist on the server any more.
+- An empty group gets no range. Its next synchronization is a first synchronization again.
+- A known article that is not a stub keeps its stored fields. Only a stub is filled in.
+- An article number belongs to one article. If another article has a location under the number of a new overview, that location is deleted.
+- The manual refresh uses the connection that is kept for interactive actions, and is retried like background work. The first synchronization after subscribing uses a background connection.
+- The schedule looks every 30 seconds whether a run is due. The first run is due 30 seconds after the start. When a run was last due is held in memory. A changed interval counts from the time a run was last due.
+- A run leaves a server alone whose credentials are invalid, and `POST /api/groups/{id}/sync` answers `409` then. Spec 005 lists "`409` not subscribed or credentials invalid".
+- A rejected login (`481`) marks the credentials and stops the run for the server. The group gets no `last_sync_error`; the notice about the credentials says what is wrong.
+- A run that finds the circuit of a server open leaves its groups as they are, as spec 005 says. A manual refresh that finds it open writes the error to the group, so the owner sees why nothing happened.
+- Subscribing clears `last_synced_at` and `last_sync_error` of the group (left open in step 6).
+- Unsubscribing waits for the chunk that is being fetched and stored. In the worst case this is the read timeout of 30 seconds.
+- When the server is removed while a group is synchronized, the synchronization notices before it stores its next chunk, and ends.
+- Header text outside encoded words is read as UTF-8, otherwise as ISO-8859-1, like group names. A group name is sent to the server as UTF-8.
+- `bytes` and `lines` that are not numbers are stored as empty. A date is read leniently; what cannot be read is empty, as spec 005 says.
+- `LIST OVERVIEW.FMT` is left out when the capability list has a `LIST` line that does not name it. An answer that does not name all seven fields is logged, and the order of RFC 3977 is used. The order is kept in memory per server, until a restart or until the server is saved.
+- `420` in answer to `OVER` counts like `423`: no articles.
+- New protocol anomaly kinds: `overview.missing-message-id`, `overview.unusable-format` and `group.malformed-response`.
+- A stored setting that is missing, is no number or is outside its range counts as its default.
+- The property `wardroom.synchronization.automatic` switches off the schedule and the synchronization after subscribing. It exists for the tests of other features and is not documented for people who run Wardroom.
+- Frontend: the refresh button stays usable while a synchronization runs; its icon turns. Pressing it again does nothing, because the backend answers `202` for a running synchronization.
+- Frontend: the field for the first synchronization depth says that a change applies to groups subscribed afterwards. Load steps come with step 8.
+
+Findings:
+
+- Apache James Mime4j is a dependency now (ADR 0002 names it). It decodes the encoded words and reads the dates.
+- Two column names of the data model, `from` and `references`, are SQL keywords. They are quoted in the migration.
+- The groups module and the synchronization need each other. The groups module offers `SubscribedGroups` and expects a `GroupSynchronization`; the `sync` module uses the one and implements the other. So only `sync` depends on `groups`.
+- The mock server cannot test a login without TLS. The rejected login is therefore tested without Spring, with replaced collaborators, in `SynchronizationFailureTest`.
+
+Verified and not verified:
+
+- `./mvnw verify` passes: 348 backend tests and 116 frontend tests.
+- Tried by hand in a browser with the built jar against a small local server without TLS that knows only `XOVER`: subscribing with the first synchronization, the running icon and the unread count in the sidebar, the failure icon for a group the server does not have, the refresh button with new articles, saving the settings, and a run of the schedule.
+- Not tried: a real server, TLS and login, a group with more than a few thousand articles, renumbering and expiry (only in tests).
+
+Left for later steps:
+
+- Recompute threads after each synchronization and after the renumbering reset (step 9).
+- Fill `author_key` for stored articles when the column is added (step 12, or step 10 if author icons need it first).
+- The cache fields of the settings and the cleanup after each run (step 14).
 
 **Step 6, subscriptions (2026-11-20)**
 
