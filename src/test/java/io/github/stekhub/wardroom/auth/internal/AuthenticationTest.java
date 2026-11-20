@@ -391,6 +391,20 @@ class AuthenticationTest {
     }
 
     @Test
+    void everyResponseCarriesTheContentSecurityPolicyAndTheOtherSecurityHeaders() {
+        setUp(new TestBrowser(mvc));
+
+        for (String path : new String[] {"/index.html", "/settings/account", "/leaving", "/api/auth/session",
+            "/api/no-such-endpoint", "/actuator/health"}) {
+            assertThat(browser.get(path)).as(path)
+                    .hasHeader("Content-Security-Policy", "default-src 'self'; script-src 'self'; "
+                            + "style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'")
+                    .hasHeader("X-Content-Type-Options", "nosniff")
+                    .hasHeader("Referrer-Policy", "no-referrer");
+        }
+    }
+
+    @Test
     void stateChangingRequestsWithoutTheCsrfTokenAnswer403() {
         TestBrowser browserWithoutToken = new TestBrowser(mvc).withoutCsrfToken();
 

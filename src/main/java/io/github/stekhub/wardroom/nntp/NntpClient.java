@@ -67,6 +67,21 @@ public interface NntpClient extends AutoCloseable {
      */
     void overviews(long firstNumber, long lastNumber, Consumer<NntpOverview> overviewConsumer);
 
+    /**
+     * Fetches an article by its Message-ID with {@code ARTICLE} (RFC 3977, section 6.2.1). No group has to be
+     * selected.
+     *
+     * <p>At most {@code maxBytes} are read. A longer article is cut off after the last line that fits; the
+     * connection is not used again then, because the rest of the article is still on its way.
+     *
+     * @param messageId the Message-ID with its angle brackets
+     * @param maxBytes  how many bytes of the article are read at most
+     * @return the article, or empty when the server has no article with this Message-ID ({@code 430}), which is
+     *         not a failure (ADR 0006). Also empty for a Message-ID that cannot be sent in a command
+     * @throws NntpException when the server does not send the article or the connection fails before its end
+     */
+    Optional<NntpArticle> article(String messageId, int maxBytes);
+
     /** Sends {@code QUIT} and closes the connection. Never throws; closing twice is harmless. */
     @Override
     void close();

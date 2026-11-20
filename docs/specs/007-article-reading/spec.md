@@ -32,7 +32,7 @@ Fetching and caching article content, extracting and decoding the plain-text bod
 
 - The displayed body follows ADR 0014: the single-part body or the first `text/plain` part; everything else is replaced by an omitted-content notice.
 - Decoding uses Mime4j. A missing or unknown charset is decoded as UTF-8, falling back to windows-1252 if that fails. Invalid byte sequences are replaced, never rejected.
-- `format=flowed` (RFC 3676) bodies are stored as received and unwrapped at display time.
+- `format=flowed` (RFC 3676) bodies are stored as received and unwrapped at display time. Whether the text was sent with `DelSp=yes` is stored with it: the space before a soft line break is then not part of the text.
 - Stored text is limited to 1 MB per article; longer text is cut off with a notice.
 
 **Display**
@@ -41,6 +41,12 @@ Fetching and caching article content, extracting and decoding the plain-text bod
 - Quoted lines (starting with `>`) get a colored bar per quote level. Quoted blocks longer than 5 lines are collapsed behind "show quoted text".
 - The signature (everything after a line consisting of `-- `) is shown dimmed.
 - `http` and `https` URLs are clickable. No other schemes are linked. A click does not open the target itself but the leaving page, see below.
+- Where a link ends:
+  - It starts at `http://` or `https://` and runs to the next whitespace, `<`, `>` or double quote.
+  - Punctuation at its end does not belong to it: `.` `,` `;` `:` `!` `?` and quotes.
+  - A closing bracket `)` `]` `}` at its end does not belong to it, unless the address has the matching opening bracket.
+  - An address written as `<https://…>` that is broken over up to 5 lines is one link.
+  - An address without angle brackets ends at the line end.
 - A per-article "fixed width" toggle switches to a monospace font for ASCII art and tables; it is not remembered.
 - A per-article "show all headers" toggle shows the stored raw header block.
 
@@ -78,6 +84,7 @@ All endpoints require a session and the CSRF token for state-changing requests (
   "articleId": 1234,
   "body": "Plain text…",
   "flowed": false,
+  "delSp": false,
   "truncated": false,
   "omittedParts": [{ "name": "photo.jpg", "mediaType": "image/jpeg", "size": 245000 }],
   "rawHeaders": "Path: …"
@@ -93,6 +100,7 @@ All endpoints require a session and the CSRF token for state-changing requests (
 ## Data model changes
 
 - New column `article.content_unavailable_at`: set when the server answered `430`; cleared by a successful retry.
+- New columns `article.body_flowed`, `article.body_delsp` and `article.body_truncated`: what the content response returns as `flowed`, `delSp` and `truncated`.
 
 ## Error handling
 

@@ -1,7 +1,10 @@
 package io.github.stekhub.wardroom.nntp.internal;
 
+import io.github.stekhub.wardroom.nntp.NntpArticle;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -14,6 +17,8 @@ import org.apache.commons.net.nntp.NNTPConnectionClosedException;
  * {@code CAPABILITIES}: reading a multi-line answer after {@code sendCommand} (ADR 0005).
  */
 final class WireClient extends NNTPClient {
+
+    private static final byte[] LINE_ENDING = {13, 10};
 
     /**
      * Reads the lines that follow the status line, up to the terminating dot, with dot-stuffing undone.
@@ -30,6 +35,31 @@ final class WireClient extends NNTPClient {
             }
         }
         return lines;
+    }
+
+    /**
+     * Reads the lines that follow the status line as bytes, up to the terminating dot, with dot-stuffing undone
+     * and CRLF after every line. Reading stops before the line that would make the content longer than the limit;
+     * the rest of the answer is then still unread.
+     *
+     * @throws NNTPConnectionClosedException when the connection ends before the terminating dot
+     */
+    NntpArticle readLimitedResponse(int maxBytes) throws IOException {
+        ByteArrayOutputStream content = new ByteArrayOutputStream();
+        String line;
+        while ((line = _reader_.readLine()) != null) {
+            if (line.equals(".")) {
+                return new NntpArticle(content.toByteArray(), true);
+            }
+            String text = line.startsWith(".") ? line.substring(1) : line;
+            if (content.size() + text.length() + LINE_ENDING.length > maxBytes) {
+                return new NntpArticle(content.toByteArray(), false);
+            }
+            // The library reads every byte as one ISO-8859-1 character, so this restores the bytes.
+            content.writeBytes(text.getBytes(StandardCharsets.ISO_8859_1));
+            content.writeBytes(LINE_ENDING);
+        }
+        throw new NNTPConnectionClosedException("The connection ended in the middle of an answer");
     }
 
     /**

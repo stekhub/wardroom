@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
  * Turns a line of an answer into text. The library reads every byte as one ISO-8859-1 character, so the bytes the
  * server sent can be restored and decoded properly.
  */
-final class WireText {
+public final class WireText {
 
     private WireText() {
     }
@@ -19,7 +19,7 @@ final class WireText {
      *
      * @param line a line as the library read it
      */
-    static String decode(String line) {
+    public static String decode(String line) {
         if (line.chars().allMatch(character -> character < 0x80)) {
             return line;
         }
@@ -39,7 +39,7 @@ final class WireText {
      * The opposite of {@link #decode(String)}, for text that is sent to the server, such as a group name: the
      * library writes every character as one ISO-8859-1 byte, so the UTF-8 bytes are handed to it as characters.
      */
-    static String encode(String text) {
+    public static String encode(String text) {
         if (text.chars().allMatch(character -> character < 0x80)) {
             return text;
         }

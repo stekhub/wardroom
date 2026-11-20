@@ -3,6 +3,7 @@ import { Navigate, type RouteObject } from 'react-router'
 import { AuthGate } from '@/auth/AuthGate'
 import { DiscoverPage } from '@/pages/DiscoverPage'
 import { GroupPage } from '@/pages/GroupPage'
+import { LeavingPage } from '@/pages/LeavingPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ServerGate } from '@/server/ServerGate'
 import { AccountSection } from '@/settings/AccountSection'
@@ -28,6 +29,8 @@ export const routes: RouteObject[] = [
   {
     element: <AuthGate />,
     children: [
+      // A link in an article opens this page in a new tab; it has no sidebar (spec 007).
+      { path: 'leaving', element: <LeavingPage /> },
       {
         element: <ServerGate />,
         children: [

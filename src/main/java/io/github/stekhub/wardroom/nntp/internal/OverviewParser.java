@@ -1,12 +1,7 @@
 package io.github.stekhub.wardroom.nntp.internal;
 
+import io.github.stekhub.wardroom.nntp.NntpHeaderText;
 import io.github.stekhub.wardroom.nntp.NntpOverview;
-import java.util.Date;
-import org.apache.james.mime4j.codec.DecodeMonitor;
-import org.apache.james.mime4j.codec.DecoderUtil;
-import org.apache.james.mime4j.dom.field.DateTimeField;
-import org.apache.james.mime4j.field.DateTimeFieldLenientImpl;
-import org.apache.james.mime4j.stream.RawField;
 
 /**
  * Reads one line of an {@code OVER} or {@code XOVER} answer (RFC 3977, section 8.3; spec 005). The content of a
@@ -62,31 +57,12 @@ final class OverviewParser {
      * character set or a broken encoding stays as it is; invalid byte sequences are replaced, never rejected.
      */
     static String decodeHeader(String rawValue) {
-        String text = WireText.decode(rawValue).strip();
-        if (!text.contains("=?")) {
-            return text;
-        }
-        try {
-            return DecoderUtil.decodeEncodedWords(text, DecodeMonitor.SILENT);
-        } catch (RuntimeException e) {
-            return text;
-        }
+        return NntpHeaderText.decode(rawValue);
     }
 
     /** @return the date in UTC milliseconds, or {@code null} when the value is not a date */
     static Long parseDate(String rawValue) {
-        String text = rawValue.strip();
-        if (text.isEmpty()) {
-            return null;
-        }
-        try {
-            DateTimeField dateField = DateTimeFieldLenientImpl.PARSER.parse(new RawField("Date", text),
-                    DecodeMonitor.SILENT);
-            Date date = dateField.getDate();
-            return date == null ? null : date.getTime();
-        } catch (RuntimeException e) {
-            return null;
-        }
+        return NntpHeaderText.parseDate(rawValue);
     }
 
     private static String field(String[] fields, int position) {
