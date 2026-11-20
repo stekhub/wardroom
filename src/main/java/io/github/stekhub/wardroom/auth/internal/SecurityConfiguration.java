@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.web.configurers.CsrfConfig
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 
 /**
  * Access rules and session handling (spec 001).
@@ -18,6 +19,8 @@ import org.springframework.security.web.SecurityFilterChain;
  * <li>Setup and login are public. Every other path below {@code /api} needs a session and answers {@code 401}
  * without one; nothing redirects.</li>
  * <li>Everything outside {@code /api} is public: the frontend's files and the health endpoint.</li>
+ * <li>Every response carries the Content Security Policy, {@code X-Content-Type-Options: nosniff} and
+ * {@code Referrer-Policy: no-referrer} (spec 007).</li>
  * <li>Every request that changes state needs the CSRF token. The token is in a cookie the frontend can read, and
  * the frontend sends it back in a request header.</li>
  * </ul>
@@ -26,6 +29,15 @@ import org.springframework.security.web.SecurityFilterChain;
  */
 @Configuration(proxyBeanMethods = false)
 class SecurityConfiguration {
+
+    /**
+     * What a page of Wardroom may load and run (spec 007, "Security considerations"): everything only from
+     * Wardroom itself; no inline scripts; inline styles, because UI components insert their own; images also from
+     * {@code data:} addresses; and no page inside a frame. Article content is untrusted, and this is the second
+     * line of defense if escaping it ever fails.
+     */
+    static final String CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; "
+            + "style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'";
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity,
@@ -44,6 +56,9 @@ class SecurityConfiguration {
                         HttpStatus.UNAUTHORIZED, "Log in to use this endpoint."))
                 .accessDeniedHandler((request, response, exception) -> problemResponseWriter.write(response,
                         HttpStatus.FORBIDDEN, "The CSRF token is missing or invalid.")));
+        httpSecurity.headers(headers -> headers
+                .contentSecurityPolicy(policy -> policy.policyDirectives(CONTENT_SECURITY_POLICY))
+                .referrerPolicy(policy -> policy.policy(ReferrerPolicy.NO_REFERRER)));
         httpSecurity.formLogin(AbstractHttpConfigurer::disable);
         httpSecurity.httpBasic(AbstractHttpConfigurer::disable);
         httpSecurity.logout(AbstractHttpConfigurer::disable);

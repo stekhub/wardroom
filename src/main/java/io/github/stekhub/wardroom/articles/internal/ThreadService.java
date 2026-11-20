@@ -60,6 +60,28 @@ class ThreadService implements Threads, ThreadRecomputation {
         }
     }
 
+    /**
+     * Gives one article its place again, from its own headers, after its content was fetched: a stub that was
+     * filled in, or an article whose {@code In-Reply-To} is known now (spec 006, spec 007). The article does not
+     * have to be located in a group. Runs in a transaction of its own and never throws.
+     */
+    void rethreadArticle(long articleId) {
+        try {
+            transactionOperations.executeWithoutResult(status -> {
+                ProtocolAnomalyLog anomalyLog = new ProtocolAnomalyLog(log);
+                threadRepository.forgetPlace(articleId);
+                threadArticles(threadRepository.findUnthreadedArticle(articleId).stream().toList(), anomalyLog);
+                for (long groupId : threadRepository.findGroupsOf(articleId)) {
+                    applySubjectFallback(groupId);
+                }
+                anomalyLog.finish();
+            });
+        } catch (RuntimeException e) {
+            log.error("The thread of article {} could not be recomputed. The article keeps the place it had.",
+                    articleId, e);
+        }
+    }
+
     @Override
     public void forgetThreadsOfGroup(long groupId) {
         transactionOperations.executeWithoutResult(status -> {
@@ -121,7 +143,11 @@ class ThreadService implements Threads, ThreadRecomputation {
 
     /** @return how many articles got their place; 0 when the group has none left without one */
     private int threadPage(long groupId, ProtocolAnomalyLog anomalyLog) {
-        List<UnthreadedArticle> unthreadedArticles = threadRepository.findUnthreaded(groupId, PAGE_SIZE);
+        return threadArticles(threadRepository.findUnthreaded(groupId, PAGE_SIZE), anomalyLog);
+    }
+
+    /** @return how many articles got their place */
+    private int threadArticles(List<UnthreadedArticle> unthreadedArticles, ProtocolAnomalyLog anomalyLog) {
         if (unthreadedArticles.isEmpty()) {
             return 0;
         }
@@ -129,7 +155,8 @@ class ThreadService implements Threads, ThreadRecomputation {
         Set<String> messageIds = new HashSet<>();
         for (UnthreadedArticle article : unthreadedArticles) {
             // In-Reply-To is known only when the content of an article has been fetched (spec 007).
-            List<String> ancestry = ThreadGraph.ancestry(article.messageId(), article.references(), null);
+            List<String> ancestry = ThreadGraph.ancestry(article.messageId(), article.references(),
+                    article.inReplyTo());
             ancestryByArticleId.put(article.articleId(), ancestry);
             messageIds.add(article.messageId());
             messageIds.addAll(ancestry);

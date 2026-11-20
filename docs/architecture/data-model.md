@@ -99,6 +99,9 @@ One row per `Message-ID`. Unique on `message_id`.
 | `thread_root_id` | Topmost ancestor, can be a stub; derived, recomputable; indexed ([spec 008](../specs/008-discussion-view/spec.md)) |
 | `raw_headers` | Full header block as received; null until fetched |
 | `body_text` | Decoded plain text, UTF-8; null until fetched |
+| `body_flowed` | True when the text is `format=flowed` (RFC 3676); it is stored as received and unwrapped at display time; null until fetched ([spec 007](../specs/007-article-reading/spec.md)) |
+| `body_delsp` | True when the flowed text was sent with `DelSp=yes`: the space before a soft line break is not part of the text; null until fetched |
+| `body_truncated` | True when a limit stopped the processing, so the stored text is not all of the article; null until fetched ([spec 007](../specs/007-article-reading/spec.md)) |
 | `omitted_parts` | Parts not displayed (name, media type, size); null until fetched |
 | `content_fetched_at` | Null until fetched |
 | `content_unavailable_at` | Set when the server answered `430`; cleared by a successful retry ([spec 007](../specs/007-article-reading/spec.md)) |

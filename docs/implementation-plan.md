@@ -14,8 +14,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 6 | Subscriptions | Spec 004 | Done |
 | 7 | Synchronization core | Spec 005 | Done |
 | 8 | Load older, load more, jump to date | Spec 005; ADR 0021, 0022 | Done |
-| 9 | Threading | Spec 006 | In review |
-| 10 | Article reading | Spec 007 | Not started |
+| 9 | Threading | Spec 006 | Done |
+| 10 | Article reading | Spec 007 | In review |
 | 11 | Discussion view | Spec 008 | Not started |
 | 12 | Ignoring | Spec 010 | Not started |
 | 13 | Posting | Spec 009 | Not started |
@@ -139,6 +139,70 @@ Wardroom can first be used for reading after step 11.
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 10, article reading (2026-11-20)**
+
+What was built:
+
+- Migration V8: the content columns of `article`.
+- NNTP adapter: `ARTICLE <message-id>` with the size limit of 10 MB.
+- Backend, module `articles`: body extraction with Mime4j, character set fallback, parser limits, omitted parts, yEnc and uuencode blocks taken out of the text, the three endpoints of spec 007, filling in a stub, and the card excerpt function.
+- Threading: `In-Reply-To` is read from the stored header block and used when an article has no `References`. Such an article is left out of the subject fallback. An article is threaded again after its content was fetched, when it was a stub or its `In-Reply-To` is known now.
+- Content Security Policy and `Referrer-Policy: no-referrer` on all responses.
+- Frontend: the text of an article (quotes, signature, links, `format=flowed`, fixed width), the component that loads the content when it scrolls into view and marks the article as read, the author icon, and the leaving page at `/leaving`.
+
+Not visible yet:
+
+- The components for article text, content and author icons are built and tested, but no page uses them before the thread page of step 11. The leaving page can be opened by its address.
+- The excerpt function is built and tested; the thread cards of step 11 use it.
+
+Accepted by the owner during the step, and written into spec 007:
+
+- The rule for where a link ends: it runs to the next whitespace, `<`, `>` or double quote; punctuation at the end is cut off; a closing bracket is cut off when the address has no opening one; an address in angle brackets that is broken over up to 5 lines is one link; without angle brackets a link ends at the line end.
+
+- Three columns that the data model did not have: `body_flowed`, `body_delsp` and `body_truncated`. The API returns `flowed` and `truncated`, and the text is unwrapped at display time, so both have to be stored with the text. They are in the data model and in spec 007 now.
+- One field more in the API: `delSp`. A sender can mark flowed text with `DelSp=yes`; then the space before a line break is not part of the text. Without the field, such text gets wrong spaces when it is unwrapped. It is in spec 007 now.
+
+Decisions made during the step, open to a veto. None of them is written into a specification or the data model yet:
+
+- `truncated` is true for every limit: text longer than 1 MB, more than 100 parts, nesting deeper than 10, or an article longer than 10 MB. The article then shows one notice, "This article is too long or too complex. Only a part of it is shown."
+- An article longer than 10 MB is cut off after the last line that fits. The connection is closed, because the rest of the article is still on its way.
+- A character set of `us-ascii` counts as not declared, so the fallback to UTF-8 and windows-1252 applies. Text that claims ASCII often has other characters.
+- The first `text/plain` part is shown also when it is marked as an attachment. Spec 007 and ADR 0014 make no exception.
+- A part inside an attached message (`message/rfc822`) counts like any other part.
+- An HTML part next to a plain text is not named in the attachment notice. Only an article without plain text says "HTML message, not displayed".
+- The size of an omitted part is its decoded size. For yEnc it is the size the block names; for uuencode it is computed from the encoded length.
+- `PUT /api/articles/{id}/read` answers `204` for a stub and stores nothing. A stub has no text that could have been displayed.
+- A stub is filled in with `Subject`, `From`, `Date`, `References` and `Lines` from its headers; `bytes` is the size of the fetched article. It is not marked as read by the fetch; the frontend does that when the text is displayed.
+- The server of an article is the server of a group it is located in. A stub has no location; its server is the one of another article of its thread.
+- While the credentials are known to be invalid, the content endpoint answers `502` without asking the server, as spec 005 does for synchronizations.
+- A failed recomputation of the thread after a content fetch does not fail the request. The content is stored, and the article keeps the place it had.
+- Content Security Policy: `default-src 'self'` is added as the base, so that fonts, connections and everything else not named in spec 007 also come only from Wardroom itself.
+- The leaving page shows the address as the browser reads it, not the text of the parameter. So what is shown is what "Continue" opens.
+- The leaving page is outside the application frame: it has no sidebar, and it is shown also before a server is configured.
+- The excerpt is computed from the stored text when it is asked for. It is not stored.
+- `NntpHeaderText` in the `nntp` module is public: overviews and fetched articles decode header values the same way.
+
+Findings:
+
+- **An article without a location goes with every unsubscribe cleanup.** The data model deletes "articles without any remaining location". A stub that was filled in by reading it has no location, so unsubscribing from any group removes it and its cached text. It becomes a stub again and is fetched again when it is read. The threads stay correct: the cleanup now also recomputes the threads of such articles. If this is not wanted, the rule in the data model has to change.
+- Swagger UI of the development profile works with the Content Security Policy.
+- The shell tool of the AI assistant removes one backslash of two in a file written with a here-document. One regular expression was wrong because of that; a test found it. Files with backslashes are written with the file tool since then.
+
+Verified and not verified:
+
+- `./mvnw verify` passes: 514 backend tests and 161 frontend tests.
+- Tried by hand in a browser, against the built jar with a scratch data directory: the pages load without a violation of the Content Security Policy; the leaving page shows domain and address, "Continue" has the target as its address, and an address with `javascript:` offers no "Continue"; Swagger UI of the development profile still works.
+- Not tried by hand: reading an article. No page shows article text before step 11.
+- Not verified: real articles. The extraction is tested with built articles, not with real ones from a server. Step 11 is the first chance to see real text.
+- Not verified: an article of more than 10 MB from end to end. The limit is tested in the adapter with a small limit.
+
+Left for later steps:
+
+- Step 11: the thread page uses `ArticleContent`, `ArticleText` and `AuthorIcon`; the thread cards use `Excerpt.of`. Judge quote colors, the collapsed quotes and the notices with real articles. `onRead` of `ArticleContent` is there to clear the "new" marker.
+- Step 12: `author_key`, which `AuthorIcon` takes.
+- Step 13: articles posted with Wardroom that wait for their location must be excepted from the cleanup (spec 009); the new part of the cleanup that looks at articles without a location needs the same exception.
+- Step 14: the cache cleanup removes content; the partial index on `date` for articles with cached content (ADR 0023) is not built yet.
 
 **Step 9, threading (2026-11-20)**
 

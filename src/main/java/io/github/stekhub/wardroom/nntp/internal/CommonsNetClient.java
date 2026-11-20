@@ -1,6 +1,7 @@
 package io.github.stekhub.wardroom.nntp.internal;
 
 import io.github.stekhub.wardroom.nntp.NntpActiveGroup;
+import io.github.stekhub.wardroom.nntp.NntpArticle;
 import io.github.stekhub.wardroom.nntp.NntpCapabilities;
 import io.github.stekhub.wardroom.nntp.NntpClient;
 import io.github.stekhub.wardroom.nntp.NntpException;
@@ -37,10 +38,12 @@ final class CommonsNetClient implements NntpClient {
     private static final int CAPABILITY_LIST = 101;
     private static final int GROUP_SELECTED = 211;
     private static final int LIST_FOLLOWS = 215;
+    private static final int ARTICLE_FOLLOWS = 220;
     private static final int OVERVIEW_FOLLOWS = 224;
     private static final int NO_SUCH_GROUP = 411;
     private static final int NO_CURRENT_ARTICLE = 420;
     private static final int NO_ARTICLES_IN_RANGE = 423;
+    private static final int NO_SUCH_ARTICLE = 430;
     private static final int AUTHENTICATION_REQUIRED = 480;
     private static final int AUTHENTICATION_ACCEPTED = 281;
     private static final int PASSWORD_REQUIRED = 381;
@@ -277,6 +280,44 @@ final class CommonsNetClient implements NntpClient {
                         command, parsedLine, line);
             }
         });
+    }
+
+    @Override
+    public Optional<NntpArticle> article(String messageId, int maxBytes) {
+        if (!canBeSent(messageId)) {
+            log.debug("NNTP server={} is not asked for an article whose Message-ID cannot be sent",
+                    serverSettings.serverId());
+            return Optional.empty();
+        }
+        ensureReaderMode();
+        String keyword = "ARTICLE";
+        String command = keyword + " " + messageId;
+        switch (send(command, keyword, WireText.encode(messageId))) {
+            case ARTICLE_FOLLOWS -> {
+            }
+            case NO_SUCH_ARTICLE -> {
+                return Optional.empty();
+            }
+            case AUTHENTICATION_REQUIRED -> throw loginRequired();
+            case ACCESS_DENIED -> throw refused();
+            default -> throw unexpectedResponse(command);
+        }
+        try {
+            NntpArticle article = wireClient.readLimitedResponse(maxBytes);
+            if (!article.complete()) {
+                // The rest of the article is still on its way.
+                broken = true;
+            }
+            return Optional.of(article);
+        } catch (IOException e) {
+            throw failure(e, command);
+        }
+    }
+
+    /** A Message-ID with whitespace or control characters would be read as more than one argument or command. */
+    private static boolean canBeSent(String messageId) {
+        return !messageId.isEmpty()
+                && messageId.chars().noneMatch(character -> character <= ' ' || character == 0x7f);
     }
 
     /**

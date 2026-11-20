@@ -33,10 +33,24 @@ class ThreadRepository {
     /** SQLite takes a limited number of values in one statement; lists of IDs are split into parts of this size. */
     private static final int MAX_VALUES_PER_STATEMENT = 500;
 
+    private static final String IN_REPLY_TO = "In-Reply-To";
+
+    /**
+     * The header block of an article that has no {@code References}, to read its {@code In-Reply-To} from. For
+     * every other article the block is not read from the database.
+     */
+    private static final Field<String> HEADERS_WITHOUT_REFERENCES = DSL.when(
+            ARTICLE.REFERENCES.isNull().or(ARTICLE.REFERENCES.notLike("%<%>%")), ARTICLE.RAW_HEADERS);
+
     private final DSLContext database;
 
-    /** An article whose place in its thread has not been computed yet. */
-    record UnthreadedArticle(long articleId, String messageId, String references) {
+    /**
+     * An article whose place in its thread has not been computed yet.
+     *
+     * @param inReplyTo the {@code In-Reply-To} of the article, or {@code null} when the article has
+     *                  {@code References}, its content has not been fetched or it has no such header
+     */
+    record UnthreadedArticle(long articleId, String messageId, String references, String inReplyTo) {
     }
 
     /** A stored article or stub with the parent it has now. */
@@ -67,7 +81,7 @@ class ThreadRepository {
      *         first; at most {@code limit}
      */
     List<UnthreadedArticle> findUnthreaded(long groupId, int limit) {
-        return database.select(ARTICLE.ID, ARTICLE.MESSAGE_ID, ARTICLE.REFERENCES)
+        return database.select(ARTICLE.ID, ARTICLE.MESSAGE_ID, ARTICLE.REFERENCES, HEADERS_WITHOUT_REFERENCES)
                 .from(ARTICLE_LOCATION)
                 .join(ARTICLE).on(ARTICLE.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
                 .where(ARTICLE_LOCATION.NEWSGROUP_ID.eq((int) groupId))
@@ -75,7 +89,37 @@ class ThreadRepository {
                 .and(ARTICLE.THREAD_ROOT_ID.isNull())
                 .orderBy(ARTICLE_LOCATION.ARTICLE_NUMBER)
                 .limit(limit)
-                .fetch(row -> new UnthreadedArticle(row.value1(), row.value2(), row.value3()));
+                .fetch(row -> new UnthreadedArticle(row.value1(), row.value2(), row.value3(),
+                        RawHeaders.value(row.value4(), IN_REPLY_TO)));
+    }
+
+    /** @return the article when it is no stub and has no place; it does not have to be located in a group */
+    Optional<UnthreadedArticle> findUnthreadedArticle(long articleId) {
+        return database.select(ARTICLE.ID, ARTICLE.MESSAGE_ID, ARTICLE.REFERENCES, HEADERS_WITHOUT_REFERENCES)
+                .from(ARTICLE)
+                .where(ARTICLE.ID.eq((int) articleId))
+                .and(ARTICLE.IS_STUB.isFalse())
+                .and(ARTICLE.THREAD_ROOT_ID.isNull())
+                .fetchOptional(row -> new UnthreadedArticle(row.value1(), row.value2(), row.value3(),
+                        RawHeaders.value(row.value4(), IN_REPLY_TO)));
+    }
+
+    /** Takes the place away from one article, so that it is threaded again. Its replies keep their parent. */
+    void forgetPlace(long articleId) {
+        database.update(ARTICLE)
+                .setNull(ARTICLE.PARENT_ID)
+                .setNull(ARTICLE.THREAD_ROOT_ID)
+                .where(ARTICLE.ID.eq((int) articleId))
+                .execute();
+    }
+
+    /** @return the groups the article is located in, lowest ID first */
+    List<Long> findGroupsOf(long articleId) {
+        return database.select(ARTICLE_LOCATION.NEWSGROUP_ID)
+                .from(ARTICLE_LOCATION)
+                .where(ARTICLE_LOCATION.ARTICLE_ID.eq((int) articleId))
+                .orderBy(ARTICLE_LOCATION.NEWSGROUP_ID)
+                .fetch(row -> row.value1().longValue());
     }
 
     /** @return the stored articles and stubs with these Message-IDs, and all their ancestors */
@@ -170,7 +214,7 @@ class ThreadRepository {
                 .where(ARTICLE_LOCATION.ARTICLE_ID.eq(ARTICLE.ID)));
         ArticleLocation location = ARTICLE_LOCATION.as("location_in_group");
         return database.select(ARTICLE.ID, ARTICLE.MESSAGE_ID, ARTICLE.SUBJECT, ARTICLE.DATE, ARTICLE.PARENT_ID,
-                        ARTICLE.REFERENCES, decidingGroup)
+                        ARTICLE.REFERENCES, decidingGroup, HEADERS_WITHOUT_REFERENCES)
                 .from(location)
                 .join(ARTICLE).on(ARTICLE.ID.eq(location.ARTICLE_ID))
                 .where(location.NEWSGROUP_ID.eq((int) groupId))
@@ -182,7 +226,8 @@ class ThreadRepository {
                         .or(ARTICLE.REFERENCES.notLike("%<%>%")))
                 .fetch(row -> new Candidate(row.value1(), row.value2(), row.value3(), row.value4(),
                         row.value5() == null ? null : row.value5().longValue(),
-                        !ReferencesParser.hasMessageIdToken(row.value6()),
+                        !ReferencesParser.hasMessageIdToken(row.value6())
+                                && !ReferencesParser.hasMessageIdToken(RawHeaders.value(row.value8(), IN_REPLY_TO)),
                         row.value7() != null && row.value7() == groupId));
     }
 
@@ -197,6 +242,9 @@ class ThreadRepository {
      * Takes apart every thread that has an article located in the group: its stubs are deleted, and its articles
      * that are also located in another group lose their place. The articles located only in this group keep
      * theirs; the caller removes them.
+     *
+     * <p>The same happens to every thread that has an article without any location, such as a stub that was
+     * filled in when it was read: the cleanup removes these articles too (data model, lifecycle rules).
      */
     void forgetThreadsOfGroup(long groupId) {
         Article member = ARTICLE.as("member");
@@ -204,13 +252,20 @@ class ThreadRepository {
         List<Integer> stubIds = new ArrayList<>();
         List<Integer> remainingArticleIds = new ArrayList<>();
         // Read first, change afterwards: deleting a stub empties the thread root of the rows that pointed to it.
+        ArticleLocation anyLocation = ARTICLE_LOCATION.as("any_location");
         database.select(ARTICLE.ID, ARTICLE.IS_STUB)
                 .from(ARTICLE)
                 .where(ARTICLE.THREAD_ROOT_ID.in(DSL.select(member.THREAD_ROOT_ID)
                         .from(ARTICLE_LOCATION)
                         .join(member).on(member.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
                         .where(ARTICLE_LOCATION.NEWSGROUP_ID.eq((int) groupId))
-                        .and(member.THREAD_ROOT_ID.isNotNull())))
+                        .and(member.THREAD_ROOT_ID.isNotNull())
+                        .union(DSL.select(member.THREAD_ROOT_ID)
+                                .from(member)
+                                .where(member.IS_STUB.isFalse())
+                                .and(member.THREAD_ROOT_ID.isNotNull())
+                                .andNotExists(DSL.selectOne().from(anyLocation)
+                                        .where(anyLocation.ARTICLE_ID.eq(member.ID))))))
                 .and(ARTICLE.IS_STUB.isTrue().orExists(DSL.selectOne().from(otherLocation)
                         .where(otherLocation.ARTICLE_ID.eq(ARTICLE.ID))
                         .and(otherLocation.NEWSGROUP_ID.ne((int) groupId))))
