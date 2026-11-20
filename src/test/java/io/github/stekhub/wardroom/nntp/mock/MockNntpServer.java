@@ -6,9 +6,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -42,6 +44,9 @@ import javax.net.ssl.SSLContext;
 public final class MockNntpServer implements AutoCloseable {
 
     private static final MockReply UNKNOWN_COMMAND = MockReply.lines("500 Unknown command");
+
+    /** How long {@link #close()} waits at most until the port refuses connections. */
+    private static final Duration CLOSE_WAIT = Duration.ofSeconds(2);
 
     private final ServerSocket serverSocket;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
@@ -105,11 +110,30 @@ public final class MockNntpServer implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
+        InetSocketAddress address = new InetSocketAddress(serverSocket.getInetAddress(), serverSocket.getLocalPort());
         serverSocket.close();
+        awaitRefusedConnections(address);
         for (Socket socket : openSockets) {
             socket.close();
         }
         executor.shutdownNow();
+    }
+
+    /**
+     * Returns when the port refuses connections. For a moment after the listening socket is closed, the operating
+     * system can still accept a connection and reset it afterwards; a test that expects "connection refused" must
+     * not see that.
+     */
+    private static void awaitRefusedConnections(InetSocketAddress address) {
+        long deadline = System.nanoTime() + CLOSE_WAIT.toNanos();
+        while (System.nanoTime() < deadline) {
+            try (Socket probe = new Socket()) {
+                probe.connect(address, (int) CLOSE_WAIT.toMillis());
+            } catch (IOException e) {
+                return;
+            }
+            Thread.onSpinWait();
+        }
     }
 
     /** The replies to one command: some that are given once, in order, and then one that is given every time. */
