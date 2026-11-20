@@ -146,6 +146,8 @@ Instance-wide settings as key-value pairs, editable on the settings page.
 | `sync.initial_depth` | 500 ([ADR 0019](decisions/0019-initial-sync-depth-instance-only.md)) |
 | `cache.max_size_gb` | 5 ([ADR 0023](decisions/0023-cache-size-limit.md)) |
 
+One key is not a setting and is not shown on the settings page: `app.version`, the version of Wardroom that used the database last. Wardroom writes it at every start and uses it to name the backup before an update ([ADR 0032](decisions/0032-application-version-in-backup-names.md)).
+
 ## Lifecycle rules
 
 - **Unsubscribe** deletes, in one transaction:

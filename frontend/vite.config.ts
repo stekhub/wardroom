@@ -16,6 +16,9 @@ export default defineConfig({
     // Spring Boot serves the frontend from the classpath; Maven packages this directory into the jar.
     outDir: '../target/classes/static',
     emptyOutDir: true,
+    // The application is one script of about 650 kB (200 kB compressed), loaded once from the owner's own
+    // server and then kept by the browser. Vite warns above 500 kB; splitting the script is not worth it yet.
+    chunkSizeWarningLimit: 1000,
   },
   server: {
     proxy: {

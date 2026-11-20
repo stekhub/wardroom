@@ -34,7 +34,7 @@ What follows from it: benefits, costs, rules to follow.
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-backend-platform.md) | Backend platform | Accepted |
 | [0003](0003-persistence.md) | Persistence: SQLite, jOOQ and Flyway | Accepted |
-| [0004](0004-database-upgrades.md) | Database upgrades and migration rules | Accepted; backup retention in 0028 |
+| [0004](0004-database-upgrades.md) | Database upgrades and migration rules | Accepted; backup retention in 0028, backup file name superseded by 0032 |
 | [0005](0005-nntp-client-library.md) | NNTP client library | Accepted |
 | [0006](0006-resilience.md) | Resilience for NNTP communication | Accepted; values in 0026 |
 | [0007](0007-frontend-stack.md) | Frontend stack | Accepted; no dark mode in the MVP; client generation in 0027 |
@@ -62,3 +62,4 @@ What follows from it: benefits, costs, rules to follow.
 | [0029](0029-logging.md) | Logging | Accepted |
 | [0030](0030-test-levels-and-build-gate.md) | Test levels and build gate | Accepted |
 | [0031](0031-user-guide.md) | User guide outside the README | Accepted |
+| [0032](0032-application-version-in-backup-names.md) | Application version in backup names | Accepted |

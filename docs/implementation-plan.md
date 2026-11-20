@@ -7,8 +7,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | # | Step | Specs and ADRs | Status |
 |---|---|---|---|
 | 1 | Project skeleton | ADR 0002, 0003, 0004, 0007, 0008, 0009, 0024, 0027, 0028, 0029, 0030 | Done |
-| 2 | NNTP foundation | ADR 0005, 0006, 0016, 0026; open question 1 | In review |
-| 3 | Authentication and application shell | Spec 001; UI concept | Not started |
+| 2 | NNTP foundation | ADR 0005, 0006, 0016, 0026; open question 1 | Done |
+| 3 | Authentication and application shell | Spec 001; UI concept | In review |
 | 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | Not started |
 | 5 | Newsgroup discovery | Spec 003; group icons | Not started |
 | 6 | Subscriptions | Spec 004 | Not started |
@@ -20,7 +20,7 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 12 | Ignoring | Spec 010 | Not started |
 | 13 | Posting | Spec 009 | Not started |
 | 14 | Cache size limit | ADR 0023; spec 005 | Not started |
-| 15 | Polish and documentation | UI concept; spec 001, 002 | Not started |
+| 15 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Not started |
 | 16 | Release pipeline | ADR 0009, 0024 | Not started; discuss first |
 
 Status values: `Not started`, `In progress`, `In review`, `Done`.
@@ -111,6 +111,8 @@ Wardroom can first be used for reading after step 11.
 ### 15. Polish and documentation
 
 - Quick switcher (`Ctrl+K` / `⌘K`), settings section "About", accessibility pass against WCAG 2.2 AA.
+- Shorter sessions without "Remember me" (decided by the owner, part of the MVP): a session from a login without "Remember me", and the session after setup, ends after 30 minutes of inactivity. A session with "Remember me" keeps the 7 days. The server enforces both, so the option no longer depends on the browser dropping the cookie. Change spec 001 with the implementation. To be decided then: whether requests the open page sends on its own count as activity, and how an article that is being written survives a session that ended (spec 009).
+- Application version in backup names (ADR 0032): store the version at every start, name the backup after the stored version, log both versions, and adapt the cleanup of old backups to the new file name. Add the section on going back to an earlier version to the user guide.
 - README: introduction, quick start with the reference Compose file, first-run wizard, link list to the user guide (ADR 0031).
 - User guide (`docs/user-guide.md`): backups, updates, password reset (spec 001), lost key file (spec 002), and an advanced section on keeping the encryption key outside `/config` (ADR 0025, 0031).
 - The README and the user guide were written early, on 2026-11-19. In this step: check both against the finished application and replace the screenshot placeholder in the README with a real screenshot.
@@ -135,6 +137,51 @@ Wardroom can first be used for reading after step 11.
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 3, authentication and application shell (2026-11-19)**
+
+What was built:
+
+- Backend: the six endpoints of spec 001 below `/api/auth`, the access rules, sessions in the database, login throttling, and the account creation with its cleanup. Spring Session JDBC works with SQLite; no session store of Wardroom's own was needed.
+- Frontend: login page, wizard step 1 (account), the shell with the sidebar, the settings page with its section navigation, the "Account" section with the password change, log out, toasts and skeletons. The logo and the favicon are in place.
+- A module that stores sensitive data implements `AccountCreationCleanup` of the `auth` module. Its cleanup runs in the transaction that creates the account (ADR 0017).
+
+Decisions made during the step, open to a veto:
+
+- Username: surrounding whitespace is removed at setup and at login. Apart from that, the username is stored as entered and compared exactly, including upper and lower case. Spec 001 says "stored as entered" and "after trimming"; this is how both were read.
+- Lengths of username and password are counted in characters, not in bytes. An emoji is one character.
+- Changed in the review: a session ends after 7 days of inactivity instead of 30, and the login page has the option "Remember me". Without it the session cookie ends with the browser session; with it the browser keeps the cookie and the server enforces the 7 days. Before, there was no such option and every cookie was kept for 400 days. Spec 001 was changed accordingly.
+- Also decided in the review, for step 15: a session without "Remember me" will end after 30 minutes of inactivity. Until then it ends after 7 days like every session.
+- A login always gets a new session; a session the browser had before is ended.
+- Logins are checked one after the other, so parallel attempts cannot get around the throttling.
+- A password that is too long to be valid is answered like a wrong password (`401`), not with `400`.
+- A wrong current password at the password change is not throttled. Spec 001 only throttles the login.
+- Changed in the review: a password change ends all sessions, including the current one, and the owner logs in again. Before, the current session stayed logged in, and a copy of its session ID in other hands would have stayed valid. Spec 001 was changed accordingly.
+- Validation errors of all endpoints have one shape: `detail` is the first failed rule, and `errors` lists every failed field with its rule.
+- Files below `/assets` may be kept by the browser for a year, because their names change with their content. Everything else is checked with the server on every page load.
+- The settings navigation shows all six sections of the UI concept. A section whose feature is not built yet says so.
+- `/` leads to the discover view, which has only its heading so far.
+- After wizard step 1, the application is shown directly. Step 4 adds wizard step 2 and the rule that the application needs a server.
+- The sidebar collapses to a narrow column of icons and remembers this in a cookie. In a narrow window it opens over the page.
+
+Findings:
+
+- jOOQ maps `INTEGER` columns to 32-bit numbers. Columns for times in milliseconds or for article numbers must be declared `BIGINT` in the migrations. The session tables do this.
+- Spring Boot would create a second user with a generated password and print that password in the log. This is switched off.
+- The attributes of the session cookie (`HttpOnly`, `SameSite`, `Secure`) are set by the web server, so they are tested with a real server in `SessionRestartTest`, not with the usual integration tests.
+- The logo files are copied into `frontend/src/assets`, because the image build does not include `assets/`. The favicon in `frontend/public` is derived from the logo.
+- The build no longer prints `[ERROR]` lines when nothing failed: pnpm is started with `--silent`, which removes the line that repeats its command. A real failure of the frontend checks still shows its messages and ends with `BUILD FAILURE`.
+- New dependencies: Spring Security, Spring Session JDBC, Bouncy Castle (needed for Argon2), and in the frontend the toast library of shadcn/ui.
+
+Left for later steps:
+
+- The test "setup after the account row was deleted" covers the sessions and that cleanups run. The part about the NNTP credentials is tested in step 4, when they exist.
+- Installation documentation of spec 001 (step 15): complete setup immediately; an update may require logging in again.
+
+Not verified:
+
+- That forwarded headers from an address outside a private network are ignored. This is the web server's default behavior and was not tested; the test only shows that a local address is trusted.
+- The image build. The application was tried in the browser with the jar built by Maven.
 
 **Step 2, NNTP foundation (2026-11-19)**
 
@@ -192,4 +239,3 @@ Tests and build:
 - The frontend uses React Router 7 and TypeScript 5.9, not the newest major versions: ADR 0007 names React Router 7, and the API client generator requires TypeScript 5.
 - Not verified locally: the build stage of the Dockerfile. The runtime stage was checked with the jar built by Maven. To be checked on the first build outside the development machine.
 - When committing: mark `mvnw` and `docker/entrypoint.sh` as executable in Git (`git update-index --chmod=+x`), otherwise the CI workflow cannot start the wrapper.
-- For step 3: `.dockerignore` excludes `assets/`. Copy the logo into the frontend sources or remove that line when the logo is used.

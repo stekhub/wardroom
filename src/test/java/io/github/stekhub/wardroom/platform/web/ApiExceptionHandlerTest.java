@@ -1,6 +1,7 @@
 package io.github.stekhub.wardroom.platform.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 import io.github.stekhub.wardroom.IntegrationTest;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,7 @@ class ApiExceptionHandlerTest {
 
     @Test
     void unexpectedErrorIsAnsweredAsProblemDetailsWithoutInternals(CapturedOutput output) {
-        assertThat(mvc.get().uri("/api/test/failure"))
+        assertThat(mvc.get().uri("/api/test/failure").with(user("owner")))
                 .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
                 .bodyJson()
@@ -48,7 +49,7 @@ class ApiExceptionHandlerTest {
 
     @Test
     void unknownApiPathIsAnsweredAsProblemDetails() {
-        assertThat(mvc.get().uri("/api/does-not-exist"))
+        assertThat(mvc.get().uri("/api/does-not-exist").with(user("owner")))
                 .hasStatus(HttpStatus.NOT_FOUND)
                 .hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
                 .bodyJson()
