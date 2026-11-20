@@ -141,6 +141,8 @@ Progress notes, deviations and findings, newest first.
 
 **Step 6, subscriptions (2026-11-20)**
 
+Accepted by the owner after the review, and written into spec 004: the field `description` of a subscription, and `204` for subscribing to a subscribed group that the server has removed.
+
 What was built:
 
 - Backend: the tables `subscription`, `article`, `article_location`, `read_state` and `synced_range` (migration V5), the four endpoints of spec 004, the unsubscribe cleanup, the unread count and "mark all as read". The group list of spec 003 now says which groups are subscribed.
