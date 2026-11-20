@@ -20,8 +20,8 @@ final class GroupResponses {
                          @NotNull boolean subscribed) {
 
         static GroupResponse of(StoredGroup group) {
-            // Subscriptions come with spec 004; until then no group is subscribed.
-            return new GroupResponse(group.id(), group.name(), group.description(), group.postingStatus(), false);
+            return new GroupResponse(group.id(), group.name(), group.description(), group.postingStatus(),
+                    group.subscribed());
         }
     }
 

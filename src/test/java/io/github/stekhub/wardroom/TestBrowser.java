@@ -67,6 +67,10 @@ public final class TestBrowser {
         return exchange(withCsrfToken(mvc.post().uri(path)).contentType(MediaType.APPLICATION_JSON).content(jsonBody));
     }
 
+    public MvcTestResult put(String path) {
+        return exchange(withCsrfToken(mvc.put().uri(path)));
+    }
+
     public MvcTestResult put(String path, String jsonBody) {
         return exchange(withCsrfToken(mvc.put().uri(path)).contentType(MediaType.APPLICATION_JSON).content(jsonBody));
     }

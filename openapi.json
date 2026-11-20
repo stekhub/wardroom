@@ -321,6 +321,62 @@
         },
         "required" : [ "password", "username" ],
         "type" : "object"
+      },
+      "Subscription" : {
+        "properties" : {
+          "description" : {
+            "description" : "null when the server gave none; to be shown as text only",
+            "type" : "string"
+          },
+          "groupId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "description" : "Comes from the server; to be shown as text only",
+            "type" : "string"
+          },
+          "postingStatus" : {
+            "enum" : [ "ALLOWED", "NOT_ALLOWED", "MODERATED" ],
+            "type" : "string"
+          },
+          "removed" : {
+            "description" : "Whether the server no longer lists the group",
+            "type" : "boolean"
+          },
+          "serverId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "sync" : {
+            "$ref" : "#/components/schemas/SubscriptionSyncStatus"
+          },
+          "unreadCount" : {
+            "description" : "Articles of the group that are not read yet",
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "groupId", "name", "postingStatus", "removed", "serverId", "sync", "unreadCount" ],
+        "type" : "object"
+      },
+      "SubscriptionSyncStatus" : {
+        "properties" : {
+          "error" : {
+            "description" : "Why the last synchronization failed; null when it succeeded",
+            "type" : "string"
+          },
+          "lastSyncedAt" : {
+            "description" : "The time of the last successful synchronization in milliseconds; null when none has succeeded",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "running" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "running" ],
+        "type" : "object"
       }
     }
   },
@@ -505,6 +561,117 @@
         },
         "summary" : "Creates the account and logs in",
         "tags" : [ "Authentication" ]
+      }
+    },
+    "/api/groups/{groupId}/mark-all-read" : {
+      "post" : {
+        "operationId" : "markAllRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "groupId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "All articles of the group are read"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No group has this ID"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The group is not subscribed"
+          }
+        },
+        "summary" : "Marks all articles of the group as read",
+        "tags" : [ "Subscriptions" ]
+      }
+    },
+    "/api/groups/{groupId}/subscription" : {
+      "delete" : {
+        "operationId" : "unsubscribe",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "groupId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "The group is not subscribed; it may not have been before"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No group has this ID"
+          }
+        },
+        "summary" : "Unsubscribes from the group and deletes its cached articles and their read state",
+        "tags" : [ "Subscriptions" ]
+      },
+      "put" : {
+        "operationId" : "subscribe",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "groupId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "The group is subscribed; it may have been so before"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No group has this ID"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The server no longer lists the group"
+          }
+        },
+        "summary" : "Subscribes to the group",
+        "tags" : [ "Subscriptions" ]
       }
     },
     "/api/servers" : {
@@ -863,6 +1030,28 @@
         },
         "summary" : "Starts a refresh of the group list",
         "tags" : [ "Groups" ]
+      }
+    },
+    "/api/subscriptions" : {
+      "get" : {
+        "operationId" : "listSubscriptions",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/Subscription"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The subscribed groups"
+          }
+        },
+        "summary" : "Lists the subscribed groups by name, with their unread counts",
+        "tags" : [ "Subscriptions" ]
       }
     }
   },

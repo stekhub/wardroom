@@ -10,8 +10,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 2 | NNTP foundation | ADR 0005, 0006, 0016, 0026; open question 1 | Done |
 | 3 | Authentication and application shell | Spec 001; UI concept | Done |
 | 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | Done |
-| 5 | Newsgroup discovery | Spec 003; group icons | In review |
-| 6 | Subscriptions | Spec 004 | Not started |
+| 5 | Newsgroup discovery | Spec 003; group icons | Done |
+| 6 | Subscriptions | Spec 004 | In review |
 | 7 | Synchronization core | Spec 005 | Not started |
 | 8 | Load older, load more, jump to date | Spec 005; ADR 0021, 0022 | Not started |
 | 9 | Threading | Spec 006 | Not started |
@@ -138,6 +138,56 @@ Wardroom can first be used for reading after step 11.
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 6, subscriptions (2026-11-20)**
+
+What was built:
+
+- Backend: the tables `subscription`, `article`, `article_location`, `read_state` and `synced_range` (migration V5), the four endpoints of spec 004, the unsubscribe cleanup, the unread count and "mark all as read". The group list of spec 003 now says which groups are subscribed.
+- Removing the server now also deletes subscriptions, article locations, articles without a location, their read state and the synchronized ranges.
+- Frontend: the subscribe toggle in the discover rows and in the group header, the confirmation before unsubscribing, the subscription list in the sidebar, and the group view with its header and "Mark all as read".
+
+A problem in the order of the steps, and how it was handled:
+
+- Spec 004 needs tables that the plan gives to step 7. Its migration task names `read_state`, which points to `article`. Its tests for the cleanup, the unread count and "mark all as read" need `article` and `article_location`, and the cleanup deletes rows of `synced_range`. Spec 005 lists these three tables in its own migration task.
+- Handled, open to a veto: step 6 creates all five tables. `article` has only the columns this step uses: `message_id` and `is_stub`. Step 7 adds the other columns of the data model in its own migration. The tests of this step put articles into the database themselves.
+
+Not built, because it needs a later step:
+
+- Subscribing does not start a synchronization, and unsubscribing has none to cancel (step 7). The test "unsubscribing during a running synchronization leaves no locations behind" and the half of the first test that says "starts the first synchronization" come with step 7.
+- `sync.running` is always `false`. `lastSyncedAt` and `error` are read from the group row, which nothing fills before step 7. The sidebar already shows the three status icons when the data says so.
+- The unread count leaves out ignored articles and hidden threads only from step 12 on.
+- The cleanup does not recompute threads (step 9) and does not keep articles that were posted and wait for their location (step 13).
+- The group view has only its header. Refresh and jump to date come with steps 7 and 8, the threads with step 11.
+
+Decisions made during the step, open to a veto:
+
+- The subscription in the answer of `GET /api/subscriptions` has a field `description` that spec 004 does not list. The group icon is derived from name and description. Without the field, the icon in the sidebar could differ from the icon of the same group in the discover view.
+- Subscribing to a group that is subscribed already is answered with `204` also when the server has removed the group since. Spec 004 lists both "`204` also if already subscribed" and "`409` group removed".
+- The cleanup deletes every article without a location, not only those that were in the group. This is what the data model says, and it includes stubs. It reads the whole table `article` once per unsubscribe.
+- Unsubscribing leaves `last_synced_at` and `last_sync_error` of the group as they are. Step 7 decides what a new subscription does with them.
+- The group view exists only for subscribed groups, and takes its data from the subscription list. No endpoint returns one group, and the threads endpoint of spec 008 answers `404` for a group that is not subscribed. For another group ID the view says so and links to the discover view. So the toggle in the group header can only unsubscribe.
+- The badge "Subscribed" in the discover rows is gone; the filled star says the same.
+- Frontend: on subscribe, the toggle changes before the backend has answered, and goes back with a message when the backend refuses. The sidebar shows the group after the answer.
+- Frontend: a subscribed group that the server has removed gets the badge "Removed from the server" in the group header, next to the icon in the sidebar.
+- Frontend: after unsubscribing, a short message confirms it.
+- New TestBrowser method `put(path)` without a body.
+
+Found by the owner in the review:
+
+- On a wide screen the subscribe toggle was far from the group name, and the buttons of the group header far from the header. Decided: the discover view and the group view show their content in one centered column of at most 768 px, with the same width whether the sidebar is collapsed or not. The UI concept says so now. Whether 768 px suits article text is judged again when articles are shown (steps 10 and 11).
+- The line above the subscriptions in the sidebar reached past the edge of the sidebar. It keeps its side margins now.
+
+Verified and not verified:
+
+- `./mvnw verify` passes: 282 backend tests and 109 frontend tests.- Tried by hand in a browser with the built jar against a small local server without TLS: subscribing in the discover view, the sidebar, the group view, "Mark all as read", and unsubscribing with its confirmation. The articles for the unread count were put into the database by hand.
+- Not tried: the sidebar with the status icons for a running synchronization and a removed group (only in tests), a collapsed sidebar, and a real server.
+
+Left for later steps:
+
+- Hand a newly subscribed group to the synchronization, and cancel a running one on unsubscribe (step 7).
+- Add the remaining columns of `article` (step 7 and later, as their specs say).
+- Recompute threads in the unsubscribe cleanup (step 9); keep posted articles that wait for their location (step 13).
 
 **Step 5, newsgroup discovery (2026-11-20)**
 

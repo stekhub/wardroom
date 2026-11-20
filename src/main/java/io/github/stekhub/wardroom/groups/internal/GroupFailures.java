@@ -18,6 +18,31 @@ final class GroupFailures {
         }
     }
 
+    static class GroupNotFoundException extends ErrorResponseException {
+
+        GroupNotFoundException() {
+            super(HttpStatus.NOT_FOUND,
+                    ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "This group does not exist."), null);
+        }
+    }
+
+    /** A group that the server no longer lists cannot be subscribed to (spec 004). */
+    static class GroupRemovedException extends ErrorResponseException {
+
+        GroupRemovedException() {
+            super(HttpStatus.CONFLICT, ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                    "The server no longer has this group, so it cannot be subscribed to."), null);
+        }
+    }
+
+    static class GroupNotSubscribedException extends ErrorResponseException {
+
+        GroupNotSubscribedException() {
+            super(HttpStatus.CONFLICT,
+                    ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "This group is not subscribed."), null);
+        }
+    }
+
     /** A refresh would only be another rejected login (spec 003). */
     static class CredentialsInvalidException extends ErrorResponseException {
 

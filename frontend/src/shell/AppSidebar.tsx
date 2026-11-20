@@ -15,6 +15,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { SubscriptionList } from '@/shell/SubscriptionList'
 
 /**
  * The sidebar of the UI concept: logo, name and settings button, the "Discover groups" button and
@@ -72,13 +73,12 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarSeparator />
+      {/* The separator has side margins. Without this, its own rule for a full width wins and it
+          reaches past the edge of the sidebar. */}
+      <SidebarSeparator className="data-horizontal:w-auto" />
       <SidebarContent>
         <SidebarGroup>
-          {/* The subscribed groups are listed here once subscriptions exist (spec 004). */}
-          <p className="px-2 py-1 text-sm text-muted-foreground group-data-[collapsible=icon]:hidden">
-            No subscribed groups yet.
-          </p>
+          <SubscriptionList />
         </SidebarGroup>
       </SidebarContent>
       <SidebarRail />

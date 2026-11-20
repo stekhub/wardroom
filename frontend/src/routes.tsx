@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
 import { AuthGate } from '@/auth/AuthGate'
 import { DiscoverPage } from '@/pages/DiscoverPage'
+import { GroupPage } from '@/pages/GroupPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ServerGate } from '@/server/ServerGate'
 import { AccountSection } from '@/settings/AccountSection'
@@ -33,6 +34,7 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, element: <Navigate to="/discover" replace /> },
               { path: 'discover', element: <DiscoverPage /> },
+              { path: 'groups/:groupId', element: <GroupPage /> },
               {
                 path: 'settings',
                 element: <SettingsPage />,

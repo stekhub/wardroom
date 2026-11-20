@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { GroupIcon } from '@/groups/GroupIcon'
 import { GroupListRefresh } from '@/groups/GroupListRefresh'
+import { SubscribeToggle } from '@/groups/SubscribeToggle'
 import {
   type Group,
   GROUPS_PER_PAGE,
@@ -14,6 +15,7 @@ import {
   useGroupPage,
 } from '@/groups/groupListState'
 import { PageHeader } from '@/pages/PageHeader'
+import { ReadingColumn } from '@/pages/ReadingColumn'
 import { useServers } from '@/server/serverState'
 
 const COUNT = new Intl.NumberFormat('en')
@@ -83,7 +85,7 @@ function GroupList({ serverId }: { serverId: number }) {
   const pageCount = Math.max(1, Math.ceil(total / GROUPS_PER_PAGE))
 
   return (
-    <div className="p-6">
+    <ReadingColumn>
       <PageHeader title="Discover groups" />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full max-w-sm">
@@ -160,7 +162,7 @@ function GroupList({ serverId }: { serverId: number }) {
           </nav>
         </>
       )}
-    </div>
+    </ReadingColumn>
   )
 }
 
@@ -180,9 +182,9 @@ function GroupRow({ group }: { group: Group }) {
           </p>
         )}
       </div>
-      {group.subscribed && <Badge variant="secondary">Subscribed</Badge>}
       {group.postingStatus === 'MODERATED' && <Badge variant="outline">Moderated</Badge>}
       {group.postingStatus === 'NOT_ALLOWED' && <Badge variant="outline">No posting</Badge>}
+      <SubscribeToggle groupId={group.id} groupName={group.name} subscribed={group.subscribed} />
     </li>
   )
 }
