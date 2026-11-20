@@ -13,8 +13,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 5 | Newsgroup discovery | Spec 003; group icons | Done |
 | 6 | Subscriptions | Spec 004 | Done |
 | 7 | Synchronization core | Spec 005 | Done |
-| 8 | Load older, load more, jump to date | Spec 005; ADR 0021, 0022 | In review |
-| 9 | Threading | Spec 006 | Not started |
+| 8 | Load older, load more, jump to date | Spec 005; ADR 0021, 0022 | Done |
+| 9 | Threading | Spec 006 | In review |
 | 10 | Article reading | Spec 007 | Not started |
 | 11 | Discussion view | Spec 008 | Not started |
 | 12 | Ignoring | Spec 010 | Not started |
@@ -139,6 +139,59 @@ Wardroom can first be used for reading after step 11.
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 9, threading (2026-11-20)**
+
+What was built:
+
+- Migration V7: the columns `parent_id` and `thread_root_id` of `article`, with an index each.
+- Backend, module `articles`: parsing of `References`, subject normalization, the threading function, the subject fallback, and the service that stores the result.
+- Threads are recomputed after every stored chunk of a synchronization, after "load older", "load more" and a jump. After unsubscribing and after a renumbering, the threads that had an article in the group are recomputed; after removing a server, all threads.
+- The queries of spec 006: the threads of a group with message count, latest activity and card article, and the thread root of any article.
+- Nothing in the frontend. No endpoint is new.
+
+Not built, because it needs a later step:
+
+- `In-Reply-To` is known only when the content of an article is fetched (step 10). The threading function uses it already and is tested with it; nothing passes it in yet.
+- The hook "after an article's content is fetched" (step 10).
+- The thread list and the thread page that use the queries (step 11).
+
+Decisions made during the step, open to a veto:
+
+- `thread_root_id` of a thread root is the ID of the article itself. An article without a `thread_root_id` has no place yet: new articles are stored that way, and a stub that is filled in loses its thread root. The threading picks up exactly these articles. So a recomputation that failed is repeated by the next one, as spec 006 asks.
+- The threading runs in a transaction of its own, after the transaction that stored the chunk. A failure of the threading does not lose the chunk.
+- After a chunk, the parent of a stub comes from the article that was stored first, as spec 006 says ("the first article that created it"). A complete recomputation threads by article number. The two differ only when two articles list different Message-IDs before the same missing article, and the newer one was fetched first.
+- Unsubscribing and a renumbering recompute only the threads that had an article in the group (accepted by the owner on 2026-11-20; data model and spec 006 are changed). Before the deletion, these threads lose their stubs, and their articles that are also in another group lose their place. After the deletion, every article without a place is threaded, as after a chunk. It runs in the transaction that removes the articles. If it fails, the removal fails with it.
+- The unsubscribe cleanup no longer deletes stubs itself. As a safeguard, a stub without a thread root is deleted when threads are recomputed after a removal.
+- A complete recomputation deletes all stubs, takes the place away from every article, and threads group by group, lowest group ID first, each by article number. It is used when a server is removed, and a test compares the result of unsubscribing with it.
+- Subject fallback: the articles of a group are decided oldest first, so the result does not depend on the order in which they were fetched. Two replies without references attach to the original post, not to each other; without the original, the second attaches to the first.
+- Subject fallback: only articles with a date are attached, and only thread roots with a date are matched. A crossposted article is decided in the group with the lowest ID only; otherwise two groups could move it back and forth. A subject that is only a reply prefix matches nothing.
+- An article "has no References" when the header has nothing of the form `<…>`. An article whose header has such tokens but none that is usable is a thread root, and the subject fallback does not apply to it.
+- Of a Message-ID that appears twice in `References`, the first place counts.
+- The card article of a thread without its root in the group is the oldest article by date; articles without a date come last, by article number.
+- A link that would close a cycle is logged as a `PROTOCOL_ANOMALY` with the new kind `references.cycle`.
+- `parent_id` and `thread_root_id` are foreign keys with `ON DELETE SET NULL`, so the cleanup can delete articles that others point to.
+- The threading is in the module `articles`. The groups module asks for the recomputation through its interface `ThreadRecomputation`, which `articles` implements; so `groups` does not depend on `articles`.
+- Both indexes of spec 006 are in V7. With this, the migration task of spec 008 for the index on `thread_root_id` is done.
+
+Findings:
+
+- Measured with 100,000 articles in one group, 12 per thread, on the development machine: threading one chunk of 1,000 new articles takes about 65 ms; a recomputation with nothing new, which is the subject fallback of the group, 70 ms; the thread figures of the group 150 ms; a complete recomputation 7.5 seconds.
+- A complete recomputation grows with the number of all stored articles, and nothing else can write while it runs. This is why unsubscribing recomputes only the threads of the group. Measured with 100,000 articles in one group and 5,000 in a second one, a tenth of whose threads are crossposted: leaving the small group takes 0.3 seconds, leaving the large one 1.2 seconds, most of it the deletion itself; a complete recomputation of the same data takes 5.4 seconds.
+- A thread whose articles were all located in the unsubscribed group, except some replies, keeps those replies: the removed articles become stubs again.
+
+Verified and not verified:
+
+- `./mvnw verify` passes: 459 backend tests and 125 frontend tests.
+- The unit tests of spec 006 are in `ThreadGraphTest`, `ReferencesParserTest` and `SubjectFallbackTest`; the integration tests in `ThreadServiceTest` and `ThreadRecomputationTest`.
+- Not tried by hand: nothing of this step is visible before step 11.
+- Not verified: real articles. Real `References` and subjects are messier than the test data.
+
+Left for later steps:
+
+- Step 10: pass `In-Reply-To` to the threading and leave an article with a known `In-Reply-To` out of the subject fallback; thread a stub that was filled in by a content fetch. Such an article has no location, and the threading finds its articles through their locations, so step 10 needs an entry point by article.
+- Step 11: the thread list sorts and pages in SQL; `ThreadRepository.findThreads` is the starting point.
+- Step 13: articles posted with Wardroom that wait for their location have none either.
 
 **Step 8, load older, load more, jump to date (2026-11-20)**
 

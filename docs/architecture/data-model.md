@@ -153,8 +153,8 @@ One key is not a setting and is not shown on the settings page: `app.version`, t
 - **Unsubscribe** deletes, in one transaction:
   1. the subscription;
   2. the group's article locations;
-  3. articles without any remaining location, including stubs (their read state goes with them), except articles posted from another group that are still waiting for their location ([spec 009](../specs/009-article-posting/spec.md));
-  4. then deletes the group's synchronized ranges and recomputes threads, recreating stubs that are still referenced by remaining articles.
+  3. articles without any remaining location (their read state goes with them), and the stubs of every thread that had an article in the group, except articles posted from another group that are still waiting for their location ([spec 009](../specs/009-article-posting/spec.md));
+  4. then deletes the group's synchronized ranges and recomputes the threads that had an article in the group, recreating stubs that are still referenced by remaining articles. Threads without an article in the group are not touched.
 
   Crossposted articles with a location in another subscribed group are kept. The `newsgroup` row stays, as part of the group list.
 - **Server expiry** marks locations expired; cached content stays readable until the cache size limit removes it.

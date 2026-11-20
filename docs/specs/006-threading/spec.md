@@ -46,7 +46,7 @@ Building threads from locally stored article metadata: parent and root of each a
 **Recomputation**
 
 - After each stored chunk of a synchronization, load or jump, the threads that received articles are recomputed, together with the subject fallback of the group.
-- After the unsubscribe cleanup, threads are recomputed completely ([data model](../../architecture/data-model.md#lifecycle-rules)).
+- After the unsubscribe cleanup, the threads that had an article in the group are recomputed ([data model](../../architecture/data-model.md#lifecycle-rules)).
 - After an article's content is fetched, its thread is recomputed if it has no `References` and its `In-Reply-To` is now known.
 - Recomputation is idempotent: running it twice gives the same result.
 

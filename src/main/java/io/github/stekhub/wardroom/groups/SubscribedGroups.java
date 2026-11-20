@@ -34,7 +34,7 @@ public interface SubscribedGroups {
     /**
      * Deletes the article locations of the group, the articles that have no location left, with their read state,
      * and the synchronized ranges of the group: steps 2 to 4 of the unsubscribe cleanup (data model, lifecycle
-     * rules). The subscription stays. To be called in a transaction.
+     * rules), and computes the threads again. The subscription stays. To be called in a transaction.
      */
     void removeArticles(long groupId);
 
