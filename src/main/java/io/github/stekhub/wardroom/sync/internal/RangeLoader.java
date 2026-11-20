@@ -1,5 +1,6 @@
 package io.github.stekhub.wardroom.sync.internal;
 
+import io.github.stekhub.wardroom.articles.Threads;
 import io.github.stekhub.wardroom.groups.SubscribedGroups;
 import io.github.stekhub.wardroom.groups.SubscribedGroups.SubscribedGroup;
 import io.github.stekhub.wardroom.nntp.NntpClient;
@@ -46,6 +47,7 @@ class RangeLoader {
     private final SubscribedGroups subscribedGroups;
     private final SyncedArticleRepository syncedArticleRepository;
     private final TransactionOperations transactionOperations;
+    private final Threads threads;
 
     /** In which direction a range is extended. */
     enum Direction {
@@ -119,6 +121,7 @@ class RangeLoader {
                     overviews.size(), storedChunk, storedRange);
             return storedRange;
         });
+        threads.recomputeGroup(groupId);
         return loadedRange(groupId, grownRange, groupState);
     }
 
@@ -166,6 +169,7 @@ class RangeLoader {
                 logStep(group, "Jump to date", startNumber, fetchLast, overviews.size(), storedChunk, storedRange);
                 return storedRange;
             });
+            threads.recomputeGroup(groupId);
         }
         Long startDate = syncedArticleRepository.findFirstDate(groupId, startNumber, range.lastNumber())
                 .orElse(null);

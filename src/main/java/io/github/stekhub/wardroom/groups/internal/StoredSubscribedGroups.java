@@ -1,6 +1,7 @@
 package io.github.stekhub.wardroom.groups.internal;
 
 import io.github.stekhub.wardroom.groups.SubscribedGroups;
+import io.github.stekhub.wardroom.groups.ThreadRecomputation;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 class StoredSubscribedGroups implements SubscribedGroups {
 
     private final SubscriptionRepository subscriptionRepository;
+    private final ThreadRecomputation threadRecomputation;
 
     @Override
     public List<SubscribedGroup> findAll() {
@@ -45,6 +47,8 @@ class StoredSubscribedGroups implements SubscribedGroups {
 
     @Override
     public void removeArticles(long groupId) {
+        threadRecomputation.forgetThreadsOfGroup(groupId);
         subscriptionRepository.removeArticles(groupId);
+        threadRecomputation.threadArticlesWithoutPlace();
     }
 }

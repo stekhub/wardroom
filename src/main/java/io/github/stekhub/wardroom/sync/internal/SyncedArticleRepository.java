@@ -286,6 +286,8 @@ class SyncedArticleRepository {
     private void fillStub(int articleId, NntpOverview overview) {
         database.update(ARTICLE)
                 .set(ARTICLE.IS_STUB, false)
+                // Without a thread root the article has no place: its own References decide it now (spec 006).
+                .setNull(ARTICLE.THREAD_ROOT_ID)
                 .set(ARTICLE.SUBJECT, overview.subject())
                 .set(ARTICLE.FROM, overview.from())
                 .set(ARTICLE.DATE, overview.date())

@@ -1,5 +1,6 @@
 package io.github.stekhub.wardroom.sync.internal;
 
+import io.github.stekhub.wardroom.articles.Threads;
 import io.github.stekhub.wardroom.groups.SubscribedGroups;
 import io.github.stekhub.wardroom.groups.SubscribedGroups.SubscribedGroup;
 import io.github.stekhub.wardroom.nntp.NntpClient;
@@ -36,6 +37,7 @@ class GroupSynchronizer {
     private final SubscribedGroups subscribedGroups;
     private final SyncedArticleRepository syncedArticleRepository;
     private final TransactionOperations transactionOperations;
+    private final Threads threads;
 
     /** How a synchronization ended. */
     enum End {
@@ -100,6 +102,7 @@ class GroupSynchronizer {
             if (!storeChunk(groupId, chunkFirst, chunkLast, overviews, progress)) {
                 return End.NOT_SUBSCRIBED;
             }
+            threads.recomputeGroup(groupId);
         }
 
         boolean recorded = Boolean.TRUE.equals(transactionOperations.execute(status -> {

@@ -144,7 +144,8 @@ class SubscriptionRepository {
     /**
      * The unsubscribe cleanup of the data model: deletes the subscription, the locations of the group, the articles
      * that have no location left, with their read state, and the synchronized ranges of the group. An article that
-     * also has a location in another group is kept. To be called in one transaction.
+     * also has a location in another group is kept. Stubs are left to the threading
+     * ({@link io.github.stekhub.wardroom.groups.ThreadRecomputation}). To be called in one transaction.
      */
     void unsubscribe(long groupId) {
         Condition ofTheGroup = NEWSGROUP.ID.eq((int) groupId);
@@ -181,7 +182,8 @@ class SubscriptionRepository {
         database.deleteFrom(ARTICLE_LOCATION).where(ARTICLE_LOCATION.NEWSGROUP_ID.in(groupIds)).execute();
         // The read state goes with its article (ON DELETE CASCADE).
         database.deleteFrom(ARTICLE)
-                .whereNotExists(DSL.selectOne().from(ARTICLE_LOCATION)
+                .where(ARTICLE.IS_STUB.isFalse())
+                .andNotExists(DSL.selectOne().from(ARTICLE_LOCATION)
                         .where(ARTICLE_LOCATION.ARTICLE_ID.eq(ARTICLE.ID)))
                 .execute();
         database.deleteFrom(SYNCED_RANGE).where(SYNCED_RANGE.NEWSGROUP_ID.in(groupIds)).execute();

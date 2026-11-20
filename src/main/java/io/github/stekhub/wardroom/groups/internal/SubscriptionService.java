@@ -1,6 +1,7 @@
 package io.github.stekhub.wardroom.groups.internal;
 
 import io.github.stekhub.wardroom.groups.GroupSynchronization;
+import io.github.stekhub.wardroom.groups.ThreadRecomputation;
 import io.github.stekhub.wardroom.groups.internal.GroupFailures.GroupNotFoundException;
 import io.github.stekhub.wardroom.groups.internal.GroupFailures.GroupNotSubscribedException;
 import io.github.stekhub.wardroom.groups.internal.GroupFailures.GroupRemovedException;
@@ -22,6 +23,7 @@ class SubscriptionService {
     private final SubscriptionRepository subscriptionRepository;
     private final TransactionOperations transactionOperations;
     private final GroupSynchronization groupSynchronization;
+    private final ThreadRecomputation threadRecomputation;
 
     List<SubscriptionResponse> subscriptions() {
         Set<Long> synchronizingGroupIds = groupSynchronization.synchronizingGroupIds();
@@ -78,7 +80,9 @@ class SubscriptionService {
             if (!groupState.subscribed()) {
                 return false;
             }
+            threadRecomputation.forgetThreadsOfGroup(groupId);
             subscriptionRepository.unsubscribe(groupId);
+            threadRecomputation.threadArticlesWithoutPlace();
             return true;
         }));
     }

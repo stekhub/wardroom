@@ -31,6 +31,9 @@ public enum ProtocolAnomalyKind {
     /** A {@code 211} response to {@code GROUP} without the article count and the two watermarks. */
     GROUP_MALFORMED_RESPONSE("group.malformed-response"),
 
+    /** An article whose {@code References} name one of its own replies as its parent. The link is left out. */
+    REFERENCES_CYCLE("references.cycle"),
+
     /** A status line that does not start with a three-digit response code. */
     RESPONSE_MALFORMED_LINE("response.malformed-line"),
 
