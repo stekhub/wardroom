@@ -1,13 +1,16 @@
 import { CheckCheck, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api } from '@/api/client'
 import { problemMessage, UNEXPECTED_ERROR } from '@/api/problem'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { DateView } from '@/groups/DateView'
+import { startOfDay } from '@/groups/days'
 import { GroupIcon } from '@/groups/GroupIcon'
+import { JumpToDate } from '@/groups/JumpToDate'
 import { SubscribeToggle } from '@/groups/SubscribeToggle'
 import {
   type Subscription,
@@ -18,12 +21,16 @@ import { ReadingColumn } from '@/pages/ReadingColumn'
 
 /**
  * The group view (UI concept): for now its header, with the large group icon, the name, the
- * badges, the subscribe toggle, the refresh button (spec 005) and "Mark all as read" (spec 004).
- * The threads of the group are added by the discussion view.
+ * badges, the subscribe toggle, the refresh button, the date picker (spec 005) and "Mark all as
+ * read" (spec 004). With `?from=YYYY-MM-DD` it is the date view. The threads of the group are
+ * added by the discussion view.
  */
 export function GroupPage() {
   const groupId = Number(useParams().groupId)
+  const [searchParams] = useSearchParams()
   const subscriptions = useSubscriptions()
+  const day = searchParams.get('from')
+  const from = day === null ? undefined : startOfDay(day)
 
   if (subscriptions.data === undefined) {
     if (subscriptions.isError) {
@@ -60,7 +67,13 @@ export function GroupPage() {
   return (
     <ReadingColumn>
       <GroupHeader subscription={subscription} />
-      <p className="text-sm text-muted-foreground">The threads of this group are not shown yet.</p>
+      {day !== null && from !== undefined ? (
+        <DateView key={day} groupId={groupId} day={day} from={from} />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          The threads of this group are not shown yet.
+        </p>
+      )}
     </ReadingColumn>
   )
 }
@@ -134,6 +147,7 @@ function GroupHeader({ subscription }: { subscription: Subscription }) {
           </TooltipTrigger>
           <TooltipContent>{synchronizing ? 'Synchronizing…' : 'Refresh'}</TooltipContent>
         </Tooltip>
+        <JumpToDate groupId={subscription.groupId} />
         <Button type="button" variant="outline" size="sm" onClick={() => void markAllRead()}>
           <CheckCheck />
           Mark all as read

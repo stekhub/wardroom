@@ -16,10 +16,12 @@ import io.github.stekhub.wardroom.sync.internal.GroupSynchronizer.Progress;
 import io.github.stekhub.wardroom.sync.internal.SynchronizationFailures.CredentialsInvalidException;
 import io.github.stekhub.wardroom.sync.internal.SynchronizationFailures.GroupNotFoundException;
 import io.github.stekhub.wardroom.sync.internal.SynchronizationFailures.GroupNotSubscribedException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
@@ -230,6 +232,31 @@ class SynchronizationService implements GroupSynchronization {
             subscribedGroups.synchronizationFailed(groupId, UNEXPECTED_FAILURE);
         } catch (RuntimeException e) {
             log.error("The failure of the synchronization of group {} could not be stored", groupId, e);
+        }
+    }
+
+    /**
+     * Runs work that must not run together with a synchronization of the group, or with unsubscribing from it:
+     * loading and jumping (spec 005, "Concurrency"). Unlike unsubscribing, it does not ask a running
+     * synchronization to stop, but waits for it.
+     *
+     * @return the result of the work, or empty when the group did not become free in time; the work did not run
+     *         then
+     */
+    <T> Optional<T> whenGroupIsFree(long groupId, Duration longestWait, Supplier<T> work) {
+        ReentrantLock groupLock = lockOf(groupId);
+        try {
+            if (!groupLock.tryLock(longestWait.toMillis(), TimeUnit.MILLISECONDS)) {
+                return Optional.empty();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(work.get());
+        } finally {
+            groupLock.unlock();
         }
     }
 

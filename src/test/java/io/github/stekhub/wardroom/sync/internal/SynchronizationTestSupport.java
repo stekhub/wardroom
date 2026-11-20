@@ -77,6 +77,14 @@ final class SynchronizationTestSupport {
         return overview(number, "Subject " + number, messageId, "");
     }
 
+    /** One line of an overview answer for an article with a date of its own, given in UTC milliseconds. */
+    static String datedOverview(long number, String messageId, long dateMillis) {
+        String date = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(
+                java.time.Instant.ofEpochMilli(dateMillis).atOffset(java.time.ZoneOffset.UTC));
+        return number + "\tSubject " + number + "\tAda <ada@example.org>\t" + date + "\t" + messageId
+                + "\t\t900\t12";
+    }
+
     /** The answer to {@code OVER} for one range. */
     static MockReply overviews(String... lines) {
         List<String> answer = new ArrayList<>();
