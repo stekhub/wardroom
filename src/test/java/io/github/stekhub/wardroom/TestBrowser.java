@@ -64,6 +64,10 @@ public final class TestBrowser {
         return exchange(withCsrfToken(mvc.put().uri(path)).contentType(MediaType.APPLICATION_JSON).content(jsonBody));
     }
 
+    public MvcTestResult delete(String path) {
+        return exchange(withCsrfToken(mvc.delete().uri(path)));
+    }
+
     /** @return the value of the cookie, or {@code null} if the browser does not have it */
     public String cookieValue(String name) {
         Cookie cookie = cookies.get(name);

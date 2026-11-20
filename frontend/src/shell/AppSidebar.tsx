@@ -34,7 +34,7 @@ export function AppSidebar() {
             <img
               src={logo}
               alt=""
-              className="h-auto w-8 shrink-0 group-data-[collapsible=icon]:w-6"
+              className="h-auto w-12 shrink-0 group-data-[collapsible=icon]:w-6"
             />
             <span className="truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
               Wardroom

@@ -8,8 +8,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 |---|---|---|---|
 | 1 | Project skeleton | ADR 0002, 0003, 0004, 0007, 0008, 0009, 0024, 0027, 0028, 0029, 0030 | Done |
 | 2 | NNTP foundation | ADR 0005, 0006, 0016, 0026; open question 1 | Done |
-| 3 | Authentication and application shell | Spec 001; UI concept | In review |
-| 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | Not started |
+| 3 | Authentication and application shell | Spec 001; UI concept | Done |
+| 4 | Server configuration and first-run wizard | Spec 002; ADR 0025; UI concept | In review |
 | 5 | Newsgroup discovery | Spec 003; group icons | Not started |
 | 6 | Subscriptions | Spec 004 | Not started |
 | 7 | Synchronization core | Spec 005 | Not started |
@@ -137,6 +137,53 @@ Wardroom can first be used for reading after step 11.
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 4, server configuration and first-run wizard (2026-11-20)**
+
+What was built:
+
+- Backend: the five endpoints of spec 002 below `/api/servers`, the field rules, the connection test, and the removal. The table `nntp_server` has all columns of the data model; the ones for the group list and the posting identity are filled by later steps.
+- Credential encryption: the key file in the data directory, `WARDROOM_ENCRYPTION_KEY_FILE` (ADR 0025), AES-256-GCM with the versioned format, and every row of the table "Missing or unusable key".
+- Creating the account deletes the NNTP username and password and sets the authentication to "none" (ADR 0017). The server module does this through `AccountCreationCleanup`.
+- Frontend: wizard step 2, shown at every URL while no server exists; the settings section "Server" with the connection test, the save warning and the removal with its confirmation; a notice on every view while the credentials are invalid.
+- The logo in the sidebar is 50 % wider than before (requested by the owner). The collapsed sidebar keeps the small logo, because its column is too narrow for a bigger one.
+- Other modules get two things from the server module: `NntpServers`, which returns the settings for the NNTP adapter and marks credentials as invalid, and the event `ServerCreated`.
+
+Decisions made during the step, open to a veto:
+
+- `CONNECTION_LOST` in the connection test (left open in step 2): a server that closes the connection during the test is reported as `SERVER_REFUSED`. Spec 002 keeps its seven failure types. The other choice is an eighth type in the spec.
+- The connection test result has a third field, `postingAllowed`. Spec 002 requires that the result reports this but shows no field for it. Posting is offered when the capability list names `POST`. A list that names `READER` but not `POST` means no posting. In every other case the greeting decides (`200` or `201`).
+- The connection test of the form answers `404` when the given `id` does not exist. Spec 002 lists only `200` and `400` for this endpoint.
+- Where the password is decrypted. Spec 002 says only the NNTP adapter decrypts. Since step 2 the adapter takes the password in clear text in its settings. The server module therefore decrypts at the moment it builds these settings, and nobody keeps them. Following the spec literally would move the key into the NNTP module.
+- Credentials are marked as invalid in three cases: the server answers `481` to the test that runs with saving; another module reports a `481` through `NntpServers`; the stored password cannot be decrypted. The mark is cleared when new credentials are saved, and when a test that runs with saving logs in successfully. The test of the form alone, without saving, never changes the mark.
+- After the key file was lost, the encrypted password stays in the database, although it cannot be read. The owner enters a new one, which replaces it.
+- Username and password of the server must not contain control characters. A line break in them would start a new NNTP command. Spec 002 only has the length rule.
+- Host: letters, digits, dot, hyphen, underscore and colon. This covers host names, IPv4 and IPv6 addresses. Other characters are refused.
+- The username of the server is stored as entered, without trimming. Name and host are trimmed.
+- The group list fetch of step 5 starts in answer to the event `ServerCreated`. The event is published inside the transaction that stores the server.
+- Two requests at the same time cannot both add a server; they are handled one after the other.
+- In the frontend, "TLS mode" and "Authentication" are plain select fields, because each has two values.
+- The mistakes in username and password of the form are shown once the other fields are valid, not together with them.
+- After the server was removed, the server form is shown with the step indicator of the wizard, like at the first run.
+
+Findings:
+
+- On the development machine, a connection test with `localhost:119` was answered with `400` although nothing of Wardroom listens there. The security software of the machine handles that port. This does not affect Wardroom.
+- Found by the owner with a real server: its capability list names only `VERSION 1` and `AUTHINFO USER PASS`, although it offers reading and posting. A capability list can therefore be incomplete. The posting rule above was changed for this. Step 5 must not rely on the list either when it decides about `MODE READER`, `LIST` and `OVER`.
+- A toast stays as long as the mouse is over it. In a narrow window it covered the "Remove server" button at the right edge, so the button is now next to the other two.
+
+Left for later steps:
+
+- Removal deletes the row in `nntp_server`. Groups, subscriptions, article locations, articles and read state do not exist yet; the steps that create these tables (5, 6 and 7) add their deletion and the tests "removal deletes all server data" and "editing host or port keeps subscriptions and cache". For now a test shows that editing keeps the row with its other columns.
+- The group list fetch itself (step 5). A test shows that adding a server publishes `ServerCreated` and editing does not.
+- Marking credentials as invalid after `481` during synchronization (step 7) calls `NntpServers.markCredentialsInvalid`.
+- Documentation of spec 002 for the user guide (step 15).
+
+Not verified:
+
+- A connection test against a server with TLS and a login was not tried by hand, only in the integration tests with the mock server. By hand, the test was tried against a small local server without TLS, and against a closed port.
+- The permissions `0600` of the key file. The development machine runs Windows, where the test for them is skipped; it runs in CI on Linux.
+- The image build.
 
 **Step 3, authentication and application shell (2026-11-19)**
 

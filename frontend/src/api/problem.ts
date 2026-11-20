@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type { components } from '@/api/schema'
 
 type ProblemDetail = components['schemas']['ProblemDetail']
@@ -12,3 +13,16 @@ export function problemMessage(problem: ProblemDetail | undefined, fallback: str
 }
 
 export const UNEXPECTED_ERROR = 'Something went wrong. Try again.'
+
+const fieldErrors = z.object({
+  errors: z.array(z.object({ field: z.string(), message: z.string() })),
+})
+
+/**
+ * The failed fields of a validation error (status 400), each with its rule. Empty when the error
+ * is not about fields.
+ */
+export function problemFieldErrors(problem: unknown): { field: string; message: string }[] {
+  const parsed = fieldErrors.safeParse(problem)
+  return parsed.success ? parsed.data.errors : []
+}
