@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 import io.github.stekhub.wardroom.IntegrationTest;
+import java.io.IOException;
+import org.apache.catalina.connector.ClientAbortException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +50,19 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
+    void connectionClosedByTheBrowserIsNotLoggedAsAnError(CapturedOutput output) {
+        assertThat(mvc.get().uri("/api/test/client-abort").with(user("owner")))
+                .as("nobody is there to read an answer")
+                .hasStatus(HttpStatus.OK)
+                .body().isEmpty();
+
+        assertThat(output.getOut())
+                .doesNotContain("ERROR")
+                .doesNotContain("WARN")
+                .doesNotContain("ClientAbortException");
+    }
+
+    @Test
     void unknownApiPathIsAnsweredAsProblemDetails() {
         assertThat(mvc.get().uri("/api/does-not-exist").with(user("owner")))
                 .hasStatus(HttpStatus.NOT_FOUND)
@@ -64,6 +79,12 @@ class ApiExceptionHandlerTest {
         @GetMapping("/api/test/failure")
         String fail() {
             throw new IllegalStateException(INTERNAL_DETAIL);
+        }
+
+        /** What the web server raises when the browser is gone before the response is written. */
+        @GetMapping(path = "/api/test/client-abort", produces = "text/javascript")
+        String clientAbort() throws IOException {
+            throw new ClientAbortException(new IOException("Connection reset by peer"));
         }
     }
 }

@@ -1,0 +1,6 @@
+215 Descriptions follow
+example.talk	Grüße und Gespräche
+example.announce	Announcements, moderated
+example.archive	The archive, read only
+example.local	Not passed on
+.

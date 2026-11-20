@@ -18,6 +18,12 @@ public interface NntpConnections {
     <T> T background(NntpServerSettings serverSettings, NntpAction<T> action);
 
     /**
+     * Like {@link #background(NntpServerSettings, NntpAction)}, but with a single attempt. For work that is not
+     * repeated on its own, such as reading the group list (spec 003).
+     */
+    <T> T backgroundWithoutRetry(NntpServerSettings serverSettings, NntpAction<T> action);
+
+    /**
      * Runs an action the user is waiting for, for example opening an article. Waits at most 30 seconds for a free
      * connection. A failed attempt is retried with backoff where the failure allows it.
      *

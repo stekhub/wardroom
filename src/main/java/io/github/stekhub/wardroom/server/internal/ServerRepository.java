@@ -3,6 +3,7 @@ package io.github.stekhub.wardroom.server.internal;
 import static io.github.stekhub.wardroom.jooq.Tables.NNTP_SERVER;
 
 import io.github.stekhub.wardroom.nntp.NntpTlsMode;
+import io.github.stekhub.wardroom.server.GroupListStates.GroupListState;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -103,9 +104,48 @@ class ServerRepository {
                 .execute();
     }
 
+    Optional<GroupListState> findGroupListState(long serverId) {
+        if (!isStorableId(serverId)) {
+            return Optional.empty();
+        }
+        return database.selectFrom(NNTP_SERVER)
+                .where(NNTP_SERVER.ID.eq((int) serverId))
+                .fetchOptional(ServerRepository::toGroupListState);
+    }
+
+    List<GroupListState> findGroupListStates() {
+        return database.selectFrom(NNTP_SERVER).orderBy(NNTP_SERVER.ID).fetch(ServerRepository::toGroupListState);
+    }
+
+    /** Stores the time of a successful group list refresh and clears the error of an earlier one. */
+    void setGroupListRefreshed(long serverId, long refreshedAt) {
+        if (isStorableId(serverId)) {
+            database.update(NNTP_SERVER)
+                    .set(NNTP_SERVER.GROUPS_REFRESHED_AT, refreshedAt)
+                    .setNull(NNTP_SERVER.GROUPS_REFRESH_ERROR)
+                    .where(NNTP_SERVER.ID.eq((int) serverId))
+                    .execute();
+        }
+    }
+
+    /** Stores why a group list refresh failed. The time of the last successful refresh is kept. */
+    void setGroupListRefreshError(long serverId, String error) {
+        if (isStorableId(serverId)) {
+            database.update(NNTP_SERVER)
+                    .set(NNTP_SERVER.GROUPS_REFRESH_ERROR, error)
+                    .where(NNTP_SERVER.ID.eq((int) serverId))
+                    .execute();
+        }
+    }
+
     /** The ID column holds 32-bit numbers; an ID outside that range cannot belong to a server. */
     private static boolean isStorableId(long serverId) {
         return serverId >= Integer.MIN_VALUE && serverId <= Integer.MAX_VALUE;
+    }
+
+    private static GroupListState toGroupListState(Record row) {
+        return new GroupListState(row.get(NNTP_SERVER.ID), row.get(NNTP_SERVER.CREDENTIALS_INVALID),
+                row.get(NNTP_SERVER.GROUPS_REFRESHED_AT), row.get(NNTP_SERVER.GROUPS_REFRESH_ERROR));
     }
 
     private static StoredServer toStoredServer(Record row) {

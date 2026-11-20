@@ -24,6 +24,9 @@ Fetching the server's group list with descriptions, keeping it up to date, and b
 - `LIST ACTIVE` is read as a stream and stored in batches. For each group: name, low and high watermark, posting status.
 - Then `LIST NEWSGROUPS` fetches descriptions, unless `CAPABILITIES` shows the server does not support it. If the server rejects the command, descriptions stay as they are and the refresh still succeeds.
 - Groups not listed by `LIST NEWSGROUPS` keep their previous description.
+- Some servers send something else in place of a description. Such a group has no description, and a stored one is removed:
+  - the name of the group itself, compared without regard to case;
+  - the rest of a `LIST ACTIVE` line, that is two numbers and a status. This is logged as a protocol anomaly.
 - At most one refresh per server runs at a time.
 
 **Posting status**
@@ -128,6 +131,7 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 - A refresh stores groups with watermarks, posting status and descriptions.
 - Status mapping for `y`, `m`, `n`, `x`, `j` and `=…`.
 - A server without `LIST NEWSGROUPS` support: refresh succeeds without descriptions; existing descriptions are kept.
+- A description that repeats the group name, or that is the rest of a `LIST ACTIVE` line, is not stored and removes a stored one; the second is logged.
 - A group missing from the list is marked removed; a returning group is cleared; a refresh that fails partway marks nothing and keeps received groups.
 - Only one refresh runs at a time.
 - Search: several words, matches in name or description, case-insensitive for ASCII, `%` and `_` in the query matched literally, paging and total count, removed groups excluded.

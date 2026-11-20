@@ -19,7 +19,7 @@ import java.util.concurrent.CountDownLatch;
 public record MockReply(Kind kind, byte[] data, byte[] rest, CountDownLatch gate, Duration delay) {
 
     enum Kind {
-        SEND, DROP, SILENCE, ARTICLE, TWO_PARTS
+        SEND, DROP, CUT_OFF, SILENCE, ARTICLE, TWO_PARTS
     }
 
     /** Sends the lines, each ended with CRLF. A multi-line answer needs its terminating {@code "."} line. */
@@ -47,6 +47,11 @@ public record MockReply(Kind kind, byte[] data, byte[] rest, CountDownLatch gate
     /** Closes the connection without an answer. */
     public static MockReply drop() {
         return new MockReply(Kind.DROP, null, null, null, Duration.ZERO);
+    }
+
+    /** Sends the lines and then closes the connection, for an answer that breaks off in the middle. */
+    public static MockReply cutOff(String... lines) {
+        return new MockReply(Kind.CUT_OFF, toBytes(lines), null, null, Duration.ZERO);
     }
 
     /** Never answers and keeps the connection open, so the client runs into its read timeout. */

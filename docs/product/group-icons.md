@@ -5,7 +5,7 @@ Every newsgroup gets a round icon: a white symbol on a colored circle. It is der
 | Place | Size |
 |---|---|
 | Sidebar entry | 20 px |
-| Discover row | 20 px |
+| Discover row | 40 px, the height of the two lines of text |
 | Group header | 64 px |
 
 The icon is decorative (`aria-hidden`); the group name next to it carries the meaning.
@@ -23,7 +23,7 @@ The symbol is the first match in this order:
 3. **Top-level hierarchy**, from the hierarchy table.
 4. **Generic icon**: `messages-square`.
 
-Ignored segments: `misc`, `general`, `d`, `discuss`, `discussion`, `announce`, `moderated`, `info`, `test`.
+Ignored segments: `misc`, `general`, `d`, `discuss`, `discussion`, `announce`, `moderated`, `info`, `test`, `programmer`.
 
 Examples:
 
@@ -69,7 +69,7 @@ The initial table: about 400 keywords for about 150 symbols. It is extended thro
 
 | Icon | Keywords |
 |---|---|
-| `code-xml` | `lang`, `programming`, `programmer`, `software`, `c`, `c++`, `c#`, `fortran`, `ada`, `pascal`, `basic`, `smalltalk`, `haskell`, `php`, `cobol` |
+| `code-xml` | `lang`, `programming`, `software`, `c`, `c++`, `c#`, `fortran`, `ada`, `pascal`, `basic`, `smalltalk`, `haskell`, `php`, `cobol` |
 | `coffee` | `java`, `coffee`, `tea` |
 | `braces` | `javascript`, `json` |
 | `code` | `python`, `perl`, `tcl`, `html`, `xml`, `css` |
@@ -130,7 +130,7 @@ The initial table: about 400 keywords for about 150 symbols. It is extended thro
 
 | Icon | Keywords |
 |---|---|
-| `music` | `music`, `songs` |
+| `eighth-notes` | `music`, `songs` |
 | `guitar` | `guitar`, `guitars` |
 | `piano` | `piano`, `keyboards` |
 | `drum` | `drums`, `percussion` |
@@ -147,7 +147,7 @@ The initial table: about 400 keywords for about 150 symbols. It is extended thro
 | `book-open` | `books`, `literature`, `reading` |
 | `sparkles` | `anime`, `manga`, `fantasy` |
 | `book-image` | `comics` |
-| `laugh` | `humor`, `humour`, `jokes`, `comedy` |
+| `face-grinning` | `humor`, `humour`, `jokes`, `comedy` |
 | `skull` | `horror` |
 | `ghost` | `paranormal`, `occult` |
 | `star` | `fan`, `fandom`, `celebrities` |
@@ -183,7 +183,7 @@ The initial table: about 400 keywords for about 150 symbols. It is extended thro
 | `volleyball` | `volleyball`, `baseball`, `basketball`, `hockey`, `tennis`, `golf`, `cricket`, `rugby` |
 | `bike` | `bicycles`, `cycling`, `bikes`, `motorcycles` |
 | `dumbbell` | `fitness`, `bodybuilding`, `running` |
-| `waves` | `swimming`, `scuba`, `diving`, `surfing` |
+| `waves-horizontal` | `swimming`, `scuba`, `diving`, `surfing` |
 | `sailboat` | `sailing`, `boats`, `boating` |
 | `fish` | `fishing`, `aquaria`, `aquarium`, `fish` |
 | `target` | `guns`, `archery`, `shooting`, `hunting` |
@@ -265,5 +265,5 @@ The initial table: about 400 keywords for about 150 symbols. It is extended thro
 
 | Icon | Keywords |
 |---|---|
-| `circle-help` | `help`, `newusers`, `answers`, `faq` |
+| `circle-question-mark` | `help`, `newusers`, `answers`, `faq` |
 | `archive` | `binaries` |

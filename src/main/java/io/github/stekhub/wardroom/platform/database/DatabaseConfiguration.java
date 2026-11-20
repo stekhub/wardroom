@@ -35,12 +35,19 @@ class DatabaseConfiguration {
         return new HikariDataSource(pool);
     }
 
-    /** Every connection gets the settings of ADR 0003: foreign keys on, WAL journal mode and a busy timeout. */
+    /**
+     * Every connection gets the settings of ADR 0003: foreign keys on, WAL journal mode and a busy timeout.
+     *
+     * <p>A transaction takes the write lock when it begins, and waits for it up to the busy timeout. Without this,
+     * a transaction that reads first and writes later fails as soon as another connection has written in between,
+     * and SQLite does not wait in that case.
+     */
     static SQLiteDataSource sqliteDataSource(String databaseFile) {
         SQLiteConfig config = new SQLiteConfig();
         config.enforceForeignKeys(true);
         config.setJournalMode(SQLiteConfig.JournalMode.WAL);
         config.setBusyTimeout(BUSY_TIMEOUT_MILLIS);
+        config.setTransactionMode(SQLiteConfig.TransactionMode.IMMEDIATE);
         SQLiteDataSource dataSource = new SQLiteDataSource(config);
         dataSource.setUrl("jdbc:sqlite:" + databaseFile);
         return dataSource;
