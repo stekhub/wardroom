@@ -22,10 +22,11 @@ class GroupListService {
 
     /**
      * @param query the search text, or {@code null} for all groups
+     * @param sort  the order as the request names it, or {@code null} for the order by name
      * @throws ServerNotFoundException  when no server has this ID
      * @throws FieldValidationException when a parameter breaks a rule
      */
-    GroupPage page(long serverId, String query, int page, int size) {
+    GroupPage page(long serverId, String query, String sort, int page, int size) {
         if (page < 0) {
             throw new FieldValidationException("page", "The page must be 0 or higher.");
         }
@@ -36,15 +37,18 @@ class GroupListService {
             throw new FieldValidationException("q",
                     "The search text must not be longer than " + MAX_QUERY_LENGTH + " characters.");
         }
+        GroupSort groupSort = GroupSort.ofParameter(sort);
         if (groupListStates.find(serverId).isEmpty()) {
             throw new ServerNotFoundException();
         }
         List<String> searchWords = searchWords(query);
-        List<GroupResponse> items = groupRepository.findPage(serverId, searchWords, (long) page * size, size)
+        List<GroupResponse> items = groupRepository
+                .findPage(serverId, searchWords, groupSort, (long) page * size, size)
                 .stream()
                 .map(GroupResponse::of)
                 .toList();
-        return new GroupPage(items, page, size, groupRepository.count(serverId, searchWords));
+        return new GroupPage(items, page, size, groupRepository.count(serverId, searchWords),
+                groupRepository.hasActivity(serverId));
     }
 
     /** The query is split into words at whitespace; a group matches when it has every word (spec 003). */

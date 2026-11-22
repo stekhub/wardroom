@@ -80,7 +80,7 @@ class GroupListPageTest {
     @Test
     void emptyListIsAnEmptyPage() {
         assertThat(browser.get("/api/servers/" + serverId + "/groups")).hasStatusOk().bodyJson()
-                .isStrictlyEqualTo("{\"items\":[],\"page\":0,\"size\":50,\"total\":0}");
+                .isStrictlyEqualTo("{\"items\":[],\"page\":0,\"size\":50,\"total\":0,\"activityKnown\":false}");
     }
 
     @Test
@@ -112,6 +112,48 @@ class GroupListPageTest {
 
         assertThat(names(search("", ""))).containsExactly("example.here");
         assertThat(search("gone", "").get("total").asInt()).isZero();
+    }
+
+    // Activity
+
+    @Test
+    void sortedByActivityTheMostActiveGroupsComeFirstAndGroupsWithoutAValueLast() {
+        store("example.quiet", null, "ALLOWED", 0.0);
+        store("example.new", null, "ALLOWED", null);
+        store("example.busy", "Much to read", "ALLOWED", 240.5);
+        store("example.also-new", null, "ALLOWED", null);
+        store("example.steady", null, "ALLOWED", 12.0);
+        store("example.equal", null, "ALLOWED", 12.0);
+
+        JsonNode page = search("", "&sort=activity");
+
+        assertThat(names(page)).containsExactly("example.busy", "example.equal", "example.steady",
+                "example.quiet", "example.also-new", "example.new");
+        assertThat(page.get("items").get(0).get("articlesPerDay").asDouble()).isEqualTo(240.5);
+        assertThat(page.get("items").get(3).get("articlesPerDay").asDouble()).isZero();
+        assertThat(page.get("items").get(4).get("articlesPerDay").isNull()).isTrue();
+        assertThat(page.get("activityKnown").asBoolean()).isTrue();
+        assertThat(names(search("", "&sort=activity&size=2&page=1")))
+                .containsExactly("example.steady", "example.quiet");
+        assertThat(names(search("e", "&sort=activity&size=2"))).as("the search keeps the order")
+                .containsExactly("example.busy", "example.equal");
+        assertThat(names(search("", "&sort=name"))).isEqualTo(names(search("", ""))).startsWith("example.also-new");
+    }
+
+    @Test
+    void activityIsKnownOnceOneListedGroupHasAValue() {
+        store("example.new", null, "ALLOWED", null);
+        store("example.gone", null, "ALLOWED", 3.0);
+        database.update(NEWSGROUP).set(NEWSGROUP.REMOVED_AT, 1_795_000_000_000L)
+                .where(NEWSGROUP.NAME.eq("example.gone")).execute();
+
+        assertThat(search("", "").get("activityKnown").asBoolean()).isFalse();
+
+        store("example.measured", null, "ALLOWED", 3.0);
+
+        assertThat(search("", "").get("activityKnown").asBoolean()).isTrue();
+        assertThat(search("new", "").get("activityKnown").asBoolean())
+                .as("it is about the server, not about the page").isTrue();
     }
 
     // Search
@@ -167,6 +209,8 @@ class GroupListPageTest {
         assertInvalid("&page=-1", "page", "The page must be 0 or higher.");
         assertInvalid("&size=0", "size", "The page size must be between 1 and 100.");
         assertInvalid("&size=101", "size", "The page size must be between 1 and 100.");
+        assertInvalid("&sort=size", "sort", "The order must be name or activity.");
+        assertInvalid("&sort=ACTIVITY", "sort", "The order must be name or activity.");
         assertInvalid("&q=" + "a".repeat(201), "q", "The search text must not be longer than 200 characters.");
         assertThat(browser.get("/api/servers/" + serverId + "/groups?page=first")).hasStatus(HttpStatus.BAD_REQUEST);
         assertThat(browser.get("/api/servers/" + serverId + "/groups?q=" + "a".repeat(200))).hasStatusOk();
@@ -208,6 +252,10 @@ class GroupListPageTest {
     }
 
     private void store(String name, String description, String postingStatus) {
+        store(name, description, postingStatus, null);
+    }
+
+    private void store(String name, String description, String postingStatus, Double articlesPerDay) {
         database.insertInto(NEWSGROUP)
                 .set(NEWSGROUP.SERVER_ID, (int) serverId)
                 .set(NEWSGROUP.NAME, name)
@@ -215,6 +263,7 @@ class GroupListPageTest {
                 .set(NEWSGROUP.POSTING_STATUS, postingStatus)
                 .set(NEWSGROUP.LOW_WATERMARK, 1L)
                 .set(NEWSGROUP.HIGH_WATERMARK, 10L)
+                .set(NEWSGROUP.ARTICLES_PER_DAY, articlesPerDay)
                 .execute();
     }
 }

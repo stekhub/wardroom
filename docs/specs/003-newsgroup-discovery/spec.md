@@ -15,6 +15,7 @@ Fetching the server's group list with descriptions, keeping it up to date, and b
 - As the owner, new groups appear and removed groups are marked without my doing anything.
 - As the owner, I refresh the group list manually and see while it is running.
 - As the owner, I see when the list was last refreshed and whether the last refresh failed.
+- As the owner, I see how many articles a group gets per day and sort the list by it, so that I find groups in which something happens.
 
 ## Functional requirements
 
@@ -48,10 +49,27 @@ Fetching the server's group list with descriptions, keeping it up to date, and b
 - While a refresh runs, the UI shows that it is running and the number of groups received so far. The total is unknown in advance.
 - The UI shows the time of the last successful refresh and the error of the last failed one.
 
+**Activity**
+
+- The activity of a group is the number of articles it gets per day. It is computed at every refresh from the high watermarks that `LIST ACTIVE` reports, so it needs no further commands.
+- Per group, two baselines are stored, an older and a younger one. Each is a time and the high watermark the refresh read at that time. No history is kept.
+- A group gets both baselines when a refresh lists it for the first time. Both are then the values of that refresh.
+- At a refresh, in this order:
+  1. If the high watermark is below one of the baselines, the server numbered the group anew. Both baselines become the values of this refresh, and the group has no activity.
+  2. Otherwise, if the younger baseline is at least 7 days old, it becomes the older one, and the values of this refresh become the younger one.
+  3. The activity is the high watermark now minus that of the older baseline, divided by the time since the older baseline, in articles per day.
+- The activity is therefore a plain count over the last 7 to 14 days. It does not depend on how often the list is refreshed. After a time without refreshes it is the average over that longer time.
+- A group has no activity while its older baseline is less than 24 hours old, because a shorter time follows the time of day. In the first week the value is rough.
+- The value is approximate: cancelled articles and spam count too.
+- A group that is missing from a refresh keeps its baselines and its activity.
+
 **Browsing and searching**
 
 - The group list page shows the server's groups alphabetically by name, paged with 50 per page.
-- Each entry shows the group icon ([Group Icons](../../product/group-icons.md)), name, description, posting status and whether it is subscribed.
+- The list can be ordered by activity instead: the groups with the most articles per day first, groups without an activity last, equal groups by name. The order is part of the address of the page, like the search and the page.
+- Each entry shows the group icon ([Group Icons](../../product/group-icons.md)), name, description, activity, posting status and whether it is subscribed.
+- The activity is shown as a whole number, for example "240 per day"; below one article per day as "under 1 per day". An entry without an activity shows none.
+- While no group of the server has an activity, the page says that the activity is shown one day after the group list was first fetched.
 - Search: the query is split into words at whitespace. A group matches if each word appears in its name or its description. Matching is case-insensitive and finds parts of words.
 - Removed groups do not appear in the group list. Subscribed groups that were removed remain visible in the subscriptions (subscriptions specification).
 
@@ -61,7 +79,7 @@ All endpoints require a session ([spec 001](../001-user-authentication/spec.md))
 
 | Method and path | Request | Responses |
 |---|---|---|
-| `GET /api/servers/{id}/groups?q=&page=&size=` | `q` optional; `page` from 0; `size` 1–100, default 50 | `200` page of groups; `404` unknown server |
+| `GET /api/servers/{id}/groups?q=&sort=&page=&size=` | `q` optional; `sort` is `name` (default) or `activity`; `page` from 0; `size` 1–100, default 50 | `200` page of groups; `400` a parameter breaks a rule; `404` unknown server |
 | `POST /api/servers/{id}/groups/refresh` | | `202` refresh started or already running; `404`; `409` credentials invalid |
 | `GET /api/servers/{id}/groups/refresh` | | `200` refresh status; `404` |
 
@@ -75,16 +93,18 @@ All endpoints require a session ([spec 001](../001-user-authentication/spec.md))
       "name": "comp.lang.java.programmer",
       "description": "Programming in the Java language.",
       "postingStatus": "ALLOWED",
-      "subscribed": false
+      "subscribed": false,
+      "articlesPerDay": 12.4
     }
   ],
   "page": 0,
   "size": 50,
-  "total": 1
+  "total": 1,
+  "activityKnown": true
 }
 ```
 
-`postingStatus` is `ALLOWED`, `NOT_ALLOWED` or `MODERATED`.
+`postingStatus` is `ALLOWED`, `NOT_ALLOWED` or `MODERATED`. `articlesPerDay` is `null` for a group without an activity. `activityKnown` says whether at least one group of the server has an activity; it does not depend on the search or the page.
 
 **Refresh status**
 
@@ -96,6 +116,8 @@ All endpoints require a session ([spec 001](../001-user-authentication/spec.md))
 
 - The refresh runs as a background job and uses one connection from the server's connection pool (ADR 0006).
 - `LIST ACTIVE` lines are upserted in batches of 1,000, each in its own transaction, so an interrupted refresh leaves the groups received so far.
+- The statement that stores a group also keeps its baselines and computes its activity, from the row as it was before. All groups of one refresh get the same time, the start of the refresh.
+- The column `high_watermark` cannot serve as a baseline, because the synchronization of a subscribed group moves it.
 - The names received are collected in memory. After the complete list, groups not in it get `removed_at` set and listed groups have it cleared, in one transaction. A list of 200,000 names needs a few megabytes.
 - On success `groups_refreshed_at` is set and `groups_refresh_error` cleared. On failure `groups_refresh_error` is set and `groups_refreshed_at` is unchanged.
 - The running state and the received count are held in memory; after a restart no refresh is running.
@@ -105,7 +127,9 @@ All endpoints require a session ([spec 001](../001-user-authentication/spec.md))
 
 ## Data model changes
 
-None. The columns used are in the [data model](../../architecture/data-model.md): `newsgroup` (`name`, `description`, `posting_status`, watermarks, `removed_at`) and `nntp_server` (`groups_refreshed_at`, `groups_refresh_error`).
+The columns used are in the [data model](../../architecture/data-model.md): `newsgroup` (`name`, `description`, `posting_status`, watermarks, `removed_at`) and `nntp_server` (`groups_refreshed_at`, `groups_refresh_error`).
+
+For the activity, `newsgroup` gets the two baselines (`activity_older_at`, `activity_older_high_watermark`, `activity_younger_at`, `activity_younger_high_watermark`) and the computed `articles_per_day`. An installation that has groups already gets its baselines with the next refresh.
 
 ## Error handling
 
@@ -138,6 +162,8 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 - Creating a server starts a refresh ([spec 002](../002-nntp-server-configuration/spec.md)).
 - The scheduled refresh runs once the interval since the last successful refresh has passed, and one hour after a failed one.
 - A list of 100,000 groups completes with bounded memory use.
+- Activity: the first refresh stores both baselines and gives no value; the value is the growth since the older baseline per day; it does not change with further refreshes; no value below 24 hours; a younger baseline of 7 days becomes the older one, a younger one stays; a high watermark below a baseline starts both over; a high watermark that a synchronization moved changes nothing; a group that appears later gets its own baselines.
+- Order by activity: most active first, groups without a value last, equal groups by name, together with search and paging; an unknown order is answered with `400`.
 
 ## Implementation tasks
 
@@ -147,3 +173,5 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 4. Group list and refresh endpoints, search.
 5. Frontend: group icon function with the keyword table from [Group Icons](../../product/group-icons.md), with unit tests for the matching order, country prefixes, ignored segments and the color hash.
 6. Frontend: group list page with search and paging, group icons, refresh button, progress, last refresh time and error.
+7. Activity: migration, baselines and value in the refresh, order and fields of the group list endpoint.
+8. Frontend: activity in each entry, the order of the list, the hint of the first day.

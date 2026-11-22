@@ -7,6 +7,9 @@ export type Group = components['schemas']['Group']
 export type GroupPage = components['schemas']['GroupPage']
 export type GroupListRefreshStatus = components['schemas']['GroupListRefreshStatus']
 
+/** The orders of the group list: by name, or the groups with the most articles per day first. */
+export type GroupSort = 'name' | 'activity'
+
 /** The group list page shows this many groups (spec 003). */
 export const GROUPS_PER_PAGE = 50
 
@@ -21,9 +24,14 @@ function refreshStatusKey(serverId: number) {
   return ['group-list-refresh', serverId] as const
 }
 
-async function fetchGroupPage(serverId: number, query: string, page: number): Promise<GroupPage> {
+async function fetchGroupPage(
+  serverId: number,
+  query: string,
+  sort: GroupSort,
+  page: number,
+): Promise<GroupPage> {
   const { data, response } = await api.GET('/api/servers/{serverId}/groups', {
-    params: { path: { serverId }, query: { q: query, page, size: GROUPS_PER_PAGE } },
+    params: { path: { serverId }, query: { q: query, sort, page, size: GROUPS_PER_PAGE } },
   })
   if (data === undefined) {
     throw new Error(`Unexpected answer ${String(response.status)} to the group list request`)
@@ -42,13 +50,13 @@ async function fetchRefreshStatus(serverId: number): Promise<GroupListRefreshSta
 }
 
 /**
- * One page of the server's groups, searched by name and description. While another page or
- * another search is loading, the groups shown before stay in place.
+ * One page of the server's groups, searched by name and description. While another page,
+ * another search or another order is loading, the groups shown before stay in place.
  */
-export function useGroupPage(serverId: number, query: string, page: number) {
+export function useGroupPage(serverId: number, query: string, sort: GroupSort, page: number) {
   return useQuery({
-    queryKey: [...groupsKey(serverId), query, page],
-    queryFn: () => fetchGroupPage(serverId, query, page),
+    queryKey: [...groupsKey(serverId), query, sort, page],
+    queryFn: () => fetchGroupPage(serverId, query, sort, page),
     placeholderData: keepPreviousData,
     retry: false,
   })

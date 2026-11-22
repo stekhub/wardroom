@@ -62,8 +62,10 @@ class GroupListRefresher {
     private Outcome refresh(long serverId, NntpClient client, IntConsumer groupsReceived) {
         // A list of 200,000 names needs a few megabytes (spec 003).
         Set<String> listedNames = new HashSet<>();
-        InParts<NntpActiveGroup> activeGroups = new InParts<>(
-                part -> transactionOperations.executeWithoutResult(status -> groupRepository.upsert(serverId, part)));
+        // One time for the whole list, so that the baselines of all groups are equally old.
+        long refreshTime = System.currentTimeMillis();
+        InParts<NntpActiveGroup> activeGroups = new InParts<>(part -> transactionOperations
+                .executeWithoutResult(status -> groupRepository.upsert(serverId, part, refreshTime)));
         client.listActive(activeGroup -> {
             // A server that lists a group twice has one group.
             if (listedNames.add(activeGroup.name())) {

@@ -4,12 +4,15 @@ import { useSearchParams } from 'react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatActivity } from '@/groups/activity'
 import { GroupIcon } from '@/groups/GroupIcon'
 import { GroupListRefresh } from '@/groups/GroupListRefresh'
 import { SubscribeToggle } from '@/groups/SubscribeToggle'
 import {
   type Group,
+  type GroupSort,
   GROUPS_PER_PAGE,
   useGroupListRefreshStatus,
   useGroupPage,
@@ -28,8 +31,9 @@ const SKELETON_ROWS = 8
 
 /**
  * The discover view (UI concept, spec 003): the groups of the server by name, 50 per page, with
- * a search over names and descriptions. Search text and page are part of the URL, so the back
- * button and bookmarks work.
+ * a search over names and descriptions. The list can also be ordered by activity, the articles
+ * a group gets per day. Search text, order and page are part of the URL, so the back button and
+ * bookmarks work.
  */
 export function DiscoverPage() {
   const server = useServers().data?.[0]
@@ -43,6 +47,7 @@ export function DiscoverPage() {
 function GroupList({ serverId }: { serverId: number }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const query = searchParams.get('q') ?? ''
+  const sort: GroupSort = searchParams.get('sort') === 'activity' ? 'activity' : 'name'
   const page = pageNumber(searchParams.get('page'))
   const [searchText, setSearchText] = useState(query)
   // After the back button changed the search in the URL, the search box shows it.
@@ -53,7 +58,7 @@ function GroupList({ serverId }: { serverId: number }) {
       setSearchText(query)
     }
   }
-  const groups = useGroupPage(serverId, query, page - 1)
+  const groups = useGroupPage(serverId, query, sort, page - 1)
   const refreshRunning = useGroupListRefreshStatus(serverId).data?.running === true
 
   // The search follows the typing with a short delay, and starts again at the first page.
@@ -62,23 +67,15 @@ function GroupList({ serverId }: { serverId: number }) {
       return
     }
     const timer = window.setTimeout(() => {
-      const text = searchText.trim()
-      setSearchParams(text === '' ? {} : { q: text }, { replace: true })
+      setSearchParams(urlParameters(searchText.trim(), sort, 1), { replace: true })
     }, SEARCH_DELAY_MILLIS)
     return () => {
       window.clearTimeout(timer)
     }
-  }, [searchText, query, setSearchParams])
+  }, [searchText, query, sort, setSearchParams])
 
   function showPage(newPage: number) {
-    const parameters: Record<string, string> = {}
-    if (query !== '') {
-      parameters.q = query
-    }
-    if (newPage > 1) {
-      parameters.page = String(newPage)
-    }
-    setSearchParams(parameters)
+    setSearchParams(urlParameters(query, sort, newPage))
   }
 
   const total = groups.data?.total ?? 0
@@ -87,8 +84,8 @@ function GroupList({ serverId }: { serverId: number }) {
   return (
     <ReadingColumn>
       <PageHeader title="Discover groups" />
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="relative w-full max-w-sm">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative max-w-sm min-w-48 flex-1">
           <Search
             aria-hidden="true"
             className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -105,7 +102,22 @@ function GroupList({ serverId }: { serverId: number }) {
             }}
           />
         </div>
-        <GroupListRefresh serverId={serverId} />
+        <NativeSelect
+          aria-label="Order of the groups"
+          value={sort}
+          onChange={(event) => {
+            // Another order starts again at the first page.
+            setSearchParams(
+              urlParameters(query, event.target.value === 'activity' ? 'activity' : 'name', 1),
+            )
+          }}
+        >
+          <NativeSelectOption value="name">By name</NativeSelectOption>
+          <NativeSelectOption value="activity">By activity</NativeSelectOption>
+        </NativeSelect>
+        <div className="ml-auto">
+          <GroupListRefresh serverId={serverId} />
+        </div>
       </div>
 
       {groups.data === undefined ? (
@@ -118,6 +130,11 @@ function GroupList({ serverId }: { serverId: number }) {
         <EmptyList query={query} refreshRunning={refreshRunning} />
       ) : (
         <>
+          {!groups.data.activityKnown && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              The activity of the groups is shown one day after the group list was first fetched.
+            </p>
+          )}
           <ul
             aria-label="Groups"
             className="divide-y rounded-lg border bg-card"
@@ -182,6 +199,14 @@ function GroupRow({ group }: { group: Group }) {
           </p>
         )}
       </div>
+      {group.articlesPerDay != null && (
+        <span
+          className="shrink-0 text-xs text-muted-foreground"
+          title="New articles per day, counted over the last 7 to 14 days. Approximate."
+        >
+          {formatActivity(group.articlesPerDay)}
+        </span>
+      )}
       {group.postingStatus === 'MODERATED' && <Badge variant="outline">Moderated</Badge>}
       {group.postingStatus === 'NOT_ALLOWED' && <Badge variant="outline">No posting</Badge>}
       <SubscribeToggle groupId={group.id} groupName={group.name} subscribed={group.subscribed} />
@@ -225,6 +250,21 @@ function GroupListSkeleton() {
       ))}
     </div>
   )
+}
+
+/** The parameters of the URL for a search, an order and a page; what is the default is left out. */
+function urlParameters(query: string, sort: GroupSort, page: number): Record<string, string> {
+  const parameters: Record<string, string> = {}
+  if (query !== '') {
+    parameters.q = query
+  }
+  if (sort !== 'name') {
+    parameters.sort = sort
+  }
+  if (page > 1) {
+    parameters.page = String(page)
+  }
+  return parameters
 }
 
 /** The page in the URL counts from 1; anything else than a positive number means the first page. */

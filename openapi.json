@@ -152,6 +152,11 @@
       },
       "Group" : {
         "properties" : {
+          "articlesPerDay" : {
+            "description" : "How many articles the group gets per day, counted over the last 7 to 14 days; approximate. null while it is not known",
+            "format" : "double",
+            "type" : "number"
+          },
           "description" : {
             "description" : "null when the server gave none; to be shown as text only",
             "type" : "string"
@@ -200,6 +205,10 @@
       },
       "GroupPage" : {
         "properties" : {
+          "activityKnown" : {
+            "description" : "Whether the activity of at least one group of the server is known. It is not in the first day after the group list was first loaded",
+            "type" : "boolean"
+          },
           "items" : {
             "items" : {
               "$ref" : "#/components/schemas/Group"
@@ -221,7 +230,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "items", "page", "size", "total" ],
+        "required" : [ "activityKnown", "items", "page", "size", "total" ],
         "type" : "object"
       },
       "IgnoreRule" : {
@@ -2086,6 +2095,16 @@
             "type" : "string"
           }
         }, {
+          "description" : "The order: by name, or the groups with the most articles per day first",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "default" : "name",
+            "enum" : [ "name", "activity" ],
+            "type" : "string"
+          }
+        }, {
           "description" : "From 0",
           "in" : "query",
           "name" : "page",
@@ -2138,7 +2157,7 @@
             "description" : "No server has this ID"
           }
         },
-        "summary" : "Lists the groups of the server by name, one page at a time",
+        "summary" : "Lists the groups of the server, one page at a time",
         "tags" : [ "Groups" ]
       }
     },

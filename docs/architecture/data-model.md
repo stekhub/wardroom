@@ -66,6 +66,11 @@ A group as it exists on one server. Unique on `(server_id, name)`.
 | `last_synced_at` | Last successful synchronization |
 | `last_sync_error` | Last failure, nullable |
 | `removed_at` | Set when the group disappears from the server's list; never deleted for that reason |
+| `activity_older_at`, `activity_older_high_watermark` | The older baseline of the activity: a time and the high watermark the group list refresh read then ([spec 003](../specs/003-newsgroup-discovery/spec.md)). Nullable until the first refresh |
+| `activity_younger_at`, `activity_younger_high_watermark` | The younger baseline; it becomes the older one when it is 7 days old |
+| `articles_per_day` | The activity, computed by the group list refresh from the older baseline. Nullable: not known while the older baseline is less than a day old |
+
+`high_watermark` is also written by the synchronization of the group; the baselines are written by the group list refresh only.
 
 ### `synced_range`
 
