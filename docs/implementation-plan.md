@@ -20,8 +20,9 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 12 | Ignoring | Spec 010 | Not started |
 | 13 | Posting | Spec 009 | Not started |
 | 14 | Cache size limit | ADR 0023; spec 005 | Not started |
-| 15 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Not started |
-| 16 | Release pipeline | ADR 0009, 0024 | Not started; discuss first |
+| 15 | Activity of a group | Spec 003 | Not started; spec change first |
+| 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Not started |
+| 17 | Release pipeline | ADR 0009, 0024 | Not started; discuss first |
 
 Status values: `Not started`, `In progress`, `In review`, `Done`.
 
@@ -40,7 +41,7 @@ Wardroom can first be used for reading after step 11.
 - Logging setup: format, `WARDROOM_LOG_LEVEL`, escaping of untrusted text, the `PROTOCOL_ANOMALY` line (ADR 0029). Coverage report (ADR 0030).
 - Frontend: Vite, React 19, TypeScript strict, React Router, TanStack Query, generated API client, Tailwind v4 and shadcn/ui with the design tokens, Inter bundled, Lucide, ESLint, Prettier, Vitest and MSW; built by Maven into the single jar.
 - `.gitattributes` that keeps NNTP fixtures byte-for-byte (CRLF).
-- Dockerfile (multi-stage, amd64 and arm64) with the `PUID`/`PGID` entrypoint, `HEALTHCHECK` and `compose.yaml` as in ADR 0009. Built locally only; publishing is step 16.
+- Dockerfile (multi-stage, amd64 and arm64) with the `PUID`/`PGID` entrypoint, `HEALTHCHECK` and `compose.yaml` as in ADR 0009. Built locally only; publishing is step 17.
 - CI workflow: build and tests on every push and pull request.
 - Fill in the "Commands" section of `CLAUDE.md`.
 
@@ -57,14 +58,14 @@ Wardroom can first be used for reading after step 11.
 
 ### 3. Authentication and application shell
 
-- Spec 001 completely, except the installation documentation (step 15).
+- Spec 001 completely, except the installation documentation (step 16).
 - Application shell from the UI concept: sidebar frame, routing, settings page frame with section navigation, toasts, skeletons.
 - First-run wizard step 1 (account).
 - Logo: the files in `assets/logo/`, a light and a dark variant. The MVP uses the light variant. The favicon is derived from it as a square image.
 
 ### 4. Server configuration and first-run wizard
 
-- Spec 002 completely, including `WARDROOM_ENCRYPTION_KEY_FILE` (ADR 0025), except the documentation (step 15).
+- Spec 002 completely, including `WARDROOM_ENCRYPTION_KEY_FILE` (ADR 0025), except the documentation (step 16).
 - Wizard step 2 (server), resuming after a closed browser; settings section "Server".
 - The group list fetch trigger is wired in step 5.
 
@@ -110,7 +111,26 @@ Wardroom can first be used for reading after step 11.
 
 - ADR 0023 and the cache parts of spec 005: measurement, cleanup job, setting with current use, warning.
 
-### 15. Polish and documentation
+### 15. Activity of a group
+
+Added to the MVP by the owner on 2026-11-22. Before the implementation: propose the change of spec 003 and of the data model to the owner. The direction:
+
+- The group list shows how many articles a group gets per day, and can be sorted by it.
+- The group list refresh already reads the high watermark of every group, so no further commands to the server are needed.
+- Per group, two baselines are stored, an older and a younger one, each with a time and the high watermark at that time. No history is kept.
+- At a refresh, the activity is the high watermark now minus that of the older baseline, divided by the time since the older baseline.
+- When the younger baseline is 7 days old, it becomes the older one, and the values of this refresh become the younger one. The activity is therefore a plain count over the last 7 to 14 days.
+- The activity does not depend on how often the list is refreshed. After a time without refreshes it is the average over that longer time.
+- The first baseline is stored with the first load of the group list.
+- A value is shown once the older baseline is at least 24 hours old, because a shorter time follows the time of day. Until then the list says that activity is shown after one day. In the first week the value is rough.
+- If the high watermark is below a baseline, the group was renumbered: both baselines start over and the group has no value.
+- Groups without a value are sorted last.
+- The high watermark of the group itself cannot serve, because the synchronization of a subscribed group moves it.
+- The value is approximate, because cancelled articles and spam count too.
+- A moving average was considered and dropped: it depends on the whole history of refreshes, a burst fades out slowly instead of dropping out, and its value cannot be checked.
+- To be decided with the spec change: whether the activity is shown as a number or as levels.
+
+### 16. Polish and documentation
 
 - Quick switcher (`Ctrl+K` / `⌘K`), settings section "About", accessibility pass against WCAG 2.2 AA.
 - Shorter sessions without "Remember me" (decided by the owner, part of the MVP): a session from a login without "Remember me", and the session after setup, ends after 30 minutes of inactivity. A session with "Remember me" keeps the 7 days. The server enforces both, so the option no longer depends on the browser dropping the cookie. Change spec 001 with the implementation. To be decided then: whether requests the open page sends on its own count as activity, and how an article that is being written survives a session that ended (spec 009).
@@ -119,7 +139,7 @@ Wardroom can first be used for reading after step 11.
 - User guide (`docs/user-guide.md`): backups, updates, password reset (spec 001), lost key file (spec 002), and an advanced section on keeping the encryption key outside `/config` (ADR 0025, 0031).
 - The README and the user guide were written early, on 2026-11-19. In this step: check both against the finished application and replace the screenshot placeholder in the README with a real screenshot.
 
-### 16. Release pipeline
+### 17. Release pipeline
 
 - To be discussed with the owner before implementation: release workflow, publishing to `ghcr.io/stekhub/wardroom` for amd64 and arm64, tags, GitHub setup.
 - When the repository is made public: turn on private vulnerability reporting in the repository settings (Settings, Security), because `CONTRIBUTING.md` points to it. GitHub offers it only for public repositories. Remind the owner.
@@ -551,7 +571,7 @@ Left for later steps:
 
 - The subscribe toggle in the discover rows, and `subscribed` in the group list (step 6).
 - The setting `sync.group_list_interval_hours` and its field in the settings section "Synchronization" (step 7).
-- The quick switcher searches the discover view (step 15).
+- The quick switcher searches the discover view (step 16).
 
 Not verified:
 
@@ -598,7 +618,7 @@ Left for later steps:
 - Removal deletes the row in `nntp_server`. Groups, subscriptions, article locations, articles and read state do not exist yet; the steps that create these tables (5, 6 and 7) add their deletion and the tests "removal deletes all server data" and "editing host or port keeps subscriptions and cache". For now a test shows that editing keeps the row with its other columns.
 - The group list fetch itself (step 5). A test shows that adding a server publishes `ServerCreated` and editing does not.
 - Marking credentials as invalid after `481` during synchronization (step 7) calls `NntpServers.markCredentialsInvalid`.
-- Documentation of spec 002 for the user guide (step 15).
+- Documentation of spec 002 for the user guide (step 16).
 
 Not verified:
 
@@ -619,7 +639,7 @@ Decisions made during the step, open to a veto:
 - Username: surrounding whitespace is removed at setup and at login. Apart from that, the username is stored as entered and compared exactly, including upper and lower case. Spec 001 says "stored as entered" and "after trimming"; this is how both were read.
 - Lengths of username and password are counted in characters, not in bytes. An emoji is one character.
 - Changed in the review: a session ends after 7 days of inactivity instead of 30, and the login page has the option "Remember me". Without it the session cookie ends with the browser session; with it the browser keeps the cookie and the server enforces the 7 days. Before, there was no such option and every cookie was kept for 400 days. Spec 001 was changed accordingly.
-- Also decided in the review, for step 15: a session without "Remember me" will end after 30 minutes of inactivity. Until then it ends after 7 days like every session.
+- Also decided in the review, for step 16: a session without "Remember me" will end after 30 minutes of inactivity. Until then it ends after 7 days like every session.
 - A login always gets a new session; a session the browser had before is ended.
 - Logins are checked one after the other, so parallel attempts cannot get around the throttling.
 - A password that is too long to be valid is answered like a wrong password (`401`), not with `400`.
@@ -644,7 +664,7 @@ Findings:
 Left for later steps:
 
 - The test "setup after the account row was deleted" covers the sessions and that cleanups run. The part about the NNTP credentials is tested in step 4, when they exist.
-- Installation documentation of spec 001 (step 15): complete setup immediately; an update may require logging in again.
+- Installation documentation of spec 001 (step 16): complete setup immediately; an update may require logging in again.
 
 Not verified:
 
