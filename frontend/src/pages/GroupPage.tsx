@@ -1,4 +1,4 @@
-import { CheckCheck, RefreshCw } from 'lucide-react'
+import { CheckCheck, RefreshCw, SquarePen } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api } from '@/api/client'
@@ -153,6 +153,14 @@ function GroupHeader({ subscription }: { subscription: Subscription }) {
           <TooltipContent>{synchronizing ? 'Synchronizing…' : 'Refresh'}</TooltipContent>
         </Tooltip>
         <JumpToDate groupId={subscription.groupId} />
+        {subscription.postingStatus !== 'NOT_ALLOWED' && (
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/groups/${String(subscription.groupId)}/new`}>
+              <SquarePen />
+              New discussion
+            </Link>
+          </Button>
+        )}
         <Button type="button" variant="outline" size="sm" onClick={() => void markAllRead()}>
           <CheckCheck />
           Mark all as read

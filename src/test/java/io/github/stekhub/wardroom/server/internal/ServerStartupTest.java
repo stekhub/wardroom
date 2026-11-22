@@ -142,7 +142,7 @@ class ServerStartupTest {
         byte[] passwordEncrypted = application.getBean(CredentialCipher.class).encrypt(NNTP_PASSWORD);
         return application.getBean(ServerRepository.class).insert(new StoredServer(0, "My provider",
                 "news.example.com", 563, NntpTlsMode.IMPLICIT, AuthMethod.USER_PASS, "reader", passwordEncrypted, 4,
-                false));
+                false, null));
     }
 
     private static StoredServer storedServer(ConfigurableApplicationContext application) {

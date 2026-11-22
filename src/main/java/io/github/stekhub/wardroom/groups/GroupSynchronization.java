@@ -16,6 +16,13 @@ public interface GroupSynchronization {
     void groupSubscribed(long groupId);
 
     /**
+     * Starts a synchronization of the group in the background, on the connection that is kept for interactive
+     * actions, unless one is running or the login of the server is known not to work. For what the owner just
+     * did and waits to see, such as a post (spec 009). The call does not wait and never throws.
+     */
+    void synchronizeSoon(long groupId);
+
+    /**
      * Runs work that must not happen while the group is synchronized, such as the unsubscribe cleanup. A running
      * synchronization of the group is cancelled; the work runs after the batch that is being stored, and no
      * synchronization of the group starts until the work has ended.

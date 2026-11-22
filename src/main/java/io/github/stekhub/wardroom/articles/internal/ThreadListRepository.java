@@ -83,10 +83,12 @@ class ThreadListRepository {
      * @param numberInGroup its article number in the group, or {@code null} when it is not located there
      * @param otherGroup    the name of a group it is located in, when it is not located in this group but
      *                      elsewhere; otherwise {@code null}
+     * @param sent          whether the owner posted it from this group and the server does not list it there yet
+     *                      (spec 009)
      */
     record ThreadArticle(long articleId, Long parentId, boolean stub, String subject, String from,
                          String authorKey, boolean ignoredAuthor, Long date, boolean read, Long numberInGroup,
-                         String otherGroup) {
+                         String otherGroup, boolean sent) {
     }
 
     /**
@@ -220,7 +222,7 @@ class ThreadListRepository {
         Field<Boolean> ignoredAuthor = DSL.field(IgnoreFilters.authorIgnored(ARTICLE.AUTHOR_KEY));
         return database.select(ARTICLE.ID, ARTICLE.PARENT_ID, ARTICLE.IS_STUB, ARTICLE.SUBJECT, ARTICLE.FROM,
                         ARTICLE.AUTHOR_KEY, ignoredAuthor, ARTICLE.DATE, read, locationInGroup.ARTICLE_NUMBER,
-                        anyGroup)
+                        anyGroup, ARTICLE.POSTED_FROM_NEWSGROUP_ID)
                 .from(ARTICLE)
                 .leftJoin(locationInGroup).on(locationInGroup.ARTICLE_ID.eq(ARTICLE.ID)
                         .and(locationInGroup.NEWSGROUP_ID.eq((int) groupId)))
@@ -229,7 +231,8 @@ class ThreadListRepository {
                         row.value2() == null ? null : row.value2().longValue(), Boolean.TRUE.equals(row.value3()),
                         row.value4(), row.value5(), row.value6(), Boolean.TRUE.equals(row.value7()),
                         row.value8(), Boolean.TRUE.equals(row.value9()), row.value10(),
-                        row.value10() == null ? row.value11() : null));
+                        row.value10() == null ? row.value11() : null,
+                        row.value10() == null && row.value12() != null && row.value12() == groupId));
     }
 
     /**

@@ -238,9 +238,11 @@ class SubscriptionRepository {
 
     private void deleteArticleData(Select<Record1<Integer>> groupIds) {
         database.deleteFrom(ARTICLE_LOCATION).where(ARTICLE_LOCATION.NEWSGROUP_ID.in(groupIds)).execute();
-        // The read state goes with its article (ON DELETE CASCADE).
+        // The read state goes with its article (ON DELETE CASCADE). An article the owner posted from another
+        // group stays while it waits for its location there (spec 009).
         database.deleteFrom(ARTICLE)
                 .where(ARTICLE.IS_STUB.isFalse())
+                .and(ARTICLE.POSTED_FROM_NEWSGROUP_ID.isNull().or(ARTICLE.POSTED_FROM_NEWSGROUP_ID.in(groupIds)))
                 .andNotExists(DSL.selectOne().from(ARTICLE_LOCATION)
                         .where(ARTICLE_LOCATION.ARTICLE_ID.eq(ARTICLE.ID)))
                 .execute();

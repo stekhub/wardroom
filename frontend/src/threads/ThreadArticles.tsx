@@ -1,6 +1,7 @@
-import { ChevronDown, ChevronRight, Ellipsis, EyeOff } from 'lucide-react'
+import { ChevronDown, ChevronRight, Ellipsis, EyeOff, Reply } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { ArticleContent } from '@/articles/ArticleContent'
+import { useLoadedContent } from '@/articles/contentState'
 import { AuthorIcon } from '@/articles/AuthorIcon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ArticleEditor } from '@/posting/ArticleEditor'
+import type { PostedArticle } from '@/posting/postingState'
+import {
+  quotedReply,
+  repliesByEmailOnly,
+  replySubject,
+  targetGroups,
+  textToQuote,
+} from '@/posting/quoting'
 import type { Thread, ThreadArticle } from '@/threads/threadState'
 import { Time } from '@/threads/Time'
 import { authorName } from '@/threads/times'
@@ -57,8 +67,21 @@ function rowsOf(articles: ThreadArticle[]): Row[] {
   return rows
 }
 
+/** What replying needs to know about the group of the page (spec 009). */
+export interface ReplyContext {
+  groupId: number
+  /** Comes from the server and is shown as text only. */
+  groupName: string
+  /** Whether the group takes posts; without it, no article has a "Reply". */
+  allowed: boolean
+  moderated: boolean
+  /** Called after a reply was sent. */
+  onPosted: (posted: PostedArticle) => void
+}
+
 interface ThreadArticlesProps {
   thread: Thread
+  replies: ReplyContext
   /** Called once for every unread article of this group whose text was displayed. */
   onArticleRead: (article: ThreadArticle) => void
   /** Called when a stub was fetched: the thread knows more about it now. */
@@ -77,12 +100,15 @@ interface ThreadArticlesProps {
  */
 export function ThreadArticles({
   thread,
+  replies,
   onArticleRead,
   onStubFilled,
   onIgnoreAuthor,
 }: ThreadArticlesProps) {
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<number>>(() => new Set())
   const [shownIgnoredIds, setShownIgnoredIds] = useState<ReadonlySet<number>>(() => new Set())
+  // One reply is written at a time.
+  const [replyingToId, setReplyingToId] = useState<number | null>(null)
   const reportedIds = useRef(new Set<number>())
 
   function toggle(articleId: number) {
@@ -159,6 +185,9 @@ export function ThreadArticles({
             onIgnoreAuthor={() => {
               onIgnoreAuthor(row.article)
             }}
+            replies={replies}
+            replyingToId={replyingToId}
+            onReplying={setReplyingToId}
           />
         </li>
       ))}
@@ -175,6 +204,10 @@ interface ArticleRowProps {
   ignoredShown: boolean
   onShowIgnored: () => void
   onIgnoreAuthor: () => void
+  replies: ReplyContext
+  /** The article whose reply is being written, or `null`. */
+  replyingToId: number | null
+  onReplying: (articleId: number | null) => void
 }
 
 /** One article: who wrote it and when, and its text. Names come from the article and are text. */
@@ -186,6 +219,9 @@ function ArticleRow({
   ignoredShown,
   onShowIgnored,
   onIgnoreAuthor,
+  replies,
+  replyingToId,
+  onReplying,
 }: ArticleRowProps) {
   const { article, replyCount } = row
   const author = article.isStub ? 'Not available locally' : authorName(article.from)
@@ -245,6 +281,7 @@ function ArticleRow({
             {article.otherGroup !== null && article.otherGroup !== undefined && (
               <Badge variant="outline">Posted to {article.otherGroup}</Badge>
             )}
+            {article.sent && <Badge variant="outline">Sent</Badge>}
             {article.ignoredAuthor && <Badge variant="outline">Ignored author</Badge>}
             {canIgnoreAuthor && (
               <DropdownMenu>
@@ -276,14 +313,116 @@ function ArticleRow({
         )}
       </div>
       {!collapsed && (
-        <div className="mt-2 animate-in pl-8 duration-150 fade-in motion-reduce:animate-none">
-          <ArticleContent
-            articleId={article.id}
-            onRead={onDisplayed}
-            marksRead={!article.ignoredAuthor}
+        <ArticleBody
+          article={article}
+          author={author}
+          onDisplayed={onDisplayed}
+          replies={replies}
+          replyingToId={replyingToId}
+          onReplying={onReplying}
+        />
+      )}
+    </article>
+  )
+}
+
+interface ArticleBodyProps {
+  article: ThreadArticle
+  author: string
+  onDisplayed: () => void
+  replies: ReplyContext
+  replyingToId: number | null
+  onReplying: (articleId: number | null) => void
+}
+
+/**
+ * The text of an article and, once it is displayed, "Reply" (spec 009). The editor opens below
+ * the article and starts with the quoted text: what is selected in the article, otherwise all of
+ * it.
+ */
+function ArticleBody({
+  article,
+  author,
+  onDisplayed,
+  replies,
+  replyingToId,
+  onReplying,
+}: ArticleBodyProps) {
+  const content = useLoadedContent(article.id)
+  const textBox = useRef<HTMLDivElement | null>(null)
+  const [quotedText, setQuotedText] = useState('')
+  const replying = replyingToId === article.id
+  const rawHeaders = content?.rawHeaders ?? ''
+
+  function reply() {
+    if (content === undefined) {
+      return
+    }
+    const selection = window.getSelection()
+    const box = textBox.current
+    const selected =
+      selection !== null &&
+      !selection.isCollapsed &&
+      box !== null &&
+      box.contains(selection.anchorNode) &&
+      box.contains(selection.focusNode)
+        ? selection.toString().trim()
+        : ''
+    setQuotedText(
+      selected !== '' ? selected : textToQuote(content.body, content.flowed, content.delSp),
+    )
+    onReplying(article.id)
+  }
+
+  return (
+    <div className="mt-2 animate-in pl-8 duration-150 fade-in motion-reduce:animate-none">
+      <div ref={textBox}>
+        <ArticleContent
+          articleId={article.id}
+          onRead={onDisplayed}
+          marksRead={!article.ignoredAuthor}
+        />
+      </div>
+      {content !== undefined &&
+        !article.isStub &&
+        replies.allowed &&
+        !replying &&
+        (repliesByEmailOnly(rawHeaders) ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            The author asked for replies by email. Wardroom does not send email.
+          </p>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="mt-2 -ml-2 text-muted-foreground"
+            disabled={replyingToId !== null}
+            onClick={reply}
+          >
+            <Reply />
+            Reply
+          </Button>
+        ))}
+      {replying && (
+        <div className="mt-3 rounded-lg border p-3">
+          <ArticleEditor
+            groupId={replies.groupId}
+            parentId={article.id}
+            initialSubject={replySubject(article.subject)}
+            initialBody={quotedReply(author, quotedText)}
+            targetGroups={targetGroups(rawHeaders, replies.groupName)}
+            moderated={replies.moderated}
+            onPosted={(posted) => {
+              onReplying(null)
+              replies.onPosted(posted)
+            }}
+            onClose={() => {
+              onReplying(null)
+            }}
           />
         </div>
       )}
-    </article>
+    </div>
   )
 }

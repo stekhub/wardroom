@@ -60,6 +60,11 @@ class ThreadService implements Threads, ThreadRecomputation {
         }
     }
 
+    @Override
+    public void threadArticle(long articleId) {
+        rethreadArticle(articleId);
+    }
+
     /**
      * Gives one article its place again, from its own headers, after its content was fetched: a stub that was
      * filled in, or an article whose {@code In-Reply-To} is known now (spec 006, spec 007). The article does not

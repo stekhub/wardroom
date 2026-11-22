@@ -21,7 +21,7 @@ class ServerRulesTest {
         assertValid(withName("n".repeat(64)));
         assertValid(withName("  " + "n".repeat(64) + "  "));
         assertValid(withName("😀".repeat(64)));
-        assertThat(ServerRules.validate(withName("  My provider "), false).name()).isEqualTo("My provider");
+        assertThat(ServerRules.validate(withName("  My provider "), false, false).name()).isEqualTo("My provider");
 
         assertInvalid(withName(""), "name", "The name must have 1 to 64 characters.");
         assertInvalid(withName("   "), "name", "The name must have 1 to 64 characters.");
@@ -35,7 +35,8 @@ class ServerRulesTest {
         assertValid(withHost("192.0.2.7"));
         assertValid(withHost("2001:db8::7"));
         assertValid(withHost("h".repeat(253)));
-        assertThat(ServerRules.validate(withHost(" news.example.com "), false).host()).isEqualTo("news.example.com");
+        assertThat(ServerRules.validate(withHost(" news.example.com "), false, false).host())
+                .isEqualTo("news.example.com");
 
         assertInvalid(withHost(""), "host", message);
         assertInvalid(withHost("h".repeat(254)), "host", message);
@@ -97,8 +98,8 @@ class ServerRulesTest {
 
     @Test
     void emptyPasswordUsesTheStoredOne() {
-        ValidServer withoutPassword = ServerRules.validate(withCredentials("me", ""), true);
-        ValidServer withPassword = ServerRules.validate(withCredentials("me", PASSWORD), true);
+        ValidServer withoutPassword = ServerRules.validate(withCredentials("me", ""), true, false);
+        ValidServer withPassword = ServerRules.validate(withCredentials("me", PASSWORD), true, false);
 
         assertThat(withoutPassword.newPassword()).isNull();
         assertThat(withPassword.newPassword()).isEqualTo(PASSWORD);
@@ -117,7 +118,7 @@ class ServerRulesTest {
         ServerRequest request = new ServerRequest("My provider", "news.example.com", 119, NntpTlsMode.NONE,
                 AuthMethod.NONE, "me", PASSWORD, 4);
 
-        ValidServer validServer = ServerRules.validate(request, true);
+        ValidServer validServer = ServerRules.validate(request, true, false);
 
         assertThat(validServer.username()).isNull();
         assertThat(validServer.newPassword()).isNull();
@@ -128,7 +129,7 @@ class ServerRulesTest {
         ServerRequest request = withCredentials("me", PASSWORD);
 
         assertThat(request.toString()).doesNotContain(PASSWORD);
-        assertThat(ServerRules.validate(request, false).toString()).doesNotContain(PASSWORD);
+        assertThat(ServerRules.validate(request, false, false).toString()).doesNotContain(PASSWORD);
     }
 
     private static ServerRequest withName(String name) {
@@ -155,12 +156,12 @@ class ServerRulesTest {
     }
 
     private static void assertValid(ServerRequest request) {
-        assertThatCode(() -> ServerRules.validate(request, false)).doesNotThrowAnyException();
+        assertThatCode(() -> ServerRules.validate(request, false, false)).doesNotThrowAnyException();
     }
 
     private static void assertInvalid(ServerRequest request, String field, String message) {
         FieldValidationException failure = catchThrowableOfType(FieldValidationException.class,
-                () -> ServerRules.validate(request, false));
+                () -> ServerRules.validate(request, false, false));
         assertThat(failure).as("a validation failure").isNotNull();
         assertThat(failure.field()).isEqualTo(field);
         assertThat(failure).hasMessage(message);

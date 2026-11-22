@@ -82,6 +82,19 @@ public interface NntpClient extends AutoCloseable {
      */
     Optional<NntpArticle> article(String messageId, int maxBytes);
 
+    /**
+     * Sends an article with {@code POST} (RFC 3977, section 6.3.1). The adapter writes CRLF line endings and
+     * applies dot-stuffing; the bytes of the article are sent as UTF-8.
+     *
+     * <p>The command is sent once. The caller decides whether the article is sent again.
+     *
+     * @param article the header lines, an empty line and the body, with any line ending
+     * @return what the server answered. A refusal is a result, not a failure
+     * @throws NntpException when the server answers with something the protocol does not allow here, or the
+     *                       connection fails. The article may or may not have reached the server then
+     */
+    NntpPostResult post(String article);
+
     /** Sends {@code QUIT} and closes the connection. Never throws; closing twice is harmless. */
     @Override
     void close();

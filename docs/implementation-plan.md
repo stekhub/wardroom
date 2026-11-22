@@ -16,9 +16,9 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 8 | Load older, load more, jump to date | Spec 005; ADR 0021, 0022 | Done |
 | 9 | Threading | Spec 006 | Done |
 | 10 | Article reading | Spec 007 | Done |
-| 11 | Discussion view | Spec 008 | In review |
-| 12 | Ignoring | Spec 010 | In review |
-| 13 | Posting | Spec 009 | Not started |
+| 11 | Discussion view | Spec 008 | Done |
+| 12 | Ignoring | Spec 010 | Done |
+| 13 | Posting | Spec 009 | In review |
 | 14 | Cache size limit | ADR 0023; spec 005 | Not started; new ADR first |
 | 15 | Activity of a group | Spec 003 | Not started; spec change first |
 | 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Not started |
@@ -160,6 +160,77 @@ Added to the MVP by the owner on 2026-11-22. Before the implementation: propose 
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 13, separate posting server (2026-11-22)**
+
+Found while the owner tried posting with a real server: the server said that posting is available and refused every post. The provider takes posts only on another host. The owner accepted a separate posting server as a change of specs 002 and 009, with two checkboxes: "Use a separate server for posting" and "Use the same login as for reading".
+
+Built:
+
+- Six columns on `nntp_server` for the posting server (migration V11), its field rules, and its part in the requests and answers of the server endpoints.
+- The connection test tests the server and then the posting server. A posting server that fails is named in a successful result.
+- A post goes to the posting server on a connection of its own, once.
+- Frontend: the two checkboxes and the fields in the server form, the result line for a posting server that cannot be used, the warnings after saving, and the hint about a separate server where posting is not offered or not allowed.
+- Specs 002 and 009, the data model, the UI concept and the user guide.
+
+Decisions, open to a veto:
+
+- **The posting server is part of the server,** not a second row. It has no groups, no pool and no circuit breaker.
+- **With the login of the server and `USER_PASS`, the posting server must use TLS.** Otherwise the password would be sent unencrypted.
+- **The posting server never changes `credentials_invalid`.** A login it rejects is shown in the connection test and when a post fails.
+- **A posting password that cannot be decrypted is found when it is used,** not at the start. The start marks only the login of the server.
+- **Spec 009 now names the field `postingAllowed`,** as the API does since step 4. This closes the open point of the note below.
+- **The hint for "Posting not allowed" links to the server settings** and mentions the separate server.
+- **The labels in the form start with "Posting":** "Posting host", "Posting port" and so on, so that each field has its own name.
+
+Verified:
+
+- `./mvnw verify` passes: 594 backend tests and 228 frontend tests.
+- The owner posted through a real server by entering the posting host as the host of the server, before this change.
+- Tried by hand against two fake NNTP servers, one that refuses posts and one that takes them: a posting server on a wrong port is named in a successful connection test; with the right port a new discussion arrives at the posting server only and shows the "Sent" marker; with the posting server switched off again the post is refused with the hint and the link to the server settings.
+- Tried by hand by the owner on 2026-11-22, with a real server: everything works.
+- Not tried by hand by the AI assistant: a posting server with a login of its own and the wizard.
+- Not covered by a test: a login that the posting server rejects while posting. The connection test with such a login is covered.
+
+**Step 13, posting (2026-11-22)**
+
+Built:
+
+- The `posting` module: the identity endpoints, `POST /api/groups/{id}/articles`, the article builder with RFC 2047 headers, `References` trimming and the flowed body, and the storing of the owner's article.
+- The NNTP adapter sends `POST` with CRLF and dot-stuffing and returns the answer of the server as a result.
+- `article.posted_from_newsgroup_id`. The owner's article is threaded at once, read, and shown as "Sent" until the synchronization finds it in the group. Threading and the unsubscribe cleanup know these articles.
+- Frontend: "New discussion" with its page, "Reply" below each displayed article with the inline editor, quoting of the whole text or of the selection, the identity prompt in the editor, the settings section "Posting identity", the signature checkbox, the warning about quoted text, "Discard draft?", and the hints for each kind of failure with "Try again".
+- The connection test message now reads "Posting: available" or "Posting: not offered by this server" with the hint of spec 009.
+
+Deviations and decisions, open to a veto:
+
+- **The kind of failure is the `type` of the Problem Details answer,** as spec 009 says: `"type": "POSTING_FAILED"`. In RFC 9457 `type` is an address; a single word is a valid relative one. The message of the server is `detail`, and `messageId` is an extra field.
+- **The connection test field is still `postingAllowed`.** It exists since step 4; spec 009 calls it `postingAvailable`. Renaming it would change an API that works; it was left.
+- **A duplicate on a second attempt is recognized by the words of the server.** Spec 009 treats "441 duplicate" as success. Servers word this differently, so an answer `441` that contains "duplicate" or "435" counts. At a first attempt it is a failure.
+- **A second attempt for an article that is stored already posts nothing** and returns the stored article. This covers an answer that was lost on the way to the browser.
+- **"Try again" sends the failed draft unchanged with its Message-ID.** "Send" after the text was changed sends a new article with a new Message-ID.
+- **Limits of the identity:** name 100 characters, email address 254, signature 2,000. Spec 009 names none. The domain of the email address may have letters, digits, hyphens and dots only, because it becomes part of every Message-ID.
+- **A parent that names no valid group** is answered in the group it is read in.
+- **The 64 KB limit** is for the whole article as it is sent, headers and signature included.
+- **"Most of the text is quoted"** means: more lines with text are quotes than not.
+- **"Discard draft?" is asked when the draft was changed.** A reply starts with the quoted text; closing it untouched asks nothing. Spec 009 says "an editor that contains text".
+- **One reply is written at a time.** While an editor is open, the other "Reply" buttons are disabled.
+- **"Reply" stands below the text of an article,** not in the menu "More actions".
+- **The synchronization after a post** uses the connection for interactive actions and is left out when the group is being synchronized already. The next scheduled run brings the article then.
+- **The thread response has `sent` for each article.** Spec 008 does not list it; spec 009 needs it for the marker.
+
+Verified:
+
+- `./mvnw verify` passes: 581 backend tests and 221 frontend tests.
+- Tried by hand against a fake NNTP server that accepts posts: the identity prompt, a new discussion with a name and a subject with other than ASCII (the article arrived with encoded headers, a wrapped long line and the signature), landing on its thread page, a reply with the quoted text, a refusal of the server with its message, and the corrected reply appearing in the thread.
+- Tried by hand by the owner on 2026-11-22, with a real server: everything works.
+- Not tried by hand by the AI assistant: the "Sent" marker, because the fake server lists a post at once; quoting a selection; "Discard draft?"; "Try again"; a moderated group.
+- Not covered by an integration test: the synchronization that starts after a post. Background synchronizations are switched off in integration tests.
+
+For later steps:
+
+- Step 14: the cache cleanup must keep the content of the owner's articles that wait for their location, or they cannot be shown.
+- Step 16: an article that is being written when the session ends is lost (see the note on shorter sessions).
 
 **Step 12, ignoring (2026-11-22)**
 

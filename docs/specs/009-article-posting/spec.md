@@ -63,14 +63,17 @@ The posting identity, writing new discussions and replies, quoting, the generate
 
 | Situation | Hint |
 |---|---|
-| Posting not allowed (`440`, or the server does not offer posting) | "Your provider does not allow posting with this account. Some providers require posting to be activated in the account settings, or do not include it in trial or block accounts. Check your provider's account page or support." |
+| Posting not allowed (`440`, or the server does not offer posting) | "Your provider does not allow posting with this account. Some providers require posting to be activated in the account settings, or do not include it in trial or block accounts. Check your provider's account page or support. Some providers take posts only on a separate server; you can set one in the server settings." With a link to the server settings |
 | Authentication required (`480`) | "This server requires a login for posting. Add username and password in the server settings." With a link to the server settings |
+| The posting server rejects its login, or its stored password cannot be read | As for authentication required, with a message that names the posting server |
 | Posting failed (`441`) | The server's message, for example a rejected header or too much quoted text |
 | Server unreachable, timeout, circuit breaker open | "The server could not be reached. Your text is kept; try again." |
 
 **Connection test**
 
 - The connection test of [spec 002](../002-nntp-server-configuration/spec.md) also reports whether the server offers posting for the configured account: by the `POST` capability after authentication, or by the greeting (`200` allows posting, `201` does not) if `CAPABILITIES` is not supported. The server settings show "Posting: available" or "Posting: not offered by this server" with the hint above. This is informational: servers may still refuse a post later.
+- Below "Posting: not offered by this server" the result also says: "Some providers take posts only on a separate server. If yours does, set it in the server settings with "Use a separate server for posting"."
+- With a separate posting server ([spec 002](../002-nntp-server-configuration/spec.md)), the posting line is about that server.
 
 **The owner's post**
 
@@ -125,11 +128,14 @@ All endpoints require a session and the CSRF token for state-changing requests (
 
 A `502` carries `type` (`POSTING_NOT_ALLOWED`, `AUTH_REQUIRED`, `POSTING_FAILED`, `UNREACHABLE`), the server's message and the `messageId` to retry with.
 
-The connection test result of spec 002 gains `postingAvailable` (`true`, `false`, or `null` when the test failed).
+The connection test result of spec 002 gains `postingAllowed` (`true`, `false`, or `null` when the test of the server that takes the posts failed).
 
 ## Technical design
 
 - Posting uses the connection reserved for interactive actions ([spec 005](../005-article-synchronization/spec.md)). It is a direct user action and is not retried (ADR 0006).
+- With a separate posting server ([spec 002](../002-nntp-server-configuration/spec.md)), each post opens a connection of its own to that server and closes it afterwards. It is outside the connection pool, passes no circuit breaker and is not retried. A post is never sent to the server that is read from instead.
+- A login that the posting server rejects is answered as `AUTH_REQUIRED` and does not set `credentials_invalid`: reading is not affected.
+- Everything after the server took the article is the same with a posting server: the article is stored, and the group is synchronized from the server that is read from.
 - Target groups, quoting and the attribution line are built from the parent's stored headers and body; the parent's content is always cached when its "Reply" button is available.
 - The article is built and encoded in the backend; the frontend sends the plain draft.
 - The owner's article is threaded on insert with the rules of spec 006 and included in later recomputations of the group it was posted from. Until it has a location in the group, it is shown in place as for crossposts and does not count towards message or unread counts.

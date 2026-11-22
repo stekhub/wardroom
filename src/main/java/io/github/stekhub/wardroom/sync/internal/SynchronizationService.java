@@ -93,6 +93,16 @@ class SynchronizationService implements GroupSynchronization {
     }
 
     @Override
+    public void synchronizeSoon(long groupId) {
+        if (!synchronizationProperties.automatic()) {
+            return;
+        }
+        subscribedGroups.find(groupId)
+                .filter(group -> !nntpServers.credentialsInvalid(group.serverId()))
+                .ifPresent(group -> startInBackground(group, Trigger.MANUAL));
+    }
+
+    @Override
     public <T> T withoutSynchronization(long groupId, Supplier<T> work) {
         cancelRequests.add(groupId);
         ReentrantLock groupLock = lockOf(groupId);

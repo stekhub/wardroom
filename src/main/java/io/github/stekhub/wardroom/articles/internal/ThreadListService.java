@@ -71,9 +71,11 @@ class ThreadListService {
      * @param depth         how many articles lie between it and the thread root, the root being 0
      * @param ignoredAuthor whether the owner ignores the author (spec 010)
      * @param otherGroup    the group it was posted to, when it is not located in the group of the page
+     * @param sent          whether the owner posted it from the group of the page and the server does not list it
+     *                      there yet (spec 009)
      */
     record Entry(long id, Long parentId, int depth, boolean stub, String subject, String from, String authorKey,
-                 boolean ignoredAuthor, Long date, boolean read, String otherGroup) {
+                 boolean ignoredAuthor, Long date, boolean read, String otherGroup, boolean sent) {
     }
 
     /**
@@ -170,7 +172,9 @@ class ThreadListService {
     private long threadRootInGroup(long groupId, long articleId) {
         long threadRootId = threadRepository.findThreadRootId(articleId).orElseThrow(ThreadNotFoundException::new);
         boolean shownInGroup = threadListRepository.findThreadArticles(threadRootId, groupId).stream()
-                .anyMatch(threadArticle -> !threadArticle.stub() && threadArticle.numberInGroup() != null);
+                // A discussion the owner just started has only the article that waits for its location.
+                .anyMatch(threadArticle -> !threadArticle.stub()
+                        && (threadArticle.numberInGroup() != null || threadArticle.sent()));
         if (!shownInGroup) {
             throw new ThreadNotFoundException();
         }
@@ -212,7 +216,7 @@ class ThreadListService {
             entries.add(new Entry(threadArticle.articleId(), placed.parentId(), placed.depth(),
                     threadArticle.stub(), threadArticle.subject(), threadArticle.from(),
                     threadArticle.authorKey(), threadArticle.ignoredAuthor(), threadArticle.date(),
-                    threadArticle.read(), threadArticle.otherGroup()));
+                    threadArticle.read(), threadArticle.otherGroup(), threadArticle.sent()));
             List<ThreadArticle> replies = repliesByParentId.get(threadArticle.articleId());
             if (replies == null) {
                 continue;

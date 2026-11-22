@@ -32,7 +32,11 @@ export function ServerSetupPage() {
             <ServerForm
               saveLabel="Save and continue"
               onSaved={(saved) => {
-                if (saved.connectionTest.success) {
+                if (saved.connectionTest.postingServerFailure != null) {
+                  toast.warning(
+                    'Server added, but the posting server cannot be used. Check the server settings.',
+                  )
+                } else if (saved.connectionTest.success) {
                   toast.success('Server added')
                 } else {
                   // The server is saved anyway, so one that is down for the moment can be set up.

@@ -135,6 +135,7 @@ export function testThreadArticle(
     date: 1_763_450_000_000,
     read: true,
     otherGroup: null,
+    sent: false,
     ...overrides,
   }
 }

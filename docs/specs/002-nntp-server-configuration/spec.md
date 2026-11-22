@@ -16,6 +16,7 @@ Not covered: the posting identity ([spec 009](../009-article-posting/spec.md)), 
 - As the owner, I test the connection before saving, so that I know the settings work.
 - As the owner, I change the server settings later, for example a new password or host, without losing my subscriptions and cache.
 - As the owner, I remove the server, which removes all its data.
+- As the owner, I enter a separate server for posting, because my provider takes posts only there.
 - As the owner, I can rely on my NNTP password never being shown again or written to logs.
 
 ## Functional requirements
@@ -42,6 +43,27 @@ Not covered: the posting identity ([spec 009](../009-article-posting/spec.md)), 
 - In the frontend, changing the TLS mode changes the port to that mode's default unless the user has edited the port.
 - Setting authentication to `NONE` deletes the stored username and password.
 
+**Posting server**
+
+Some providers take posts only on another host than the one that is read from. The server can therefore have a separate posting server. It is part of the server, not a second server: it has no groups, no cache and no connection pool.
+
+- The form has the checkbox "Use a separate server for posting". It is off by default. While it is off, posts go to the server itself and the fields below are not shown.
+- When it is on, these fields are shown:
+
+| Field | Rule | Default |
+|---|---|---|
+| Posting host | Host name or IP address, 1–253 characters | |
+| Posting port | 1–65535 | 563 for `IMPLICIT`, 119 for `NONE` |
+| Posting TLS mode | `IMPLICIT`, `NONE` | `IMPLICIT` |
+| Use the same login as for reading | Checkbox | On |
+
+- While "Use the same login as for reading" is on, the posting server gets the authentication, username and password of the server. If the server uses `USER_PASS`, the posting TLS mode must be `IMPLICIT`, so that the password is never sent unencrypted.
+- When it is off, the posting server has fields of its own, with the rules of the server's fields: posting authentication (`NONE`, `USER_PASS`; `USER_PASS` requires the posting TLS mode `IMPLICIT`), posting username and posting password.
+- The posting password is stored and handled like the password of the server: encrypted, write-only, and kept when the field is left empty on edit.
+- Switching the first checkbox off deletes all stored values of the posting server. Switching "Use the same login as for reading" on, or the posting authentication to `NONE`, deletes the stored posting username and password.
+- Changing the TLS mode of the posting server changes its port to that mode's default unless the user has edited the port.
+- How a post uses the posting server is in [spec 009](../009-article-posting/spec.md).
+
 **Password field**
 
 - The password is write-only. The API never returns it, only whether one is stored.
@@ -53,12 +75,15 @@ Not covered: the posting identity ([spec 009](../009-article-posting/spec.md)), 
 - The test connects, validates the certificate as in ADR 0016, reads the greeting, sends `CAPABILITIES` and, for `USER_PASS`, authenticates, then sends `QUIT`.
 - A server that does not support `CAPABILITIES` still passes.
 - The result also reports whether the server offers posting ([spec 009](../009-article-posting/spec.md)).
+- With a separate posting server, the server itself is tested first. If that works, the posting server is tested in the same way, and whether posting is offered is what the posting server says.
+- A posting server that fails does not make the test fail, because reading works without it. The result is successful and names the failure of the posting server; the frontend shows "Posting: the posting server cannot be used" with the cause.
 - The test is a direct user action: it bypasses the circuit breaker and is not retried (ADR 0006).
 
 **Saving**
 
 - Saving runs the same test and saves even if the test fails. The response contains the test result, and the frontend shows a warning on failure. This allows setting up a server that is temporarily unreachable.
 - Saving new credentials clears `credentials_invalid`. Saving resets the server's circuit breaker.
+- What the posting server answers does not change `credentials_invalid`, also when it uses the login of the server. After saving with a posting server that failed, the frontend warns that the posting server cannot be used.
 - Saving a new server starts the group list fetch (ADR 0013). Editing does not; the group list is refreshed manually.
 
 **Editing**
@@ -87,11 +112,23 @@ All endpoints require a session and the CSRF token for state-changing requests (
   "username": "me",
   "passwordStored": true,
   "maxConnections": 4,
-  "credentialsInvalid": false
+  "credentialsInvalid": false,
+  "postingServer": {
+    "host": "post.example.com",
+    "port": 563,
+    "tlsMode": "IMPLICIT",
+    "sameLogin": false,
+    "authMethod": "USER_PASS",
+    "username": "me",
+    "passwordStored": true
+  }
 }
 ```
 
-Requests use the same fields without `id`, `passwordStored` and `credentialsInvalid`, plus an optional `password`.
+- Requests use the same fields without `id`, `passwordStored` and `credentialsInvalid`, plus an optional `password`.
+- `postingServer` is `null` when posts go to the server itself. A request without it, or with `null`, removes the posting server.
+- With `"sameLogin": true`, `authMethod` and `username` of the posting server are `null` and `passwordStored` is `false`. A request needs only `host`, `port`, `tlsMode` and `sameLogin` then.
+- A validation failure of a posting server field names it with the prefix `postingServer.`, for example `postingServer.host`.
 
 **Connection test result**
 
@@ -100,6 +137,14 @@ Requests use the same fields without `id`, `passwordStored` and `credentialsInva
 ```
 
 Failure types: `UNREACHABLE` (host not found, connection refused), `TIMEOUT`, `TLS_CERTIFICATE`, `TLS_HANDSHAKE`, `AUTH_FAILED` (481), `SERVER_REFUSED` (400, 502), `PROTOCOL` (unexpected response). On success `failure` is `null`.
+
+When the server works and its separate posting server does not, the result is:
+
+```json
+{ "success": true, "failure": null, "postingAllowed": null, "postingServerFailure": { "type": "UNREACHABLE", "message": "…" } }
+```
+
+`postingServerFailure` has the failure types above. It is `null` in every other case.
 
 | Method and path | Request | Responses |
 |---|---|---|
@@ -117,6 +162,7 @@ A failed connection test is a result, not an error, and returns `200`.
 
 - Runs through the NNTP adapter's `NntpClient` with the adapter's normal timeouts, on a dedicated connection outside the per-server connection pool.
 - Maps adapter errors to the failure types above. The message names the cause, for example the certificate problem, without echoing credentials.
+- The posting server is tested on a second dedicated connection, after the first one was closed.
 
 **Credential encryption**
 
@@ -140,6 +186,7 @@ A failed connection test is a result, not an error, and returns `200`.
 ## Data model changes
 
 - None beyond the [data model](../../architecture/data-model.md). `password_encrypted` uses the format above.
+- The posting server adds six nullable columns to `nntp_server`; `posting_password_encrypted` uses the same format.
 - New lifecycle rule for server removal in the data model.
 
 ## Error handling
@@ -147,6 +194,9 @@ A failed connection test is a result, not an error, and returns `200`.
 | Situation | Behavior |
 |---|---|
 | Invalid field, `USER_PASS` with `NONE` TLS, missing username or password | `400` naming the field and rule |
+| Invalid posting server field; the login of the server with a posting TLS mode `NONE` | `400` naming the field with the prefix `postingServer.` and the rule |
+| The posting server fails in a connection test | `200`, successful, with `postingServerFailure` |
+| The stored posting password cannot be decrypted | The connection test names it as `AUTH_FAILED` of the posting server; a post fails with the request to enter it again. `credentials_invalid` is not set |
 | Creating a second server | `409` |
 | Unknown server ID | `404` |
 | Connection test fails | `200` with the failure type and message |
@@ -155,7 +205,8 @@ A failed connection test is a result, not an error, and returns `200`.
 
 ## Security considerations
 
-- Credentials are sent only over implicit TLS with a validated certificate (ADR 0012, ADR 0016).
+- Credentials are sent only over implicit TLS with a validated certificate (ADR 0012, ADR 0016). This also holds for the posting server, with its own login and with the login of the server.
+- A new account does not inherit the posting server's own login either: its username and password are deleted and its authentication is set to `NONE` (ADR 0017).
 - The password is never returned by the API, never logged, and never included in error messages or connection test results.
 - Only ciphertext is stored in the database. By default the key file and database are both in `/config` and are backed up together (ADR 0009); owners can keep the key outside `/config` (ADR 0025). This protects a database file obtained alone, not a compromised host or running application (brief §5).
 - The connection test lets the logged-in owner make the instance connect to any host and port. This is accepted for a single-owner, self-hosted instance.
@@ -169,6 +220,8 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 - An empty password on edit keeps the stored password; switching authentication to `NONE` deletes the stored credentials.
 - Connection test: success, server without `CAPABILITIES`, each failure type including an untrusted certificate and a host name mismatch.
 - Saving with a failing test still saves and returns the failure.
+- Posting server: saving and returning it with its own login and with the login of the server; the field rules, including the login of the server with a posting TLS mode `NONE`; the password is never in a response; an empty password on edit keeps the stored one; switching to the login of the server or removing the posting server deletes what was stored.
+- Connection test with a posting server: both servers are tested; posting comes from the posting server; a failing posting server gives a successful result with its failure and does not set `credentials_invalid`; a failing server leaves the posting server untested.
 - Saving a new server starts the group list fetch; editing does not.
 - Editing host or port keeps subscriptions and cache; removal deletes all server data.
 - Encryption round trip; a different nonce for each encryption; the version byte is written.
@@ -183,4 +236,5 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 4. Server endpoints, validation and the removal cleanup.
 5. Trigger of the group list fetch on creation; circuit breaker reset on save.
 6. Frontend: server form (first run and settings page), connection test, save warning, removal confirmation, invalid credentials notice.
+7. Posting server: migration, rules, storage, connection test and the form fields.
 7. Installation documentation: back up `/config` as a whole; what happens if the key file is lost. An advanced section of the user guide, outside the quick start, explains keeping the key outside `/config` with a Docker secret and how to move an existing key (ADR 0025, [ADR 0031](../../architecture/decisions/0031-user-guide.md)).

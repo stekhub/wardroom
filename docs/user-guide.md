@@ -55,6 +55,17 @@ Wardroom encrypts the stored NNTP password with a key in `config/credentials.key
 
 If the file exists but is damaged, Wardroom does not start and names the file in the log. Restore the file from a backup, or delete it to get a new key.
 
+### Posting is not allowed
+
+Your posts are refused with "Posting is not allowed", although the connection test says "Posting: available".
+
+- Some providers take posts only on a separate server. Your provider's help pages name its host.
+- Open the settings, section "Server", and tick "Use a separate server for posting". Enter the host, the port and the TLS mode of that server.
+- Leave "Use the same login as for reading" ticked if the posting server takes the login you read with. Otherwise untick it and enter the login of the posting server.
+- "Test connection" then tests both servers. The posting line is about the posting server.
+
+Some providers also need posting to be activated for your account first.
+
 ### More detail in the log
 
 Wardroom writes its log to the container output:

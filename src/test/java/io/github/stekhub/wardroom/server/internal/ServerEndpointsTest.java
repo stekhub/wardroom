@@ -388,7 +388,8 @@ class ServerEndpointsTest {
         assertThat(browser.post("/api/servers/connection-test", json(serverWithLogin())))
                 .hasStatusOk()
                 .bodyJson()
-                .isStrictlyEqualTo("{\"success\": true, \"failure\": null, \"postingAllowed\": true}");
+                .isStrictlyEqualTo("{\"success\": true, \"failure\": null, \"postingAllowed\": true, "
+                            + "\"postingServerFailure\": null}");
 
         assertThat(tlsServer.commands()).containsExactly("CAPABILITIES", "AUTHINFO USER " + NNTP_USERNAME,
                 "AUTHINFO PASS " + NNTP_PASSWORD, "CAPABILITIES", "QUIT");
@@ -405,7 +406,8 @@ class ServerEndpointsTest {
                     json(with(serverWithoutLogin(), "port", oldServer.port()))))
                     .hasStatusOk()
                     .bodyJson()
-                    .isStrictlyEqualTo("{\"success\": true, \"failure\": null, \"postingAllowed\": false}");
+                    .isStrictlyEqualTo("{\"success\": true, \"failure\": null, \"postingAllowed\": false, "
+                            + "\"postingServerFailure\": null}");
             assertThat(oldServer.commands()).containsExactly("CAPABILITIES", "QUIT");
         }
     }
@@ -705,6 +707,264 @@ class ServerEndpointsTest {
             assertThat(body).extractingPath("$[0].maxConnections").isEqualTo(7);
         });
         assertThat(storedPassword()).isNull();
+    }
+
+    // Posting server
+
+    @Test
+    void aPostingServerWithItsOwnLoginIsSavedAndBothServersAreTested() throws IOException {
+        MvcTestResult created = browser.post("/api/servers",
+                json(with(serverWithoutLogin(), "postingServer", postingServerWithOwnLogin())));
+
+        assertThat(created).hasStatus(HttpStatus.CREATED).bodyJson().satisfies(body -> {
+            assertThat(body).extractingPath("$.server.host").isEqualTo("localhost");
+            assertThat(body).extractingPath("$.server.port").isEqualTo(plainServer.port());
+            assertThat(body).extractingPath("$.server.passwordStored").isEqualTo(false);
+            assertThat(body).extractingPath("$.server.postingServer.host").isEqualTo("localhost");
+            assertThat(body).extractingPath("$.server.postingServer.port").isEqualTo(tlsServer.port());
+            assertThat(body).extractingPath("$.server.postingServer.tlsMode").isEqualTo("IMPLICIT");
+            assertThat(body).extractingPath("$.server.postingServer.sameLogin").isEqualTo(false);
+            assertThat(body).extractingPath("$.server.postingServer.authMethod").isEqualTo("USER_PASS");
+            assertThat(body).extractingPath("$.server.postingServer.username").isEqualTo(NNTP_USERNAME);
+            assertThat(body).extractingPath("$.server.postingServer.passwordStored").isEqualTo(true);
+            assertThat(body).extractingPath("$.connectionTest.success").isEqualTo(true);
+            assertThat(body).extractingPath("$.connectionTest.postingAllowed").isEqualTo(true);
+            assertThat(body).extractingPath("$.connectionTest.postingServerFailure").isNull();
+        });
+        assertThat(body(created)).doesNotContain(NNTP_PASSWORD);
+        assertThat(plainServer.commands()).containsExactly("CAPABILITIES", "QUIT");
+        assertThat(tlsServer.commands()).containsExactly("CAPABILITIES", "AUTHINFO USER " + NNTP_USERNAME,
+                "AUTHINFO PASS " + NNTP_PASSWORD, "CAPABILITIES", "QUIT");
+        assertThat(new String(storedPostingPassword(), StandardCharsets.ISO_8859_1))
+                .as("the password of the posting server is stored encrypted")
+                .doesNotContain(NNTP_PASSWORD);
+    }
+
+    @Test
+    void aPostingServerCanUseTheLoginOfTheServer() {
+        MvcTestResult created = browser.post("/api/servers",
+                json(with(serverWithLogin(), "postingServer", postingServerWithSameLogin(tlsServer.port()))));
+
+        assertThat(created).hasStatus(HttpStatus.CREATED).bodyJson().satisfies(body -> {
+            assertThat(body).extractingPath("$.server.postingServer.sameLogin").isEqualTo(true);
+            assertThat(body).extractingPath("$.server.postingServer.authMethod").isNull();
+            assertThat(body).extractingPath("$.server.postingServer.username").isNull();
+            assertThat(body).extractingPath("$.server.postingServer.passwordStored").isEqualTo(false);
+            assertThat(body).extractingPath("$.connectionTest.postingAllowed").isEqualTo(true);
+        });
+        assertThat(tlsServer.commands().stream().filter(command -> command.startsWith("AUTHINFO PASS")))
+                .as("the server and the posting server are both logged in to with the login of the server")
+                .containsExactly("AUTHINFO PASS " + NNTP_PASSWORD, "AUTHINFO PASS " + NNTP_PASSWORD);
+        assertThat(storedPostingPassword()).isNull();
+
+        NntpServerSettings postingServerSettings = nntpServers.postingServerSettings(serverId(created)).orElseThrow();
+        assertThat(postingServerSettings.serverId()).isEqualTo(serverId(created));
+        assertThat(postingServerSettings.port()).isEqualTo(tlsServer.port());
+        assertThat(postingServerSettings.username()).isEqualTo(NNTP_USERNAME);
+        assertThat(postingServerSettings.password()).isEqualTo(NNTP_PASSWORD);
+        assertThat(postingServerSettings.maxConnections()).isEqualTo(1);
+    }
+
+    @Test
+    void otherModulesGetNoPostingServerSettingsWhenPostsGoToTheServerItself() {
+        long serverId = serverId(browser.post("/api/servers", json(serverWithLogin())));
+
+        assertThat(browser.get("/api/servers")).hasStatusOk().bodyJson()
+                .extractingPath("$[0].postingServer").isNull();
+        assertThat(nntpServers.postingServerSettings(serverId)).isEmpty();
+        assertThat(nntpServers.postingServerSettings(serverId + 1)).isEmpty();
+    }
+
+    @Test
+    void whetherPostingIsOfferedIsWhatThePostingServerSays() throws IOException {
+        try (MockNntpServer readOnlyServer = MockNntpServer.start()) {
+            readOnlyServer.greeting().reply("201 No posting here");
+
+            assertThat(browser.post("/api/servers/connection-test", json(with(with(serverWithoutLogin(), "port",
+                    readOnlyServer.port()), "postingServer", postingServerWithSameLogin(plainServer.port())))))
+                    .hasStatusOk().bodyJson().extractingPath("$.postingAllowed").isEqualTo(true);
+            assertThat(browser.post("/api/servers/connection-test", json(with(serverWithoutLogin(),
+                    "postingServer", postingServerWithSameLogin(readOnlyServer.port())))))
+                    .hasStatusOk().bodyJson().extractingPath("$.postingAllowed").isEqualTo(false);
+        }
+        assertThat(database.fetchCount(NNTP_SERVER)).isZero();
+    }
+
+    @Test
+    void aPostingServerThatFailsIsReportedInASuccessfulResultAndTheServerIsSaved() throws IOException {
+        MvcTestResult created = browser.post("/api/servers",
+                json(with(serverWithLogin(), "postingServer",
+                        with(postingServerWithSameLogin(closedPort()), "tlsMode", "IMPLICIT"))));
+
+        assertThat(created).hasStatus(HttpStatus.CREATED).bodyJson().satisfies(body -> {
+            assertThat(body).extractingPath("$.connectionTest.success").isEqualTo(true);
+            assertThat(body).extractingPath("$.connectionTest.failure").isNull();
+            assertThat(body).extractingPath("$.connectionTest.postingAllowed").isNull();
+            assertThat(body).extractingPath("$.connectionTest.postingServerFailure.type").isEqualTo("UNREACHABLE");
+            assertThat(body).extractingPath("$.connectionTest.postingServerFailure.message").asString().isNotBlank();
+            assertThat(body).extractingPath("$.server.credentialsInvalid").isEqualTo(false);
+            assertThat(body).extractingPath("$.server.postingServer.host").isEqualTo("localhost");
+        });
+    }
+
+    @Test
+    void aLoginThatThePostingServerRejectsDoesNotMarkTheCredentialsOfTheServer() throws IOException {
+        tlsServer.on("AUTHINFO PASS").reply("481 Authentication failed");
+
+        MvcTestResult created = browser.post("/api/servers",
+                json(with(serverWithoutLogin(), "postingServer", postingServerWithOwnLogin())));
+
+        assertThat(created).hasStatus(HttpStatus.CREATED).bodyJson().satisfies(body -> {
+            assertThat(body).extractingPath("$.connectionTest.success").isEqualTo(true);
+            assertThat(body).extractingPath("$.connectionTest.postingServerFailure.type").isEqualTo("AUTH_FAILED");
+            assertThat(body).extractingPath("$.server.credentialsInvalid").isEqualTo(false);
+        });
+        assertThat(body(created)).doesNotContain(NNTP_PASSWORD);
+    }
+
+    @Test
+    void theTestOfTheServerItselfComesFirstAndItsFailureLeavesThePostingServerAlone() throws IOException {
+        assertFailedTest(with(with(serverWithoutLogin(), "port", closedPort()), "postingServer",
+                postingServerWithOwnLogin()), "UNREACHABLE");
+
+        assertThat(tlsServer.commands()).isEmpty();
+    }
+
+    @Test
+    void invalidFieldsOfThePostingServerAreAnsweredWithFieldAndRule() {
+        Map<String, Object> ownLogin = postingServerWithOwnLogin();
+        String hostRule = "The host must be a host name or an IP address with 1 to 253 characters.";
+        String needsTls =
+                "A login with username and password needs TLS, so that the password is never sent unencrypted.";
+
+        assertInvalidPostingServer(with(ownLogin, "host", "news example.com"), "postingServer.host", hostRule);
+        assertInvalidPostingServer(with(ownLogin, "port", 0), "postingServer.port",
+                "The port must be between 1 and 65535.");
+        assertInvalidPostingServer(with(ownLogin, "authMethod", null), "postingServer.authMethod",
+                "Choose the authentication of the posting server.");
+        assertInvalidPostingServer(with(ownLogin, "tlsMode", "NONE"), "postingServer.authMethod", needsTls);
+        assertInvalidPostingServer(with(ownLogin, "username", ""), "postingServer.username",
+                "The username must have 1 to 255 characters.");
+        assertInvalidPostingServer(with(ownLogin, "password", null), "postingServer.password",
+                "The password must have 1 to 255 characters.");
+        assertInvalidPostingServer(with(ownLogin, "password", "two\nlines"), "postingServer.password",
+                "The password must not contain line breaks or other control characters.");
+    }
+
+    @Test
+    void thePasswordOfTheServerIsNotSentToAPostingServerWithoutTls() {
+        Map<String, Object> withoutTls = with(postingServerWithSameLogin(plainServer.port()), "tlsMode", "NONE");
+
+        assertInvalid(with(serverWithLogin(), "postingServer", withoutTls), "postingServer.tlsMode",
+                "The posting server uses the login of the server and needs TLS, so that the password is never sent "
+                        + "unencrypted.");
+        assertThat(browser.post("/api/servers/connection-test",
+                json(with(serverWithoutLogin(), "postingServer", withoutTls))))
+                .as("without a login nothing secret is sent")
+                .hasStatusOk();
+    }
+
+    @Test
+    void emptyPasswordOnEditKeepsTheStoredPasswordOfThePostingServer() {
+        Map<String, Object> server = with(serverWithoutLogin(), "postingServer", postingServerWithOwnLogin());
+        long serverId = serverId(browser.post("/api/servers", json(server)));
+        byte[] storedBefore = storedPostingPassword();
+
+        MvcTestResult withEmptyPassword = browser.put("/api/servers/" + serverId, json(with(server, "postingServer",
+                with(postingServerWithOwnLogin(), "password", ""))));
+        MvcTestResult tested = browser.post("/api/servers/connection-test", json(with(with(server, "id", serverId),
+                "postingServer", with(postingServerWithOwnLogin(), "password", null))));
+
+        assertThat(withEmptyPassword).hasStatusOk().bodyJson()
+                .extractingPath("$.server.postingServer.passwordStored").isEqualTo(true);
+        assertThat(tested).hasStatusOk().bodyJson().extractingPath("$.postingAllowed").isEqualTo(true);
+        assertThat(storedPostingPassword()).isEqualTo(storedBefore);
+        assertThat(tlsServer.commands().stream().filter(command -> command.startsWith("AUTHINFO PASS")))
+                .containsExactly("AUTHINFO PASS " + NNTP_PASSWORD, "AUTHINFO PASS " + NNTP_PASSWORD,
+                        "AUTHINFO PASS " + NNTP_PASSWORD);
+
+        assertThat(browser.put("/api/servers/" + serverId, json(with(server, "postingServer",
+                with(postingServerWithOwnLogin(), "password", OTHER_NNTP_PASSWORD))))).hasStatusOk();
+        assertThat(storedPostingPassword()).isNotEqualTo(storedBefore);
+        assertThat(tlsServer.commands()).contains("AUTHINFO PASS " + OTHER_NNTP_PASSWORD);
+    }
+
+    @Test
+    void usingTheLoginOfTheServerOrNoPostingServerDeletesTheOwnLogin() {
+        Map<String, Object> server = with(serverWithoutLogin(), "postingServer", postingServerWithOwnLogin());
+        long serverId = serverId(browser.post("/api/servers", json(server)));
+
+        assertThat(browser.put("/api/servers/" + serverId,
+                json(with(server, "postingServer", postingServerWithSameLogin(tlsServer.port())))))
+                .hasStatusOk().bodyJson().satisfies(body -> {
+                    assertThat(body).extractingPath("$.server.postingServer.sameLogin").isEqualTo(true);
+                    assertThat(body).extractingPath("$.server.postingServer.username").isNull();
+                    assertThat(body).extractingPath("$.server.postingServer.passwordStored").isEqualTo(false);
+                });
+        assertThat(storedPostingPassword()).isNull();
+        assertThat(browser.put("/api/servers/" + serverId, json(with(server, "postingServer",
+                with(postingServerWithOwnLogin(), "password", "")))))
+                .as("after that, a login of its own needs the password again")
+                .hasStatus(HttpStatus.BAD_REQUEST);
+
+        assertThat(browser.put("/api/servers/" + serverId, json(server))).hasStatusOk();
+        assertThat(browser.put("/api/servers/" + serverId, json(serverWithoutLogin())))
+                .hasStatusOk().bodyJson().extractingPath("$.server.postingServer").isNull();
+        assertThat(database.select(NNTP_SERVER.POSTING_HOST, NNTP_SERVER.POSTING_PORT, NNTP_SERVER.POSTING_TLS_MODE,
+                NNTP_SERVER.POSTING_AUTH_METHOD, NNTP_SERVER.POSTING_USERNAME,
+                NNTP_SERVER.POSTING_PASSWORD_ENCRYPTED).from(NNTP_SERVER).fetchSingle().intoList())
+                .containsOnlyNulls();
+    }
+
+    @Test
+    void newAccountDoesNotInheritTheLoginOfThePostingServer() {
+        browser.post("/api/servers", json(with(serverWithoutLogin(), "postingServer", postingServerWithOwnLogin())));
+        database.deleteFrom(WARDROOM_USER).execute();
+
+        TestBrowser newOwner = new TestBrowser(mvc);
+        assertThat(newOwner.post("/api/auth/setup",
+                TestBrowser.json("username", "owner", "password", "another long password")))
+                .hasStatus(HttpStatus.CREATED);
+
+        assertThat(newOwner.get("/api/servers")).hasStatusOk().bodyJson().satisfies(body -> {
+            assertThat(body).extractingPath("$[0].postingServer.host").isEqualTo("localhost");
+            assertThat(body).extractingPath("$[0].postingServer.sameLogin").isEqualTo(false);
+            assertThat(body).extractingPath("$[0].postingServer.authMethod").isEqualTo("NONE");
+            assertThat(body).extractingPath("$[0].postingServer.username").isNull();
+            assertThat(body).extractingPath("$[0].postingServer.passwordStored").isEqualTo(false);
+        });
+        assertThat(storedPostingPassword()).isNull();
+    }
+
+    /** A posting server on the mock server with TLS, with a login of its own. */
+    private Map<String, Object> postingServerWithOwnLogin() {
+        Map<String, Object> postingServer = new LinkedHashMap<>();
+        postingServer.put("host", "localhost");
+        postingServer.put("port", tlsServer.port());
+        postingServer.put("tlsMode", "IMPLICIT");
+        postingServer.put("sameLogin", false);
+        postingServer.put("authMethod", "USER_PASS");
+        postingServer.put("username", NNTP_USERNAME);
+        postingServer.put("password", NNTP_PASSWORD);
+        return postingServer;
+    }
+
+    /** A posting server that uses the login of the server; with TLS on the port of the mock server with TLS. */
+    private Map<String, Object> postingServerWithSameLogin(int port) {
+        Map<String, Object> postingServer = new LinkedHashMap<>();
+        postingServer.put("host", "localhost");
+        postingServer.put("port", port);
+        postingServer.put("tlsMode", port == tlsServer.port() ? "IMPLICIT" : "NONE");
+        postingServer.put("sameLogin", true);
+        return postingServer;
+    }
+
+    private void assertInvalidPostingServer(Map<String, Object> postingServer, String field, String message) {
+        assertInvalid(with(serverWithoutLogin(), "postingServer", postingServer), field, message);
+    }
+
+    private byte[] storedPostingPassword() {
+        return database.select(NNTP_SERVER.POSTING_PASSWORD_ENCRYPTED).from(NNTP_SERVER).fetchSingle().value1();
     }
 
     private Map<String, Object> serverWithLogin() {

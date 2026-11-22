@@ -37,6 +37,7 @@ class ServerRepository {
 
     /** @return the ID of the new server */
     long insert(StoredServer server) {
+        StoredPostingServer postingServer = server.postingServer();
         return database.insertInto(NNTP_SERVER)
                 .set(NNTP_SERVER.NAME, server.name())
                 .set(NNTP_SERVER.HOST, server.host())
@@ -47,12 +48,21 @@ class ServerRepository {
                 .set(NNTP_SERVER.PASSWORD_ENCRYPTED, server.passwordEncrypted())
                 .set(NNTP_SERVER.MAX_CONNECTIONS, server.maxConnections())
                 .set(NNTP_SERVER.CREDENTIALS_INVALID, server.credentialsInvalid())
+                .set(NNTP_SERVER.POSTING_HOST, postingServer == null ? null : postingServer.host())
+                .set(NNTP_SERVER.POSTING_PORT, postingServer == null ? null : postingServer.port())
+                .set(NNTP_SERVER.POSTING_TLS_MODE, postingServer == null ? null : postingServer.tlsMode().name())
+                .set(NNTP_SERVER.POSTING_AUTH_METHOD, postingServer == null || postingServer.sameLogin()
+                        ? null : postingServer.authMethod().name())
+                .set(NNTP_SERVER.POSTING_USERNAME, postingServer == null ? null : postingServer.username())
+                .set(NNTP_SERVER.POSTING_PASSWORD_ENCRYPTED,
+                        postingServer == null ? null : postingServer.passwordEncrypted())
                 .returning(NNTP_SERVER.ID)
                 .fetchSingle(NNTP_SERVER.ID);
     }
 
     /** Writes the configuration of an existing server. The data of other features in the row is not touched. */
     void update(StoredServer server) {
+        StoredPostingServer postingServer = server.postingServer();
         database.update(NNTP_SERVER)
                 .set(NNTP_SERVER.NAME, server.name())
                 .set(NNTP_SERVER.HOST, server.host())
@@ -63,6 +73,14 @@ class ServerRepository {
                 .set(NNTP_SERVER.PASSWORD_ENCRYPTED, server.passwordEncrypted())
                 .set(NNTP_SERVER.MAX_CONNECTIONS, server.maxConnections())
                 .set(NNTP_SERVER.CREDENTIALS_INVALID, server.credentialsInvalid())
+                .set(NNTP_SERVER.POSTING_HOST, postingServer == null ? null : postingServer.host())
+                .set(NNTP_SERVER.POSTING_PORT, postingServer == null ? null : postingServer.port())
+                .set(NNTP_SERVER.POSTING_TLS_MODE, postingServer == null ? null : postingServer.tlsMode().name())
+                .set(NNTP_SERVER.POSTING_AUTH_METHOD, postingServer == null || postingServer.sameLogin()
+                        ? null : postingServer.authMethod().name())
+                .set(NNTP_SERVER.POSTING_USERNAME, postingServer == null ? null : postingServer.username())
+                .set(NNTP_SERVER.POSTING_PASSWORD_ENCRYPTED,
+                        postingServer == null ? null : postingServer.passwordEncrypted())
                 .where(NNTP_SERVER.ID.eq((int) server.id()))
                 .execute();
     }
@@ -94,13 +112,22 @@ class ServerRepository {
                 .execute();
     }
 
-    /** Deletes username and password of every server and sets its authentication to "none" (ADR 0017). */
+    /**
+     * Deletes username and password of every server and sets its authentication to "none" (ADR 0017). A posting
+     * server with a login of its own loses it in the same way.
+     */
     void removeAllCredentials() {
         database.update(NNTP_SERVER)
                 .setNull(NNTP_SERVER.USERNAME)
                 .setNull(NNTP_SERVER.PASSWORD_ENCRYPTED)
                 .set(NNTP_SERVER.AUTH_METHOD, AuthMethod.NONE.name())
                 .set(NNTP_SERVER.CREDENTIALS_INVALID, false)
+                .setNull(NNTP_SERVER.POSTING_USERNAME)
+                .setNull(NNTP_SERVER.POSTING_PASSWORD_ENCRYPTED)
+                .execute();
+        database.update(NNTP_SERVER)
+                .set(NNTP_SERVER.POSTING_AUTH_METHOD, AuthMethod.NONE.name())
+                .where(NNTP_SERVER.POSTING_AUTH_METHOD.isNotNull())
                 .execute();
     }
 
@@ -153,6 +180,18 @@ class ServerRepository {
                 row.get(NNTP_SERVER.PORT), NntpTlsMode.valueOf(row.get(NNTP_SERVER.TLS_MODE)),
                 AuthMethod.valueOf(row.get(NNTP_SERVER.AUTH_METHOD)), row.get(NNTP_SERVER.USERNAME),
                 row.get(NNTP_SERVER.PASSWORD_ENCRYPTED), row.get(NNTP_SERVER.MAX_CONNECTIONS),
-                row.get(NNTP_SERVER.CREDENTIALS_INVALID));
+                row.get(NNTP_SERVER.CREDENTIALS_INVALID), toStoredPostingServer(row));
+    }
+
+    /** A row without a posting host has no separate posting server. */
+    private static StoredPostingServer toStoredPostingServer(Record row) {
+        if (row.get(NNTP_SERVER.POSTING_HOST) == null) {
+            return null;
+        }
+        String authMethod = row.get(NNTP_SERVER.POSTING_AUTH_METHOD);
+        return new StoredPostingServer(row.get(NNTP_SERVER.POSTING_HOST), row.get(NNTP_SERVER.POSTING_PORT),
+                NntpTlsMode.valueOf(row.get(NNTP_SERVER.POSTING_TLS_MODE)),
+                authMethod == null ? null : AuthMethod.valueOf(authMethod), row.get(NNTP_SERVER.POSTING_USERNAME),
+                row.get(NNTP_SERVER.POSTING_PASSWORD_ENCRYPTED));
     }
 }
