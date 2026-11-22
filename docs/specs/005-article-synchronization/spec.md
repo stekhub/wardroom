@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-18
-- Related: brief §3.3, §3.6, §9, [ADR 0005](../../architecture/decisions/0005-nntp-client-library.md), [ADR 0006](../../architecture/decisions/0006-resilience.md), [ADR 0012](../../architecture/decisions/0012-data-model.md), [ADR 0013](../../architecture/decisions/0013-synchronization-and-caching.md), [ADR 0019](../../architecture/decisions/0019-initial-sync-depth-instance-only.md), [ADR 0020](../../architecture/decisions/0020-scheduled-group-list-refresh.md), [ADR 0021](../../architecture/decisions/0021-jump-to-date.md), [ADR 0023](../../architecture/decisions/0023-cache-size-limit.md), [spec 004](../004-subscriptions/spec.md)
+- Related: brief §3.3, §3.6, §9, [ADR 0005](../../architecture/decisions/0005-nntp-client-library.md), [ADR 0006](../../architecture/decisions/0006-resilience.md), [ADR 0012](../../architecture/decisions/0012-data-model.md), [ADR 0013](../../architecture/decisions/0013-synchronization-and-caching.md), [ADR 0019](../../architecture/decisions/0019-initial-sync-depth-instance-only.md), [ADR 0020](../../architecture/decisions/0020-scheduled-group-list-refresh.md), [ADR 0021](../../architecture/decisions/0021-jump-to-date.md), [ADR 0023](../../architecture/decisions/0023-cache-size-limit.md), [ADR 0034](../../architecture/decisions/0034-cache-size-limit-can-be-switched-off.md), [spec 004](../004-subscriptions/spec.md)
 
 ## Scope
 
@@ -15,7 +15,7 @@ Fetching article overviews of subscribed groups: the background schedule, the fi
 - As the owner, I load older discussions of a group step by step.
 - As the owner, I pick a date and read the group as it was from then on, even years ago.
 - As the owner, I set how often Wardroom synchronizes and how much a first synchronization fetches.
-- As the owner, I set how much disk space the cache may use.
+- As the owner, I set how much disk space the cache may use, or that it has no limit.
 
 ## Functional requirements
 
@@ -64,6 +64,7 @@ Fetching article overviews of subscribed groups: the background schedule, the fi
 - Content of articles the server still has goes first, then expired ones; oldest first within each. Headers, threads and read state are kept; the owner's articles waiting for their location are never cleaned.
 - A cleaned article is fetched again when opened.
 - If the limit cannot be reached by deleting content, the synchronization section shows a warning suggesting to unsubscribe from large groups.
+- The owner can switch the limit off ([ADR 0034](../../architecture/decisions/0034-cache-size-limit-can-be-switched-off.md)). Then the check does not run, nothing is deleted, and the warning is not shown. The limit is on by default.
 
 **Settings**
 
@@ -74,9 +75,12 @@ On the settings page, synchronization section:
 | Synchronization interval (`sync.interval_minutes`) | 15 minutes | 5–1440 |
 | First synchronization depth (`sync.initial_depth`) | 500 articles | 50–10,000 |
 | Group list refresh interval (`sync.group_list_interval_hours`) | 24 hours | 1–168 |
+| Limit the cache size (`cache.limit_enabled`) | on | on or off |
 | Maximum cache size (`cache.max_size_gb`) | 5 GB | 1–1000 |
 
-Changing the depth affects only later first synchronizations and load steps. The section also shows the current cache use, for example "1.2 GB of 5 GB". Lowering the limit runs the cleanup job at once.
+Changing the depth affects only later first synchronizations and load steps. The section also shows the current cache use, for example "1.2 GB of 5 GB". Lowering the limit runs the cleanup job at once; so does switching it on.
+
+"Limit the cache size" is a checkbox. While it is off, the field "Maximum cache size" is not shown and keeps its value, the use reads "1.2 GB used", and a hint says that nothing is removed and the cache grows for as long as groups are subscribed.
 
 ## API contracts
 
@@ -110,10 +114,10 @@ Jump and extend run during the request and return when the overviews are stored.
 
 **Settings**
 
-`GET` additionally returns the read-only `cacheUsedBytes` and `cacheLimitUnreachable`.
+`GET` and the answer of `PUT` additionally have the read-only `cacheUsedBytes` and `cacheLimitUnreachable`. A request that contains them is accepted, and they are ignored. `maxCacheSizeGb` is required and checked while the limit is off too.
 
 ```json
-{ "syncIntervalMinutes": 15, "initialDepth": 500, "groupListIntervalHours": 24, "maxCacheSizeGb": 5 }
+{ "syncIntervalMinutes": 15, "initialDepth": 500, "groupListIntervalHours": 24, "cacheLimitEnabled": true, "maxCacheSizeGb": 5 }
 ```
 
 ## Technical design
@@ -150,7 +154,7 @@ Jump and extend run during the request and return when the overviews are stored.
 
 - New table `synced_range` (`newsgroup_id`, `first_number`, `last_number`); `newsgroup.oldest_synced_number` and `newest_synced_number` are removed ([ADR 0021](../../architecture/decisions/0021-jump-to-date.md)).
 - New instance setting `sync.group_list_interval_hours` ([ADR 0020](../../architecture/decisions/0020-scheduled-group-list-refresh.md)).
-- New instance setting `cache.max_size_gb`; partial index on `article(date)` for articles with cached content ([ADR 0023](../../architecture/decisions/0023-cache-size-limit.md)).
+- New instance settings `cache.max_size_gb` and `cache.limit_enabled`; partial index on `article(date)` for articles with cached content ([ADR 0023](../../architecture/decisions/0023-cache-size-limit.md)).
 
 ## Error handling
 
@@ -184,7 +188,7 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 - `411`, `481`, timeouts and an open circuit breaker produce the documented status.
 - At most `max_connections − 1` background connections per server; an interactive action gets a connection while all groups are synchronizing.
 - Overlapping runs are skipped; settings are validated against their ranges.
-- Cache cleanup: above the limit, content is deleted down to 90 %, non-expired before expired, oldest first; headers and read state stay; pending own posts are kept; a cleaned article is fetched again on open; the warning appears when only headers remain.
+- Cache cleanup: above the limit, content is deleted down to 90 %, non-expired before expired, oldest first; headers and read state stay; pending own posts are kept; a cleaned article is fetched again on open; the warning appears when only headers remain; with the limit switched off nothing is deleted and no warning appears.
 
 ## Implementation tasks
 

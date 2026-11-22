@@ -605,6 +605,21 @@
       },
       "Settings" : {
         "properties" : {
+          "cacheLimitEnabled" : {
+            "description" : "Whether the cache size limit applies (ADR 0034)",
+            "type" : "boolean"
+          },
+          "cacheLimitUnreachable" : {
+            "description" : "Whether the database is above the limit although no cached content is left to delete",
+            "readOnly" : true,
+            "type" : "boolean"
+          },
+          "cacheUsedBytes" : {
+            "description" : "The space the database uses now, in bytes",
+            "format" : "int64",
+            "readOnly" : true,
+            "type" : "integer"
+          },
           "groupListIntervalHours" : {
             "description" : "How often the group list is fetched, in hours; 1 to 168",
             "format" : "int32",
@@ -615,13 +630,18 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "maxCacheSizeGb" : {
+            "description" : "The cache size limit in gigabytes; 1 to 1000. It is kept while the limit is off",
+            "format" : "int32",
+            "type" : "integer"
+          },
           "syncIntervalMinutes" : {
             "description" : "How often all subscribed groups are synchronized, in minutes; 5 to 1440",
             "format" : "int32",
             "type" : "integer"
           }
         },
-        "required" : [ "groupListIntervalHours", "initialDepth", "syncIntervalMinutes" ],
+        "required" : [ "cacheLimitEnabled", "groupListIntervalHours", "initialDepth", "maxCacheSizeGb", "syncIntervalMinutes" ],
         "type" : "object"
       },
       "SetupRequest" : {

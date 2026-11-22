@@ -151,6 +151,7 @@ Instance-wide settings as key-value pairs, editable on the settings page.
 | `sync.group_list_interval_hours` | 24 ([ADR 0020](decisions/0020-scheduled-group-list-refresh.md)) |
 | `sync.initial_depth` | 500 ([ADR 0019](decisions/0019-initial-sync-depth-instance-only.md)) |
 | `cache.max_size_gb` | 5 ([ADR 0023](decisions/0023-cache-size-limit.md)) |
+| `cache.limit_enabled` | `true` ([ADR 0034](decisions/0034-cache-size-limit-can-be-switched-off.md)) |
 
 One key is not a setting and is not shown on the settings page: `app.version`, the version of Wardroom that used the database last. Wardroom writes it at every start and uses it to name the backup before an update ([ADR 0032](decisions/0032-application-version-in-backup-names.md)).
 
@@ -164,7 +165,7 @@ One key is not a setting and is not shown on the settings page: `app.version`, t
 
   Crossposted articles with a location in another subscribed group are kept. The `newsgroup` row stays, as part of the group list.
 - **Server expiry** marks locations expired; cached content stays readable until the cache size limit removes it.
-- **Cache size limit** deletes the cached content (`raw_headers`, `body_text`, `omitted_parts`, `content_fetched_at`) of the oldest articles when the database exceeds `cache.max_size_gb`; metadata, threads and read state stay ([ADR 0023](decisions/0023-cache-size-limit.md)).
+- **Cache size limit** deletes the cached content (`raw_headers`, `body_text`, `omitted_parts`, `content_fetched_at`) of the oldest articles when the database exceeds `cache.max_size_gb`; metadata, threads and read state stay ([ADR 0023](decisions/0023-cache-size-limit.md)). The flags of the content (`body_flowed`, `body_delsp`, `body_truncated`) are emptied with it. With `cache.limit_enabled` off, nothing is deleted ([ADR 0034](decisions/0034-cache-size-limit-can-be-switched-off.md)).
 - **Group removed from the server** sets `removed_at`; subscriptions and cache are kept.
 - **Account creation** deletes all sessions and the NNTP username and password, setting the server's authentication to `NONE` ([ADR 0017](decisions/0017-password-reset.md)).
 - **Server removal** deletes the server and everything that belongs to it: groups, subscriptions, article locations, articles without remaining locations and their read state ([spec 002](../specs/002-nntp-server-configuration/spec.md)).

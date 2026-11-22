@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.stekhub.wardroom.IntegrationTest;
 import io.github.stekhub.wardroom.TestBrowser;
 import io.github.stekhub.wardroom.TestInstallation;
+import io.github.stekhub.wardroom.settings.CacheSettings;
 import io.github.stekhub.wardroom.settings.Settings;
 import io.github.stekhub.wardroom.settings.SynchronizationSettings;
 import org.jooq.DSLContext;
@@ -21,8 +22,8 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 @IntegrationTest
 class SettingsTest {
 
-    private static final String DEFAULTS =
-            "{\"syncIntervalMinutes\": 15, \"initialDepth\": 500, \"groupListIntervalHours\": 24}";
+    private static final String DEFAULTS = "{\"syncIntervalMinutes\": 15, \"initialDepth\": 500,"
+            + " \"groupListIntervalHours\": 24, \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5}";
 
     @Autowired
     MockMvcTester mvc;
@@ -55,15 +56,20 @@ class SettingsTest {
 
     @Test
     void anInstallationInWhichNothingWasChangedHasTheDefaults() {
-        assertThat(browser.get("/api/settings")).hasStatusOk().bodyJson().isStrictlyEqualTo(DEFAULTS);
+        assertThat(browser.get("/api/settings")).hasStatusOk().bodyJson().isLenientlyEqualTo(DEFAULTS)
+                .hasPathSatisfying("$.cacheUsedBytes", usedBytes -> assertThat(usedBytes).asNumber()
+                        .satisfies(number -> assertThat(number.longValue()).isPositive()))
+                .hasPathSatisfying("$.cacheLimitUnreachable",
+                        unreachable -> assertThat(unreachable).isEqualTo(false));
+        assertThat(settings.cache()).isEqualTo(CacheSettings.DEFAULTS);
     }
 
     @Test
     void savedSettingsAreReturnedAndUsed() {
         assertThat(browser.put("/api/settings", body(30, 2000, 12))).hasStatusOk().bodyJson()
-                .isStrictlyEqualTo(body(30, 2000, 12));
+                .isLenientlyEqualTo(body(30, 2000, 12));
 
-        assertThat(browser.get("/api/settings")).hasStatusOk().bodyJson().isStrictlyEqualTo(body(30, 2000, 12));
+        assertThat(browser.get("/api/settings")).hasStatusOk().bodyJson().isLenientlyEqualTo(body(30, 2000, 12));
         assertThat(settings.synchronization()).isEqualTo(new SynchronizationSettings(30, 2000, 12));
         assertThat(database.select(APP_SETTING.KEY, APP_SETTING.VALUE).from(APP_SETTING)
                 .fetchMap(APP_SETTING.KEY, APP_SETTING.VALUE))
@@ -100,8 +106,65 @@ class SettingsTest {
     }
 
     @Test
+    void theCacheSizeLimitIsSavedAndCanBeSwitchedOffWhileItKeepsItsValue() {
+        assertThat(browser.put("/api/settings", cacheBody(true, 1000))).hasStatusOk().bodyJson()
+                .isLenientlyEqualTo(cacheBody(true, 1000));
+        assertThat(settings.cache()).isEqualTo(new CacheSettings(true, 1000));
+
+        assertThat(browser.put("/api/settings", cacheBody(false, 20))).hasStatusOk().bodyJson()
+                .isLenientlyEqualTo(cacheBody(false, 20))
+                .hasPathSatisfying("$.cacheLimitUnreachable",
+                        unreachable -> assertThat(unreachable).isEqualTo(false));
+
+        assertThat(settings.cache()).isEqualTo(new CacheSettings(false, 20));
+        assertThat(settings.cache().maxSizeBytes()).isEqualTo(20L * 1024 * 1024 * 1024);
+        assertThat(browser.get("/api/settings")).hasStatusOk().bodyJson().isLenientlyEqualTo(cacheBody(false, 20));
+        assertThat(database.select(APP_SETTING.KEY, APP_SETTING.VALUE).from(APP_SETTING)
+                .fetchMap(APP_SETTING.KEY, APP_SETTING.VALUE))
+                .containsEntry("cache.limit_enabled", "false")
+                .containsEntry("cache.max_size_gb", "20");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, 0", "true, 1001", "false, 0", "false, 1001"})
+    void aCacheSizeOutsideItsRangeIsRejectedAlsoWhileTheLimitIsOff(boolean cacheLimitEnabled, int maxCacheSizeGb) {
+        assertThat(browser.put("/api/settings", cacheBody(cacheLimitEnabled, maxCacheSizeGb)))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .hasPathSatisfying("$.detail", detail -> assertThat(detail)
+                        .isEqualTo("The maximum cache size must be between 1 and 1000 GB."))
+                .hasPathSatisfying("$.errors[0].field", field -> assertThat(field).isEqualTo("maxCacheSizeGb"));
+
+        assertThat(settings.cache()).isEqualTo(CacheSettings.DEFAULTS);
+    }
+
+    @Test
+    void theReadOnlyCacheValuesOfARequestAreIgnoredAndTheSwitchIsRequired() {
+        assertThat(browser.put("/api/settings", DEFAULTS.replace("}",
+                ", \"cacheUsedBytes\": 1, \"cacheLimitUnreachable\": true}")))
+                .hasStatusOk().bodyJson()
+                .hasPathSatisfying("$.cacheLimitUnreachable",
+                        unreachable -> assertThat(unreachable).isEqualTo(false));
+
+        assertThat(browser.put("/api/settings", DEFAULTS.replace("\"cacheLimitEnabled\": true, ", "")))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.errors[0].field").isEqualTo("cacheLimitEnabled");
+    }
+
+    @Test
+    void aStoredCacheSizeThatIsOutsideItsRangeCountsAsTheDefaultAndTheLimitIsOnUnlessSwitchedOff() {
+        database.insertInto(APP_SETTING, APP_SETTING.KEY, APP_SETTING.VALUE)
+                .values("cache.max_size_gb", "0")
+                .values("cache.limit_enabled", "perhaps")
+                .execute();
+
+        assertThat(settings.cache()).isEqualTo(CacheSettings.DEFAULTS);
+    }
+
+    @Test
     void aMissingValueIsRejected() {
-        assertThat(browser.put("/api/settings", "{\"syncIntervalMinutes\": 15, \"initialDepth\": 500}"))
+        assertThat(browser.put("/api/settings", "{\"syncIntervalMinutes\": 15, \"initialDepth\": 500,"
+                + " \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5}"))
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson().extractingPath("$.errors[0].field").isEqualTo("groupListIntervalHours");
     }
@@ -118,7 +181,18 @@ class SettingsTest {
     }
 
     private static String body(int syncIntervalMinutes, int initialDepth, int groupListIntervalHours) {
-        return "{\"syncIntervalMinutes\": %d, \"initialDepth\": %d, \"groupListIntervalHours\": %d}"
-                .formatted(syncIntervalMinutes, initialDepth, groupListIntervalHours);
+        return body(syncIntervalMinutes, initialDepth, groupListIntervalHours, true, 5);
+    }
+
+    private static String cacheBody(boolean cacheLimitEnabled, int maxCacheSizeGb) {
+        return body(15, 500, 24, cacheLimitEnabled, maxCacheSizeGb);
+    }
+
+    private static String body(int syncIntervalMinutes, int initialDepth, int groupListIntervalHours,
+            boolean cacheLimitEnabled, int maxCacheSizeGb) {
+        return ("{\"syncIntervalMinutes\": %d, \"initialDepth\": %d, \"groupListIntervalHours\": %d,"
+                + " \"cacheLimitEnabled\": %s, \"maxCacheSizeGb\": %d}")
+                .formatted(syncIntervalMinutes, initialDepth, groupListIntervalHours, cacheLimitEnabled,
+                        maxCacheSizeGb);
     }
 }

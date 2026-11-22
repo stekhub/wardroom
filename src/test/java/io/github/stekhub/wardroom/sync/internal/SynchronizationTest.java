@@ -491,7 +491,8 @@ class SynchronizationTest {
         support.subscribe("example.talk");
         mockServer.on("GROUP example.talk").reply("211 0 1 0 example.talk");
         assertThat(browser.put("/api/settings",
-                "{\"syncIntervalMinutes\": 5, \"initialDepth\": 50, \"groupListIntervalHours\": 24}")).hasStatusOk();
+                "{\"syncIntervalMinutes\": 5, \"initialDepth\": 50, \"groupListIntervalHours\": 24,"
+                        + " \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5}")).hasStatusOk();
         long start = scheduleTestStart();
         long minute = Duration.ofMinutes(1).toMillis();
 

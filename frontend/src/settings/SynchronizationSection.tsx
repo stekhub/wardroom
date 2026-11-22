@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useId } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { api } from '@/api/client'
@@ -8,7 +9,10 @@ import { problemFieldErrors, problemMessage, UNEXPECTED_ERROR } from '@/api/prob
 import type { components } from '@/api/schema'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatCacheSize } from '@/settings/cacheSize'
 import { SettingsSectionFrame } from '@/settings/SettingsSectionFrame'
 
 type Settings = components['schemas']['Settings']
@@ -29,11 +33,19 @@ const settingsForm = z.object({
   syncIntervalMinutes: numberBetween(5, 1440),
   initialDepth: numberBetween(50, 10_000),
   groupListIntervalHours: numberBetween(1, 168),
+  cacheLimitEnabled: z.boolean(),
+  // Checked while the limit is off too: the value is kept and sent (ADR 0034).
+  maxCacheSizeGb: numberBetween(1, 1000),
 })
 
 type SettingsForm = z.infer<typeof settingsForm>
 
-const FORM_FIELDS = ['syncIntervalMinutes', 'initialDepth', 'groupListIntervalHours'] as const
+const FORM_FIELDS = [
+  'syncIntervalMinutes',
+  'initialDepth',
+  'groupListIntervalHours',
+  'maxCacheSizeGb',
+] as const
 
 function isFormField(field: string): field is (typeof FORM_FIELDS)[number] {
   return (FORM_FIELDS as readonly string[]).includes(field)
@@ -49,7 +61,8 @@ async function fetchSettings(): Promise<Settings> {
 
 /**
  * The settings section "Synchronization" (spec 005): how often the groups and the group list
- * are fetched, and how much a first synchronization fetches.
+ * are fetched, how much a first synchronization fetches, and the cache size limit with the
+ * current use (ADR 0023, ADR 0034).
  */
 export function SynchronizationSection() {
   const settings = useQuery({ queryKey: SETTINGS_KEY, queryFn: fetchSettings, retry: false })
@@ -77,12 +90,16 @@ function SynchronizationForm({ settings }: { settings: Settings }) {
     register,
     handleSubmit,
     setError,
+    setValue,
+    control,
     reset,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<SettingsForm>({
     resolver: zodResolver(settingsForm),
     defaultValues: settings,
   })
+  const cacheLimitEnabledId = useId()
+  const cacheLimitEnabled = useWatch({ control, name: 'cacheLimitEnabled' })
 
   async function save(form: SettingsForm) {
     const { data, error, response } = await api.PUT('/api/settings', { body: form })
@@ -138,11 +155,67 @@ function SynchronizationForm({ settings }: { settings: Settings }) {
         error={errors.groupListIntervalHours?.message}
         {...register('groupListIntervalHours', { valueAsNumber: true })}
       />
+      <div className="grid gap-1">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={cacheLimitEnabledId}
+            checked={cacheLimitEnabled}
+            onCheckedChange={(checked) => {
+              setValue('cacheLimitEnabled', checked === true, { shouldDirty: true })
+            }}
+          />
+          <Label htmlFor={cacheLimitEnabledId}>Limit the cache size</Label>
+        </div>
+        {!cacheLimitEnabled && (
+          <p className="text-xs text-muted-foreground">
+            Without a limit, nothing is removed. The cache grows for as long as you stay subscribed
+            to groups.
+          </p>
+        )}
+      </div>
+      {cacheLimitEnabled && (
+        <FormField
+          label="Maximum cache size"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={1000}
+          hint="In GB, 1 to 1000. When the cache is larger, the text of the oldest articles is removed. It is fetched again when you open such an article."
+          error={errors.maxCacheSizeGb?.message}
+          {...register('maxCacheSizeGb', { valueAsNumber: true })}
+        />
+      )}
+      <CacheUse settings={settings} />
       <div>
         <Button type="submit" disabled={!isDirty || isSubmitting}>
           Save
         </Button>
       </div>
     </form>
+  )
+}
+
+/** The current use of the cache, as it was stored and measured when the settings were loaded. */
+function CacheUse({ settings }: { settings: Settings }) {
+  if (settings.cacheUsedBytes == null) {
+    return null
+  }
+  const used = formatCacheSize(settings.cacheUsedBytes)
+  return (
+    <div className="grid gap-1 text-sm">
+      <p>
+        Cache use:{' '}
+        {settings.cacheLimitEnabled
+          ? `${used} of ${String(settings.maxCacheSizeGb)} GB`
+          : `${used} used`}
+      </p>
+      {settings.cacheLimitUnreachable === true && (
+        <p role="status" className="text-amber-700">
+          The cache is larger than its limit although no article text is left to remove. The stored
+          headers alone are larger than the limit. Unsubscribe from large groups to free space, or
+          raise the limit.
+        </p>
+      )}
+    </div>
   )
 }

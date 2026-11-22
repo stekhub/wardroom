@@ -74,7 +74,7 @@ Opened with the settings button in the sidebar header. A section navigation on t
 | Section | Icon (Lucide) | Content |
 |---|---|---|
 | Server | `server` | Server form with the optional posting server, connection test, removal ([spec 002](../specs/002-nntp-server-configuration/spec.md)) |
-| Synchronization | `refresh-cw` | Intervals, depth, cache size and current use ([spec 005](../specs/005-article-synchronization/spec.md)) |
+| Synchronization | `refresh-cw` | Intervals, depth, cache size limit with its switch, and current use ([spec 005](../specs/005-article-synchronization/spec.md)) |
 | Posting identity | `id-card` | Display name, email address, signature ([spec 009](../specs/009-article-posting/spec.md)) |
 | Ignored | `eye-off` | Ignored authors and threads ([spec 010](../specs/010-ignoring/spec.md)) |
 | Account | `key-round` | Password change ([spec 001](../specs/001-user-authentication/spec.md)) |

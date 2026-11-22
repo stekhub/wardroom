@@ -1,6 +1,7 @@
 package io.github.stekhub.wardroom.settings.internal;
 
 import io.github.stekhub.wardroom.platform.FieldValidationException;
+import io.github.stekhub.wardroom.settings.CacheSettings;
 import io.github.stekhub.wardroom.settings.Settings;
 import io.github.stekhub.wardroom.settings.SynchronizationSettings;
 import java.util.Map;
@@ -26,6 +27,11 @@ class SettingsService implements Settings {
     static final int GROUP_LIST_INTERVAL_MIN = 1;
     static final int GROUP_LIST_INTERVAL_MAX = 168;
 
+    static final String CACHE_LIMIT_ENABLED = "cache.limit_enabled";
+    static final String MAX_CACHE_SIZE_GB = "cache.max_size_gb";
+    static final int MAX_CACHE_SIZE_MIN = 1;
+    static final int MAX_CACHE_SIZE_MAX = 1000;
+
     private final SettingsRepository settingsRepository;
     private final TransactionOperations transactionOperations;
 
@@ -43,6 +49,16 @@ class SettingsService implements Settings {
                         GROUP_LIST_INTERVAL_MAX, defaults.groupListIntervalHours()));
     }
 
+    /** The limit applies unless it was switched off (ADR 0034). */
+    @Override
+    public CacheSettings cache() {
+        Map<String, String> storedValues = settingsRepository.findAll();
+        return new CacheSettings(
+                !"false".equals(storedValues.get(CACHE_LIMIT_ENABLED)),
+                storedOrDefault(storedValues, MAX_CACHE_SIZE_GB, MAX_CACHE_SIZE_MIN, MAX_CACHE_SIZE_MAX,
+                        CacheSettings.DEFAULTS.maxSizeGb()));
+    }
+
     /**
      * @return the settings as they are stored now
      * @throws FieldValidationException naming the first value that is outside its range
@@ -54,14 +70,19 @@ class SettingsService implements Settings {
                 "The first synchronization depth must be between %d and %d articles.");
         requireInRange("groupListIntervalHours", request.groupListIntervalHours(), GROUP_LIST_INTERVAL_MIN,
                 GROUP_LIST_INTERVAL_MAX, "The group list refresh interval must be between %d and %d hours.");
+        requireInRange("maxCacheSizeGb", request.maxCacheSizeGb(), MAX_CACHE_SIZE_MIN, MAX_CACHE_SIZE_MAX,
+                "The maximum cache size must be between %d and %d GB.");
         transactionOperations.executeWithoutResult(status -> {
             settingsRepository.store(SYNC_INTERVAL_MINUTES, request.syncIntervalMinutes().toString());
             settingsRepository.store(INITIAL_DEPTH, request.initialDepth().toString());
             settingsRepository.store(GROUP_LIST_INTERVAL_HOURS, request.groupListIntervalHours().toString());
+            settingsRepository.store(CACHE_LIMIT_ENABLED, request.cacheLimitEnabled().toString());
+            settingsRepository.store(MAX_CACHE_SIZE_GB, request.maxCacheSizeGb().toString());
         });
         log.info("The settings were saved: synchronization every {} minutes, first synchronization depth {}, group"
-                        + " list every {} hours", request.syncIntervalMinutes(), request.initialDepth(),
-                request.groupListIntervalHours());
+                        + " list every {} hours, cache size limit {}", request.syncIntervalMinutes(),
+                request.initialDepth(), request.groupListIntervalHours(),
+                request.cacheLimitEnabled() ? request.maxCacheSizeGb() + " GB" : "off");
         return synchronization();
     }
 
