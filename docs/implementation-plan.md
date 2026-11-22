@@ -189,7 +189,8 @@ Verified:
 
 - `./mvnw verify` passes: 543 backend tests and 197 frontend tests.
 - Tried by hand against a fake NNTP server with 500 articles: ignoring a thread from its card (card gone, unread count 500 to 481), the notice on the thread page and "Stop ignoring", "Ignore author" in the menu (the line "Ignored author · Ada Example", unread count 495 to 338, the rule in the settings section), and removing the rule there (count back to 495).
-- Not tried by hand: "Undo" in the toast, "Show" on an ignored line, and a real server.
+- Tried by hand by the owner on 2026-11-22: everything works.
+- Not tried by hand by the AI assistant: "Undo" in the toast and "Show" on an ignored line.
 
 For later steps:
 
