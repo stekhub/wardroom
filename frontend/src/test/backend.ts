@@ -155,6 +155,7 @@ export function backendLoggedIn(username = 'owner', servers: Server[] = [TEST_SE
     http.get('/api/servers/:serverId/groups/refresh', () => HttpResponse.json(IDLE_REFRESH)),
     http.get('/api/subscriptions', () => HttpResponse.json([])),
     http.get('/api/ignore-rules', () => HttpResponse.json([])),
+    http.get('/api/about', () => HttpResponse.json({ version: '0.9.0' })),
     http.get('/api/groups/:groupId/threads', () => HttpResponse.json(testThreadPage())),
   )
 }

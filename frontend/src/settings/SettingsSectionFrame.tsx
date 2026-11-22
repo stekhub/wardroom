@@ -11,12 +11,3 @@ export function SettingsSectionFrame({ title, children }: { title: string; child
     </section>
   )
 }
-
-/** A section whose feature is not built yet. */
-export function EmptySettingsSection({ title }: { title: string }) {
-  return (
-    <SettingsSectionFrame title={title}>
-      <p className="text-sm text-muted-foreground">There is nothing to set here yet.</p>
-    </SettingsSectionFrame>
-  )
-}

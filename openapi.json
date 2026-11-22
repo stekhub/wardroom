@@ -1,6 +1,15 @@
 {
   "components" : {
     "schemas" : {
+      "About" : {
+        "properties" : {
+          "version" : {
+            "description" : "The version of Wardroom, for example 0.9.0; null in a development build without version information",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ArticleContent" : {
         "description" : "The content of an article. All text in it is untrusted",
         "properties" : {
@@ -897,6 +906,25 @@
   },
   "openapi" : "3.1.0",
   "paths" : {
+    "/api/about" : {
+      "get" : {
+        "operationId" : "getAbout",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/About"
+                }
+              }
+            },
+            "description" : "The version"
+          }
+        },
+        "summary" : "Returns the version of Wardroom",
+        "tags" : [ "About" ]
+      }
+    },
     "/api/articles/{articleId}/content" : {
       "get" : {
         "operationId" : "getArticleContent",

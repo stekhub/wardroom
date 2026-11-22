@@ -20,8 +20,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 12 | Ignoring | Spec 010 | Done |
 | 13 | Posting | Spec 009 | Done |
 | 14 | Cache size limit | ADR 0023, 0034; spec 005 | Done |
-| 15 | Activity of a group | Spec 003 | In review |
-| 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Not started |
+| 15 | Activity of a group | Spec 003 | Done |
+| 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | In review |
 | 17 | Release pipeline | ADR 0009, 0024 | Not started; discuss first |
 
 Status values: `Not started`, `In progress`, `In review`, `Done`.
@@ -33,7 +33,7 @@ Wardroom can first be used for reading after step 11.
 ### 1. Project skeleton
 
 - Maven project with the Maven Wrapper, Maven Enforcer (Java 25), Spring Boot 4, Spring Modulith with the module verification test.
-- Maven group `io.github.stekhub`, base package `io.github.stekhub.wardroom`, version `0.1.0-SNAPSHOT`. Modules: auth, server, nntp, groups, sync, articles, posting, ignoring, settings.
+- Maven group `io.github.stekhub`, base package `io.github.stekhub.wardroom`, version `0.9.0-SNAPSHOT` (0.1.0-SNAPSHOT until step 16). Modules: auth, server, nntp, groups, sync, articles, posting, ignoring, settings.
 - The data directory is a property that defaults to `/config`; development uses `./config`.
 - SQLite, Flyway and jOOQ code generation from the migrated schema; WAL mode and `busy_timeout` (ADR 0003).
 - Startup sequence of ADR 0004: Flyway first, backup with `VACUUM INTO` before pending migrations, downgrade protection, the 2 newest backups kept (ADR 0028).
@@ -133,9 +133,10 @@ Added to the MVP by the owner on 2026-11-22. The change of spec 003 and of the d
 
 ### 16. Polish and documentation
 
-- Quick switcher (`Ctrl+K` / `⌘K`), settings section "About", accessibility pass against WCAG 2.2 AA.
-- Shorter sessions without "Remember me" (decided by the owner, part of the MVP): a session from a login without "Remember me", and the session after setup, ends after 30 minutes of inactivity. A session with "Remember me" keeps the 7 days. The server enforces both, so the option no longer depends on the browser dropping the cookie. Change spec 001 with the implementation. To be decided then: whether requests the open page sends on its own count as activity, and how an article that is being written survives a session that ended (spec 009).
-- Application version in backup names (ADR 0032): store the version at every start, name the backup after the stored version, log both versions, and adapt the cleanup of old backups to the new file name. Add the section on going back to an earlier version to the user guide.
+- Settings section "About" (agreed with the owner on 2026-11-23): name, logo and version ("Development build" without version information); the license AGPL-3.0-or-later with links to `LICENSE` and `LICENSE-ADDITIONAL-TERMS.md`; links to the source code, the user guide and the issues of the repository. The version comes from a new endpoint `GET /api/about`. No update check. Check that the image ships the license of the bundled Inter font.
+- Version: the project version becomes 0.9.0 (decided by the owner on 2026-11-23); in development `0.9.0-SNAPSHOT`.
+- The quick switcher, the accessibility pass and the shorter sessions without "Remember me" were moved beyond the MVP by the owner on 2026-11-23 ([open questions](open-questions.md)).
+- Done: application version in backup names (ADR 0032): store the version at every start, name the backup after the stored version, log both versions, and adapt the cleanup of old backups to the new file name. Add the section on going back to an earlier version to the user guide.
 - README: introduction, quick start with the reference Compose file, first-run wizard, link list to the user guide (ADR 0031).
 - User guide (`docs/user-guide.md`): backups, updates, password reset (spec 001), lost key file (spec 002), and an advanced section on keeping the encryption key outside `/config` (ADR 0025, 0031).
 - The README and the user guide were written early, on 2026-11-19. In this step: check both against the finished application and replace the screenshot placeholder in the README with a real screenshot.
@@ -160,6 +161,43 @@ Added to the MVP by the owner on 2026-11-22. The change of spec 003 and of the d
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 16, polish and documentation (2026-11-23)**
+
+The owner goes over the points of the step one by one with the AI assistant before each is built.
+
+Done:
+
+- The quick switcher, the accessibility pass and the shorter sessions without "Remember me" moved beyond the MVP.
+- The project version is `0.9.0-SNAPSHOT`.
+- Settings section "About" as agreed: `GET /api/about` in the settings module gives the version from the build information, `null` without it. The frontend shows logo, version, license and the links. Every settings section has content now, so the placeholder "There is nothing to set here yet" is removed, and the type of the section paths makes sure each section has content.
+- License notices: the built frontend contains `licenses/third-party-licenses.txt` with the license texts of all packages in it, 63 at present, the Inter font included. A Vite plugin of its own writes it at every build (`frontend/licenseNotices.ts`), without a new dependency. It finds the packages through the modules and files of the bundle; the packages that only reach the stylesheet through `@import` are named in `vite.config.ts`. Decided by the owner on 2026-11-23, after the finding below.
+- Application version in backup names (ADR 0032): the migrator reads the stored version with plain SQL before the migrations, names the backup `wardroom-{version}-schema{n}-{timestamp}.db`, logs both versions, and stores the starting version after the migrations, at every start. The retention of ADR 0028 counts the old and the new names. A build without version information stores `development`.
+- User guide: checked against the application; it matches. Added the section on going back to an earlier version (ADR 0032).
+
+Decisions of the assistant, open to a veto:
+
+1. **The stored version is cleaned before it becomes part of a file name.** Characters other than letters, digits, `.`, `+`, `_` and `-` become `_`, so a changed value cannot lead out of the backup directory.
+2. **A version that cannot be stored does not stop the start.** The database is migrated already; only the name of the next backup would say `unknown` or an older version. It is logged as a warning.
+3. **The section on going back says to delete `wardroom.db-wal` and `wardroom.db-shm`.** SQLite would otherwise try to apply the journal of the newer version to the restored file. After a clean stop the files are usually gone.
+4. **Packages without a license file are listed with the license of their `package.json`** and the sentence "The package contains no license file." One package (`react-remove-scroll-bar`) is such a case.
+
+Findings:
+
+- The built JavaScript had no license notices of the libraries in it, and the font license was not shipped either. The bundler drops these comments. Fixed by the notices file above.
+- The user guide has no part about the settings yet; the cache size limit and its switch belong there (note of step 14). Not done in this step so far.
+
+Verified:
+
+- `./mvnw verify` passes: 628 backend tests and 248 frontend tests. Afterwards the plugin is imported with its file extension, because Vite warned about the import without it; type check, lint, format check, the frontend build and all frontend tests were run again.
+- Tried by hand with the built jar on a copy of a test instance, set back to schema 12: without a stored version the backup is `wardroom-unknown-schema12-…`; with the stored version 0.8.0 it is `wardroom-0.8.0-schema12-…`, and the log line names 0.8.0 and 0.9.0-SNAPSHOT. After each start the stored version is `0.9.0-SNAPSHOT`, and of the backups in the old and the new name form the two newest are kept. `/licenses/third-party-licenses.txt` is served. The About section shows `0.9.0-SNAPSHOT` and its links.
+- Image: the build stage could not be run on the development machine, because Maven cannot download inside a container there; CI builds the same jar. The runtime stage, built with a jar from the host, starts healthy, logs `0.9.0-SNAPSHOT` and serves `/licenses/third-party-licenses.txt`.
+
+README (2026-11-23, as the owner asked): the logo and the tagline at the top are 50 % larger and centered; the tagline is a heading for that, because Markdown has no font size. The feature list starts with the two key features, "Digital archaeology" (jump to date) and "Find the groups that are still alive" (order by activity), followed by the other features. Below it, two screenshots one after the other, with space between them, in `docs/images`: the discover view ordered by activity and an open discussion. They were taken at 1920 × 1080 from a demo instance with made-up groups, authors and articles, with the background work switched off, using headless Edge.
+
+The owner tested the step by hand on 2026-11-23, before the commit.
+
+Left open, none of them blocks the release: the part about the settings in the user guide; the line in the README that says Wardroom is in development (step 17); whether the About section links to the license notices.
 
 **Step 15, activity of a group (2026-11-22)**
 
@@ -302,7 +340,7 @@ Verified:
 For later steps:
 
 - Step 14: the cache cleanup must keep the content of the owner's articles that wait for their location, or they cannot be shown.
-- Step 16: an article that is being written when the session ends is lost (see the note on shorter sessions).
+- Step 16: an article that is being written when the session ends is lost (see the note on shorter sessions). Moved beyond the MVP with the shorter sessions on 2026-11-23.
 
 **Step 12, ignoring (2026-11-22)**
 
@@ -750,7 +788,7 @@ Left for later steps:
 
 - The subscribe toggle in the discover rows, and `subscribed` in the group list (step 6).
 - The setting `sync.group_list_interval_hours` and its field in the settings section "Synchronization" (step 7).
-- The quick switcher searches the discover view (step 16).
+- The quick switcher searches the discover view (step 16). Moved beyond the MVP on 2026-11-23.
 
 Not verified:
 
@@ -818,7 +856,7 @@ Decisions made during the step, open to a veto:
 - Username: surrounding whitespace is removed at setup and at login. Apart from that, the username is stored as entered and compared exactly, including upper and lower case. Spec 001 says "stored as entered" and "after trimming"; this is how both were read.
 - Lengths of username and password are counted in characters, not in bytes. An emoji is one character.
 - Changed in the review: a session ends after 7 days of inactivity instead of 30, and the login page has the option "Remember me". Without it the session cookie ends with the browser session; with it the browser keeps the cookie and the server enforces the 7 days. Before, there was no such option and every cookie was kept for 400 days. Spec 001 was changed accordingly.
-- Also decided in the review, for step 16: a session without "Remember me" will end after 30 minutes of inactivity. Until then it ends after 7 days like every session.
+- Also decided in the review, for step 16: a session without "Remember me" will end after 30 minutes of inactivity. Until then it ends after 7 days like every session. Moved beyond the MVP on 2026-11-23; every session keeps the 7 days.
 - A login always gets a new session; a session the browser had before is ended.
 - Logins are checked one after the other, so parallel attempts cannot get around the throttling.
 - A password that is too long to be valid is answered like a wrong password (`401`), not with `400`.
