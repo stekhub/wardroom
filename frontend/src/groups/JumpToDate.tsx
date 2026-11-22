@@ -27,7 +27,7 @@ export function JumpToDate({ groupId }: { groupId: number }) {
       return
     }
     setOpen(false)
-    void navigate(`/groups/${String(groupId)}?from=${day}`)
+    void navigate(`/groups/${String(groupId)}?until=${day}`)
   }
 
   return (
@@ -44,7 +44,7 @@ export function JumpToDate({ groupId }: { groupId: number }) {
       </Tooltip>
       <PopoverContent align="end">
         <form onSubmit={jump} className="flex flex-col gap-2.5">
-          <Label htmlFor={fieldId}>Read the group from</Label>
+          <Label htmlFor={fieldId}>Show the group up to</Label>
           <Input
             id={fieldId}
             type="date"

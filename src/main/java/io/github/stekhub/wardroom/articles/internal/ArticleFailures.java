@@ -18,6 +18,32 @@ final class ArticleFailures {
         }
     }
 
+    /** The discussion view shows subscribed groups only (spec 008). */
+    static class GroupNotFoundException extends ErrorResponseException {
+
+        GroupNotFoundException() {
+            super(HttpStatus.NOT_FOUND, ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND,
+                    "This group does not exist or is not subscribed."), null);
+        }
+    }
+
+    static class GroupNotSubscribedException extends ErrorResponseException {
+
+        GroupNotSubscribedException() {
+            super(HttpStatus.CONFLICT,
+                    ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "This group is not subscribed."), null);
+        }
+    }
+
+    /** No article has the ID, or its thread has no article in the group (spec 008). */
+    static class ThreadNotFoundException extends ErrorResponseException {
+
+        ThreadNotFoundException() {
+            super(HttpStatus.NOT_FOUND, ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND,
+                    "This discussion is no longer available."), null);
+        }
+    }
+
     /** The server answered that it has no such article, now or at an earlier attempt (spec 007). */
     static class ContentUnavailableException extends ErrorResponseException {
 

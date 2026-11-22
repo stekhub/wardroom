@@ -24,8 +24,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionOperations;
 
 /**
- * Loads articles the owner goes looking for, on one connection: "load older", "load more" and jump to date
- * (spec 005; ADR 0021).
+ * Loads articles the owner goes looking for, on one connection: "load older" and jump to date (spec 005;
+ * ADR 0021, ADR 0033).
  *
  * <ul>
  * <li>Everything a step fetches is stored in one transaction, together with the range. A step that fails stores
@@ -49,30 +49,22 @@ class RangeLoader {
     private final TransactionOperations transactionOperations;
     private final Threads threads;
 
-    /** In which direction a range is extended. */
-    enum Direction {
-        /** "Load older discussions": towards lower article numbers. */
-        OLDER,
-        /** "Load more" in a date view: towards higher article numbers. */
-        NEWER
-    }
-
     /**
      * A range after a step.
      *
      * @param atOldest whether nothing older can be loaded: the range starts at the low watermark of the server
-     * @param atNewest whether nothing newer can be loaded: the range is the newest of the group
+     * @param atNewest whether the range is the newest of the group
      */
     record LoadedRange(long rangeId, long firstNumber, long lastNumber, boolean atOldest, boolean atNewest) {
     }
 
     /**
-     * @param range           the range the start lies in
-     * @param startNumber     the article number the group is read from
-     * @param startDate       the date of the first article from there on that has one, or {@code null}
-     * @param clampedToOldest whether the date is older than the oldest article of the server
+     * @param range      the range that ends the view, or {@code null} when the time is not after the oldest article
+     *                   of the server
+     * @param oldestDate the date of the oldest article of the server, when there is no range; otherwise
+     *                   {@code null}
      */
-    record Jump(LoadedRange range, long startNumber, Long startDate, boolean clampedToOldest) {
+    record Jump(LoadedRange range, Long oldestDate) {
     }
 
     /** What the server and the database say about the group when a step begins. */
@@ -80,45 +72,32 @@ class RangeLoader {
     }
 
     /**
-     * Extends the range by up to {@code depth} article numbers. The step stops at the low watermark and at the
-     * neighboring range, and merges with that range.
+     * Extends the range downwards by up to {@code depth} article numbers. The step stops at the low watermark and
+     * at the neighboring range, and merges with that range.
      *
      * @throws io.github.stekhub.wardroom.nntp.NntpException when the server cannot be asked; nothing is stored
      */
-    LoadedRange extend(NntpClient client, SubscribedGroup group, long rangeId, Direction direction, int depth) {
+    LoadedRange extend(NntpClient client, SubscribedGroup group, long rangeId, int depth) {
         long groupId = group.groupId();
         GroupState groupState = selectGroup(client, group);
         SyncedRange range = syncedArticleRepository.findRange(groupId, rangeId)
                 .orElseThrow(RangeNotFoundException::new);
-        long fetchFirst;
-        long fetchLast;
-        if (direction == Direction.OLDER) {
-            long neighborEnd = syncedArticleRepository.findRangeBelow(groupId, range.firstNumber())
-                    .map(SyncedRange::lastNumber).orElse(0L);
-            fetchFirst = Math.max(Math.max(range.firstNumber() - depth, groupState.lowestNumber()),
-                    neighborEnd + 1);
-            fetchLast = range.firstNumber() - 1;
-        } else {
-            Optional<SyncedRange> rangeAbove = syncedArticleRepository.findRangeAbove(groupId, range.lastNumber());
-            if (rangeAbove.isEmpty()) {
-                return loadedRange(groupId, range, groupState);
-            }
-            fetchFirst = range.lastNumber() + 1;
-            fetchLast = Math.min(range.lastNumber() + depth, rangeAbove.get().firstNumber() - 1);
-        }
+        long neighborEnd = syncedArticleRepository.findRangeBelow(groupId, range.firstNumber())
+                .map(SyncedRange::lastNumber).orElse(0L);
+        long fetchFirst = Math.max(Math.max(range.firstNumber() - depth, groupState.lowestNumber()),
+                neighborEnd + 1);
+        long fetchLast = range.firstNumber() - 1;
         if (fetchFirst > fetchLast) {
             return loadedRange(groupId, range, groupState);
         }
         List<NntpOverview> overviews = fetch(client, fetchFirst, fetchLast);
-        long newFirst = Math.min(range.firstNumber(), fetchFirst);
-        long newLast = Math.max(range.lastNumber(), fetchLast);
         SyncedRange grownRange = transactionOperations.execute(status -> {
             requireSubscribed(groupId);
             StoredChunk storedChunk = syncedArticleRepository.storeOverviews(groupId, overviews,
                     System.currentTimeMillis());
-            SyncedRange storedRange = syncedArticleRepository.growRange(groupId, rangeId, newFirst, newLast);
-            logStep(group, direction == Direction.OLDER ? "Load older" : "Load more", fetchFirst, fetchLast,
-                    overviews.size(), storedChunk, storedRange);
+            SyncedRange storedRange = syncedArticleRepository.growRange(groupId, rangeId, fetchFirst,
+                    range.lastNumber());
+            logStep(group, "Load older", fetchFirst, fetchLast, overviews.size(), storedChunk, storedRange);
             return storedRange;
         });
         threads.recomputeGroup(groupId);
@@ -126,54 +105,55 @@ class RangeLoader {
     }
 
     /**
-     * Finds the first article on or after the time and fetches up to {@code depth} article numbers from there on,
-     * unless the start lies in a range already.
+     * Finds the last article before the time and fetches up to {@code depth} article numbers that end there,
+     * unless that article lies in a range already.
      *
-     * @param from the time in UTC milliseconds
+     * @param until the time before which articles are shown, in UTC milliseconds
      * @throws io.github.stekhub.wardroom.nntp.NntpException when the server cannot be asked; nothing is stored
      */
-    Jump jump(NntpClient client, SubscribedGroup group, long from, int depth) {
+    Jump jump(NntpClient client, SubscribedGroup group, long until, int depth) {
         long groupId = group.groupId();
         GroupState groupState = selectGroup(client, group);
         long highestNumber = groupState.newestRange().lastNumber();
-        DateSearch.Start start;
-        if (groupState.lowestNumber() > highestNumber) {
-            // The server has none of the synchronized articles any more. What is stored is all there is to show.
-            start = new DateSearch.Start(highestNumber, false);
-        } else {
+        // When the server has none of the synchronized articles any more, what is stored is all there is to show.
+        long endNumber = highestNumber;
+        if (groupState.lowestNumber() <= highestNumber) {
+            DateSearch.End end;
             try {
-                start = DateSearch.find((firstNumber, lastNumber) -> fetch(client, firstNumber, lastNumber),
-                        groupState.lowestNumber(), highestNumber, from, depth);
+                end = DateSearch.find((firstNumber, lastNumber) -> fetch(client, firstNumber, lastNumber),
+                        groupState.lowestNumber(), highestNumber, until);
             } catch (DatesUnreadableException e) {
                 throw new ServerFailedException(DATES_UNREADABLE);
             }
+            if (end.beforeOldest()) {
+                return new Jump(null, end.oldestDate());
+            }
+            endNumber = end.number();
         }
-        long startNumber = start.number();
         SyncedRange range;
-        Optional<SyncedRange> rangeOfStart = syncedArticleRepository.findRangeContaining(groupId, startNumber);
-        if (rangeOfStart.isPresent()) {
-            range = rangeOfStart.get();
+        Optional<SyncedRange> rangeOfEnd = syncedArticleRepository.findRangeContaining(groupId, endNumber);
+        if (rangeOfEnd.isPresent()) {
+            range = rangeOfEnd.get();
         } else {
-            // The start is below the end of the newest range and in no range, so there is a range above it.
-            long nextRangeStart = syncedArticleRepository.findRangeAbove(groupId, startNumber)
-                    .map(SyncedRange::firstNumber).orElse(highestNumber + 1);
-            long fetchLast = Math.min(startNumber + depth - 1, nextRangeStart - 1);
-            List<NntpOverview> overviews = fetch(client, startNumber, fetchLast);
+            long neighborEnd = syncedArticleRepository.findRangeBelow(groupId, endNumber)
+                    .map(SyncedRange::lastNumber).orElse(0L);
+            long fetchFirst = Math.max(Math.max(endNumber - depth + 1, groupState.lowestNumber()),
+                    neighborEnd + 1);
+            long fetchLast = endNumber;
+            List<NntpOverview> overviews = fetch(client, fetchFirst, fetchLast);
             range = transactionOperations.execute(status -> {
                 requireSubscribed(groupId);
                 StoredChunk storedChunk = syncedArticleRepository.storeOverviews(groupId, overviews,
                         System.currentTimeMillis());
-                long rangeId = syncedArticleRepository.insertRange(groupId, startNumber, fetchLast);
-                SyncedRange storedRange = syncedArticleRepository.growRange(groupId, rangeId, startNumber,
+                long rangeId = syncedArticleRepository.insertRange(groupId, fetchFirst, fetchLast);
+                SyncedRange storedRange = syncedArticleRepository.growRange(groupId, rangeId, fetchFirst,
                         fetchLast);
-                logStep(group, "Jump to date", startNumber, fetchLast, overviews.size(), storedChunk, storedRange);
+                logStep(group, "Jump to date", fetchFirst, fetchLast, overviews.size(), storedChunk, storedRange);
                 return storedRange;
             });
             threads.recomputeGroup(groupId);
         }
-        Long startDate = syncedArticleRepository.findFirstDate(groupId, startNumber, range.lastNumber())
-                .orElse(null);
-        return new Jump(loadedRange(groupId, range, groupState), startNumber, startDate, start.clampedToOldest());
+        return new Jump(loadedRange(groupId, range, groupState), null);
     }
 
     private GroupState selectGroup(NntpClient client, SubscribedGroup group) {

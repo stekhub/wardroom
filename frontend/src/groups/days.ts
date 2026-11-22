@@ -28,6 +28,23 @@ export function startOfDay(day: string): number | undefined {
   return start.getTime()
 }
 
+/**
+ * The end of a day in the time zone of the browser, in milliseconds: the start of the next day
+ * (spec 005, "Jump to date").
+ *
+ * @returns `undefined` when the text is not a day that exists
+ */
+export function endOfDay(day: string): number | undefined {
+  const start = startOfDay(day)
+  if (start === undefined) {
+    return undefined
+  }
+  const next = new Date(start)
+  // Not 24 hours later: a day with a change of the clock is shorter or longer.
+  next.setDate(next.getDate() + 1)
+  return next.getTime()
+}
+
 /** The day of a time in the time zone of the browser, as `YYYY-MM-DD`. */
 export function dayOf(millis: number): string {
   const date = new Date(millis)

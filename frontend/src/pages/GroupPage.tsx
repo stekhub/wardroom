@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DateView } from '@/groups/DateView'
-import { startOfDay } from '@/groups/days'
+import { endOfDay } from '@/groups/days'
 import { GroupIcon } from '@/groups/GroupIcon'
 import { JumpToDate } from '@/groups/JumpToDate'
 import { SubscribeToggle } from '@/groups/SubscribeToggle'
@@ -18,19 +18,23 @@ import {
   useSubscriptions,
 } from '@/groups/subscriptionState'
 import { ReadingColumn } from '@/pages/ReadingColumn'
+import { ThreadList } from '@/threads/ThreadList'
+import { DEFAULT_SORT, SORTS, useShownReadState } from '@/threads/threadState'
 
 /**
- * The group view (UI concept): for now its header, with the large group icon, the name, the
- * badges, the subscribe toggle, the refresh button, the date picker (spec 005) and "Mark all as
- * read" (spec 004). With `?from=YYYY-MM-DD` it is the date view. The threads of the group are
- * added by the discussion view.
+ * The group view (UI concept): its header, with the large group icon, the name, the badges, the
+ * subscribe toggle, the refresh button, the date picker (spec 005) and "Mark all as read"
+ * (spec 004), and below it the threads of the group (spec 008). With `?until=YYYY-MM-DD` it is the
+ * date view; otherwise `?sort=` chooses the order.
  */
 export function GroupPage() {
   const groupId = Number(useParams().groupId)
   const [searchParams] = useSearchParams()
   const subscriptions = useSubscriptions()
-  const day = searchParams.get('from')
-  const from = day === null ? undefined : startOfDay(day)
+  const day = searchParams.get('until')
+  const until = day === null ? undefined : endOfDay(day)
+  const sortInAddress = searchParams.get('sort')
+  const sort = SORTS.find((candidate) => candidate === sortInAddress) ?? DEFAULT_SORT
 
   if (subscriptions.data === undefined) {
     if (subscriptions.isError) {
@@ -67,12 +71,10 @@ export function GroupPage() {
   return (
     <ReadingColumn>
       <GroupHeader subscription={subscription} />
-      {day !== null && from !== undefined ? (
-        <DateView key={day} groupId={groupId} day={day} from={from} />
+      {day !== null && until !== undefined ? (
+        <DateView key={day} groupId={groupId} day={day} until={until} />
       ) : (
-        <p className="text-sm text-muted-foreground">
-          The threads of this group are not shown yet.
-        </p>
+        <ThreadList key={`${String(groupId)}:${sort}`} subscription={subscription} sort={sort} />
       )}
     </ReadingColumn>
   )
@@ -82,12 +84,15 @@ export function GroupPage() {
 function GroupHeader({ subscription }: { subscription: Subscription }) {
   const navigate = useNavigate()
   const reloadSubscriptions = useReloadSubscriptions()
+  const { showGroupRead } = useShownReadState()
 
   async function markAllRead() {
     const { response } = await api.POST('/api/groups/{groupId}/mark-all-read', {
       params: { path: { groupId: subscription.groupId } },
     })
-    if (!response.ok && response.status !== 401) {
+    if (response.ok) {
+      showGroupRead(subscription.groupId)
+    } else if (response.status !== 401) {
       toast.error(UNEXPECTED_ERROR)
     }
     await reloadSubscriptions()

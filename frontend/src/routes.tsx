@@ -5,6 +5,7 @@ import { DiscoverPage } from '@/pages/DiscoverPage'
 import { GroupPage } from '@/pages/GroupPage'
 import { LeavingPage } from '@/pages/LeavingPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { ThreadPage } from '@/pages/ThreadPage'
 import { ServerGate } from '@/server/ServerGate'
 import { AccountSection } from '@/settings/AccountSection'
 import { SETTINGS_SECTIONS } from '@/settings/sections'
@@ -40,6 +41,7 @@ export const routes: RouteObject[] = [
               { index: true, element: <Navigate to="/discover" replace /> },
               { path: 'discover', element: <DiscoverPage /> },
               { path: 'groups/:groupId', element: <GroupPage /> },
+              { path: 'groups/:groupId/threads/:articleId', element: <ThreadPage /> },
               {
                 path: 'settings',
                 element: <SettingsPage />,

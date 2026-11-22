@@ -15,8 +15,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 7 | Synchronization core | Spec 005 | Done |
 | 8 | Load older, load more, jump to date | Spec 005; ADR 0021, 0022 | Done |
 | 9 | Threading | Spec 006 | Done |
-| 10 | Article reading | Spec 007 | In review |
-| 11 | Discussion view | Spec 008 | Not started |
+| 10 | Article reading | Spec 007 | Done |
+| 11 | Discussion view | Spec 008 | In review |
 | 12 | Ignoring | Spec 010 | Not started |
 | 13 | Posting | Spec 009 | Not started |
 | 14 | Cache size limit | ADR 0023; spec 005 | Not started |
@@ -139,6 +139,76 @@ Wardroom can first be used for reading after step 11.
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 11, discussion view (2026-11-21)**
+
+What was built:
+
+- Backend, module `articles`: the thread list with the three sort orders, the date view and keyset paging; the thread endpoint; "mark thread as read". One query per page computes the cards of a group.
+- No migration: the index on `article.thread_root_id` that spec 008 names exists since step 9.
+- Frontend: the group view with sort tabs, thread cards, loading of further pages on scrolling, "Load older discussions", the "N new discussions · show" button and the empty states; the date view with its threads up to the chosen day (ADR 0033); the thread page with nesting, collapsing, stubs and crossposts; "Mark thread as read" on cards and on the thread page.
+- A new view opens at the top, and going back returns to where the view was left.
+- The sidebar marks a group also while one of its threads is open.
+
+Not built, because it belongs to a later step:
+
+- "Ignore thread" on cards and in the thread page header, and "Ignore author": step 12.
+- Reply buttons: step 13.
+
+Decisions made during the step, open to a veto. None of them is written into a specification or the data model yet.
+
+Backend:
+
+- **The author key is computed when it is asked for.** Spec 010 stores it in `article.author_key`; that column comes with step 12. Until then the key is derived from `from` for every card and article. The result is the same.
+- With `until`, a `rangeId` the group does not have is answered with `400`.
+- A cursor belongs to one order. A cursor of another order is answered with `400`.
+- `highWatermarkReached` is true when the range is the newest one of the group, as `atNewest` of the extend endpoint. `lowWatermarkReached` is true when the range begins at the stored low watermark. Both are false while the group has no range.
+- In the date view, a thread whose card article has no date is not shown: it cannot be "on or before" a day. Spec 008 says so now.
+- Order of replies to the same parent: by date, oldest first. Replies without a date follow the dated ones, by article number in the group. Spec 006 says "placed by article number", which does not say where they go between dated replies.
+- `read` is false for a stub. The frontend shows no "new" marker on a stub.
+- "Mark thread as read" answers `404` for an unknown group and `409` for a group that is not subscribed, as "mark all as read" does. The two reading endpoints answer `404` for both, as spec 008 says.
+- The excerpt of a card is computed from the first 20,000 characters of the cached text, so a very long article is not read completely for every card.
+
+Frontend:
+
+- **"N new discussions"** counts the threads that are new or have more messages than shown, among the first 50 threads of the current order. They are asked for aside; the shown list is not touched. A synchronization that changed nothing shows no button. An empty list is loaded again at once.
+- **The "new" marker of an article stays while the thread page is open,** although the article is marked as read when it is displayed. Otherwise the marker would vanish before the owner sees it. "Mark thread as read" removes the markers.
+- The name shown for an author is the name part of `From`: "Jane Doe" for `Jane Doe <jane@example.org>`. Spec 008 says that the frontend does not parse `from` for the icon; for the name there is no other source.
+- "Mark thread as read" on a card is shown only when the thread has unread articles.
+- A card shows "latest …" only when the thread has more than one message.
+- Further pages load when the end of the list scrolls into view. A button "Show more discussions" is there as well, for the keyboard and for the case that scrolling does not trigger the loading.
+- A vertical line belongs to the article whose replies it marks; a click on it collapses that article. A reply deeper than level 6 has the six lines of its topmost ancestors.
+- A collapsed article without replies says "hidden" instead of "0 replies hidden".
+- The thread page shows the subject once, as its heading: the subject of the first article that is no stub. The single articles show no subject.
+- The link back to the group goes back in the browser history when the thread was opened from the list, so the list is where it was left. Opened by its address, it leads to the group view.
+- After a stub was fetched, the thread is asked for again, so that the author and date of the article appear.
+- After "Load older discussions" the loaded pages are asked for again in place. The list keeps its scroll position.
+- The date view says "No discussions up to this day" when its range has none.
+- While the jump runs, the date view shows a turning icon with "Searching the server for this day…" above card placeholders. The UI concept prefers skeletons to spinners; the search can take seconds, so the view also says what it waits for, as the first synchronization does. Asked for by the owner.
+
+Findings:
+
+- **Earlier browser checks used `C:\config` as their data directory.** The start command of the AI assistant had a wrong property name (`wardroom.data-directory`), so the application fell back to its default `/config`, which is `C:\config` on this machine. As far as can be told, the directory holds only test data of these checks; its database is from 2026-11-19. It was not changed in this step and not deleted. The owner decides whether it goes. The right property is `wardroom.data-dir`.
+- The browser pane of the AI assistant does not draw pages while it is hidden. Loading on scrolling does not happen there, so it was replaced by a stand-in for the check; see below.
+- **Found by the owner: the date view showed the group from the chosen day forward.** In a quiet group, a view for 2010 began with discussions from 2012. The owner decided that the chosen day is the upper end: the view shows the discussions that began on or before that day, newest first, with "Load older discussions" as in the normal view. This is ADR 0033, which supersedes the direction of the jump and "load more" in ADR 0021; specs 005 and 008 and the UI concept are changed to match. In the code: the jump takes `until` (the end of the day) and loads the articles up to there; the date search goes on until fewer than 20 numbers remain; the jump result is the range, or the date of the oldest article when the day is before it; "load more" and the direction of the extend endpoint are removed; the address is `?until=YYYY-MM-DD`. Tried in a browser against the local test server: a jump that fetched 500 articles up to the day after 7 probes, a day before the oldest article with its link, and "Load older discussions" down to the low watermark.
+- **Found by the owner: going back from a thread to a date view took seconds.** The view forgot its jump when it closed and ran the date search against the server again. Now the jump of a date view is kept as long as its list, 30 minutes, and going back shows the view at once. Only the date view of the last jump is kept per group, because a later jump can join the range of an earlier one with its own. "Load older discussions" in the normal view can also merge the range of a kept date view into the newest range; when the backend then answers that the range is gone, the date view runs its jump again and continues with the new range. Unsubscribing drops the kept lists and jumps of the group. Accepted by the owner on 2026-11-22; spec 008 is changed to match.
+- **Found in the review before the pull request: "Load older discussions" in the normal view could fail after a jump to date.** A jump that ends directly below the newest range joins the two, and the joined range has the ID of the jump. A normal view that was loaded before still had the old ID, and its "Load older discussions" answered with an error. Now the list is asked for its range again, and the step is tried once more with that range. A frontend test covers it. Open to a veto: spec 008 does not describe this case.
+- **Found by the owner: articles that were stored before step 9 were never threaded.** Every reply was shown as a discussion of its own. Threads were computed only after a synchronization had stored new articles, so a group without new articles kept its articles without a place. A threading that failed was not repeated either, although spec 006 says that the next synchronization retries. Fixed in this step: the start of the application threads every article without a place, and a synchronization that fetches nothing threads the articles of its group that have none. Two tests cover it. Tried on a copy of a database with 2,582 such articles: the start threaded them in 0.7 seconds.
+- The thread list of a group with 100,000 articles in 20,000 threads takes 160 ms per page on the development machine, in every order.
+
+Verified and not verified:
+
+- `./mvnw verify` passes: 533 backend tests and 188 frontend tests.
+- Tried by hand in a browser, against the built jar with a scratch data directory and a local test NNTP server with 1,200 threaded articles: the wizard; the thread list in all three orders; paging through all pages without a thread shown twice; "Load older discussions"; opening a thread; text, quotes and links of 31 articles; indentation up to level 6; collapsing by line and expanding; the unread count in the sidebar going down; going back to the list at the same scroll position, with the card updated; a thread whose first article the server does not have; the date view.
+- Not tried by hand: the loading when something scrolls into view, for further pages and for article text. The browser used for the check did not report scrolling, so a stand-in that reports everything as visible was put in its place. The owner should try this in a normal browser.
+- Not tried by hand: the "N new discussions" button, "Mark thread as read", a crossposted article. Component tests cover them.
+- Not verified: real articles from a real server.
+
+Left for later steps:
+
+- Step 12: `article.author_key` with backfill replaces the computation in `AuthorKey`; "Ignore thread" and "Ignore author" go where the cards and article rows have their actions; the list and count queries get the ignore filters.
+- Step 13: reply buttons on the thread page.
+- If real threads show that level 6 is too narrow or too flat: a marker for what a deep reply answers, or a view that starts at a reply.
 
 **Step 10, article reading (2026-11-20)**
 

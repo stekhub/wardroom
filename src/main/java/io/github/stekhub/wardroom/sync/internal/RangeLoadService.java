@@ -10,7 +10,6 @@ import io.github.stekhub.wardroom.nntp.NntpServerSettings;
 import io.github.stekhub.wardroom.platform.LogSafe;
 import io.github.stekhub.wardroom.server.NntpServers;
 import io.github.stekhub.wardroom.settings.Settings;
-import io.github.stekhub.wardroom.sync.internal.RangeLoader.Direction;
 import io.github.stekhub.wardroom.sync.internal.RangeLoader.Jump;
 import io.github.stekhub.wardroom.sync.internal.RangeLoader.LoadedRange;
 import io.github.stekhub.wardroom.sync.internal.SynchronizationFailures.CredentialsInvalidException;
@@ -24,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * "Load older", "load more" and jump to date for the owner who is waiting for them (spec 005).
+ * "Load older" and jump to date for the owner who is waiting for them (spec 005).
  *
  * <ul>
  * <li>A step uses the connection that is kept for interactive actions, with a single attempt.</li>
@@ -52,12 +51,12 @@ class RangeLoadService {
         T run(NntpClient client, SubscribedGroup group, int depth);
     }
 
-    LoadedRange extend(long groupId, long rangeId, Direction direction) {
-        return load(groupId, (client, group, depth) -> rangeLoader.extend(client, group, rangeId, direction, depth));
+    LoadedRange extend(long groupId, long rangeId) {
+        return load(groupId, (client, group, depth) -> rangeLoader.extend(client, group, rangeId, depth));
     }
 
-    Jump jump(long groupId, long from) {
-        return load(groupId, (client, group, depth) -> rangeLoader.jump(client, group, from, depth));
+    Jump jump(long groupId, long until) {
+        return load(groupId, (client, group, depth) -> rangeLoader.jump(client, group, until, depth));
     }
 
     private <T> T load(long groupId, Step<T> step) {

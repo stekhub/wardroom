@@ -57,6 +57,9 @@ class ThreadServiceTest {
     @Autowired
     ThreadRepository threadRepository;
 
+    @Autowired
+    ThreadStartup threadStartup;
+
     TestBrowser browser;
     MockNntpServer mockServer;
     long serverId;
@@ -95,6 +98,18 @@ class ThreadServiceTest {
                 "<d>", "<c> root <a>",
                 "<e>", "null root <e> stub",
                 "<f>", "<e> root <e>"));
+    }
+
+    @Test
+    void theStartThreadsTheArticlesThatHaveNoPlace() {
+        article(groupId, 1, "<a>", "Hello", null, DAY);
+        article(groupId, 2, "<b>", "Re: Hello", "<a>", 2 * DAY);
+
+        threadStartup.threadArticlesWithoutPlace();
+
+        assertThat(structure()).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "<a>", "null root <a>",
+                "<b>", "<a> root <a>"));
     }
 
     @Test

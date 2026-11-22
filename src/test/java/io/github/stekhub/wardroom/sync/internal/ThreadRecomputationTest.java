@@ -89,6 +89,24 @@ class ThreadRecomputationTest {
     }
 
     @Test
+    void aSynchronizationThatFetchesNothingThreadsTheArticlesThatHaveNoPlace() {
+        int groupId = support.subscribe("example.talk");
+        mockServer.on("GROUP example.talk").reply("211 1000 1 1000 example.talk");
+        mockServer.on("OVER 951-1000").reply(overviews(
+                overview(960, "Hello", "<a@example.org>", ""),
+                overview(970, "Re: Hello", "<b@example.org>", "<a@example.org>")));
+        support.synchronize(groupId);
+        // As after a threading that failed, or for articles that were stored before threads existed.
+        database.update(ARTICLE).setNull(ARTICLE.PARENT_ID).setNull(ARTICLE.THREAD_ROOT_ID).execute();
+
+        support.synchronize(groupId);
+
+        assertThat(structure()).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "<a@example.org>", "null root <a@example.org>",
+                "<b@example.org>", "<a@example.org> root <a@example.org>"));
+    }
+
+    @Test
     void loadOlderFillsAStubAndBringsTheOriginalPostWhichBecomesTheRoot() {
         int groupId = support.subscribe("example.talk");
         mockServer.on("GROUP example.talk").reply("211 1000 1 1000 example.talk");
@@ -102,8 +120,8 @@ class ThreadRecomputationTest {
                 overview(910, "Hello", "<a@example.org>", ""),
                 overview(920, "Re: Hello", "<b@example.org>", "<a@example.org>")));
 
-        assertThat(browser.post("/api/groups/" + groupId + "/ranges/" + newestRangeId(groupId) + "/extend",
-                "{\"direction\": \"OLDER\"}")).hasStatusOk();
+        assertThat(browser.post("/api/groups/" + groupId + "/ranges/" + newestRangeId(groupId) + "/extend"))
+                .hasStatusOk();
 
         assertThat(structure()).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "<a@example.org>", "null root <a@example.org>",
@@ -122,13 +140,18 @@ class ThreadRecomputationTest {
                 datedOverview(960, "<reply@example.org>", 20 * day).replace("Subject 960", "Re: Hello")));
         support.synchronize(groupId);
         assertThat(structure()).containsEntry("<reply@example.org>", "null root <reply@example.org>");
-        // The whole group is before the chosen day's end; the oldest article is after the chosen time.
+        // The oldest article is before the chosen time, and every article the search looks at is after it.
         mockServer.on("OVER 1-20").reply(overviews(
                 datedOverview(1, "<original@example.org>", 10 * day).replace("Subject 1", "Hello")));
-        mockServer.on("OVER 1-50").reply(overviews(
+        for (int windowStart : new int[] {501, 251, 126, 63, 32, 16}) {
+            mockServer.on("OVER " + windowStart + "-" + (windowStart + 19)).reply(overviews(
+                    datedOverview(windowStart, "<probe-" + windowStart + "@example.org>", 16 * day)));
+        }
+        mockServer.on("OVER 1-15").reply(overviews(
                 datedOverview(1, "<original@example.org>", 10 * day).replace("Subject 1", "Hello")));
 
-        assertThat(browser.post("/api/groups/" + groupId + "/jump", "{\"from\": " + day + "}")).hasStatusOk();
+        assertThat(browser.post("/api/groups/" + groupId + "/jump", "{\"until\": " + (15 * day) + "}"))
+                .hasStatusOk();
 
         assertThat(structure()).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "<original@example.org>", "null root <original@example.org>",

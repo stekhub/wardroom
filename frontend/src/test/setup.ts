@@ -27,6 +27,9 @@ window.ResizeObserver = class {
   }
 }
 
+// jsdom does not scroll; the application scrolls to the top when a view opens.
+window.scrollTo = () => undefined
+
 // A request no test has mocked is a mistake in the test, so it fails instead of reaching the network.
 beforeAll(() => {
   server.listen({ onUnhandledFrame: 'error' })

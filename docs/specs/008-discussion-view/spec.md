@@ -47,11 +47,14 @@ The thread list of a group with its cards, sorting and paging; the date view; th
 
 **Date view**
 
-- `/groups/{id}?from=YYYY-MM-DD` shows the threads whose card article is dated on or after the start of that day in the browser's time zone, oldest first. Sort tabs are hidden.
-- Only threads whose card article lies in the synchronized range found by the jump are shown. The list therefore ends where that range ends, not with today's discussions.
-- The frontend calls jump (spec 005) every time the date view opens, to get the range; nothing is fetched when the date is already inside a range.
-- A bar above the list reads "Showing from {date}" with a link back to the normal view.
-- At the end of the list, "load more" (spec 005) is shown unless the server's high watermark has been reached.
+- `/groups/{id}?until=YYYY-MM-DD` shows the threads whose card article is dated before the end of that day in the browser's time zone, newest first ([ADR 0033](../../architecture/decisions/0033-date-view-up-to-a-day.md)). The chosen day is included. Sort tabs are hidden.
+- Only threads whose card article lies in the synchronized range found by the jump are shown. A thread without a date on its card article is not shown.
+- A thread that began before the day shows all its loaded replies on the thread page, also those written after the day.
+- The frontend calls jump (spec 005) when a day is chosen, to get the range; nothing is fetched when the date is already inside a range. The result is kept as long as the list of the view, so going back to the view from a thread does not call jump again. Only the view of the last jump is kept per group, because a later jump can merge the range of an earlier one into its own.
+- If the backend answers that the range of a kept view is gone, for example because "Load older discussions" in the normal view merged it into the newest range, the frontend calls jump again and shows the view with the new range.
+- A bar above the list reads "Showing up to {date}" with a link back to the normal view.
+- At the end of the list, "Load older discussions" (spec 005) is shown unless the server's low watermark has been reached. It extends the range of the jump.
+- When the day is before the oldest article on the server, the view shows no list. It states the date of the oldest article with a link to the date view of that day.
 
 **Thread page**
 
@@ -70,7 +73,7 @@ The thread list of a group with its cards, sorting and paging; the date view; th
 - Opening a thread does not mark it read; each article is marked read when its body is displayed (spec 007).
 - "Mark all as read" in the group header works as in spec 004.
 - "Mark thread as read" marks every unread non-stub article of the thread located in the group as read, without confirmation. Crossposts are marked read in all groups, as for "mark all as read". There is no undo.
-- Articles stored by load older, load more and jump to date arrive read (ADR 0022).
+- Articles stored by load older and jump to date arrive read (ADR 0022).
 
 **Updates**
 
@@ -87,11 +90,11 @@ All endpoints require a session ([spec 001](../001-user-authentication/spec.md))
 
 | Method and path | Request | Responses |
 |---|---|---|
-| `GET /api/groups/{id}/threads` | `sort` (`newest`, `activity`, `discussed`; default `activity`), `from` (ISO 8601 instant, date view), `rangeId` (required with `from`; from the jump result), `cursor`, `limit` (default 50, max 100) | `200` page of thread cards; `400` invalid parameter; `404` unknown or unsubscribed group |
+| `GET /api/groups/{id}/threads` | `sort` (`newest`, `activity`, `discussed`; default `activity`), `until` (ISO 8601 instant, date view), `rangeId` (required with `until`; from the jump result), `cursor`, `limit` (default 50, max 100) | `200` page of thread cards; `400` invalid parameter; `404` unknown or unsubscribed group |
 | `GET /api/groups/{id}/threads/{articleId}` | | `200` thread; `404` unknown article or not part of a thread in the group |
 | `POST /api/groups/{id}/threads/{articleId}/mark-read` | | `204`; `404` as above; `409` group not subscribed |
 
-`sort` and `from` are mutually exclusive; with `from`, the order is oldest first.
+`sort` and `until` are mutually exclusive; with `until`, the list has the threads whose card article is dated before that instant, newest first.
 
 **Page of thread cards**
 
@@ -118,7 +121,7 @@ All endpoints require a session ([spec 001](../001-user-authentication/spec.md))
 }
 ```
 
-`rangeId` is the synchronized range the list shows: the newest range of the group in the normal view, and the range of the jump in a date view. It is `null` when the group has no range yet. The frontend passes it to extend (spec 005) for "Load older discussions" and "load more".
+`rangeId` is the synchronized range the list shows: the newest range of the group in the normal view, and the range of the jump in a date view. It is `null` when the group has no range yet. The frontend passes it to extend (spec 005) for "Load older discussions".
 
 **Thread**
 
@@ -178,7 +181,7 @@ Integration tests against a real SQLite database (ADR 0008):
 
 - The thread list includes only threads with a non-stub article located in the group; counts and unread counts follow spec 006 and exclude crossposts located only elsewhere.
 - Each sort order, including undated articles and ties; keyset paging returns every thread exactly once.
-- Date view: start of day, oldest first, only threads of the given range, watermark flags.
+- Date view: only threads before the given instant, newest first, only threads of the given range, watermark flags; going back from a thread does not call jump again; a range that is gone leads to a new jump.
 - Thread endpoint: any article resolves to the root; depth, order and `otherGroup` are correct.
 - Mark thread as read marks exactly the thread's unread non-stub articles located in the group, and only the thread's.
 

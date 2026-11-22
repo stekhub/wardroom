@@ -98,7 +98,7 @@ class ThreadService implements Threads, ThreadRecomputation {
             threadRepository.deleteStubsWithoutPlace();
             int threadedArticles = recompute(threadRepository.findGroupsWithUnthreadedArticles());
             if (threadedArticles > 0) {
-                log.info("Threads were recomputed after articles were removed: {} articles in {} ms",
+                log.info("Articles without a place in a thread were threaded: {} articles in {} ms",
                         threadedArticles, System.currentTimeMillis() - startedAt);
             }
         });

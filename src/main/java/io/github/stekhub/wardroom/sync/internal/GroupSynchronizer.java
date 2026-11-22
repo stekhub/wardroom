@@ -104,6 +104,10 @@ class GroupSynchronizer {
             }
             threads.recomputeGroup(groupId);
         }
+        if (firstNumber > highWatermark) {
+            // Nothing was fetched. An article whose threading failed earlier gets its place now (spec 006).
+            threads.recomputeGroup(groupId);
+        }
 
         boolean recorded = Boolean.TRUE.equals(transactionOperations.execute(status -> {
             if (subscribedGroups.find(groupId).isEmpty()) {

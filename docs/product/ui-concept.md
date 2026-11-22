@@ -31,7 +31,7 @@ The layout and interaction rules shared by all feature specifications. Each spec
 
 | View | Path | Content |
 |---|---|---|
-| Group | `/groups/{id}`, `/groups/{id}?from=2015-01-01` | Header with large group icon, group name, subscribe toggle, refresh, mark all as read, jump to date; sort tabs (newest, latest activity (default), most discussed); thread cards ([spec 008](../specs/008-discussion-view/spec.md)) |
+| Group | `/groups/{id}`, `/groups/{id}?until=2015-01-01` | Header with large group icon, group name, subscribe toggle, refresh, mark all as read, jump to date; sort tabs (newest, latest activity (default), most discussed); thread cards ([spec 008](../specs/008-discussion-view/spec.md)) |
 | Thread | `/groups/{id}/threads/{articleId}` | The thread with nested replies, replacing the thread list. Back returns to the list at the same scroll position |
 | Discover | `/discover` | Search box and paged group list; each row shows group icon, name, description, badges and the subscribe toggle |
 | Settings | `/settings/{section}` | Section navigation and one section at a time; see [Settings page](#settings-page) |

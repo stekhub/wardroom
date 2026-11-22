@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router'
+import { Outlet, ScrollRestoration } from 'react-router'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/shell/AppSidebar'
 import { CredentialsNotice } from '@/shell/CredentialsNotice'
@@ -20,6 +20,8 @@ export function AppShell() {
         </div>
         <CredentialsNotice />
         <Outlet />
+        {/* A new view opens at the top; going back returns to where the view was left. */}
+        <ScrollRestoration />
       </SidebarInset>
     </SidebarProvider>
   )
