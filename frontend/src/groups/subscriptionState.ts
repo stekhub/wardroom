@@ -94,6 +94,9 @@ export function useSubscriptionChange() {
         queryClient.setQueryData<Subscription[]>(SUBSCRIPTIONS_KEY, (subscriptions) =>
           subscriptions?.filter((subscription) => subscription.groupId !== groupId),
         )
+        // The articles and ranges of the group are gone; a kept list or jump would refer to them.
+        queryClient.removeQueries({ queryKey: ['threads', groupId] })
+        queryClient.removeQueries({ queryKey: ['jump', groupId] })
       }
       await queryClient.invalidateQueries({ queryKey: SUBSCRIPTIONS_KEY })
       return response.ok
@@ -102,4 +105,16 @@ export function useSubscriptionChange() {
   )
 
   return { subscribe, unsubscribe }
+}
+
+/**
+ * The time of the last successful synchronization of the group as the subscription list has it
+ * now, or `null` when the group was never synchronized or the list is not loaded.
+ */
+export function lastSyncedAtOf(queryClient: QueryClient, groupId: number): number | null {
+  const subscriptions = queryClient.getQueryData<Subscription[]>(SUBSCRIPTIONS_KEY)
+  return (
+    subscriptions?.find((subscription) => subscription.groupId === groupId)?.sync.lastSyncedAt ??
+    null
+  )
 }

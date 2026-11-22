@@ -76,10 +76,72 @@ export function testSubscription(
   }
 }
 
+type ThreadCard = components['schemas']['ThreadCard']
+type ThreadPage = components['schemas']['ThreadPage']
+type ThreadArticle = components['schemas']['ThreadArticle']
+
+/** Builds a thread card as the backend returns it: one read article by Ada, without cached text. */
+export function testThreadCard(
+  rootId: number,
+  subject: string,
+  overrides: Partial<ThreadCard> = {},
+): ThreadCard {
+  return {
+    rootId,
+    cardArticleId: rootId,
+    subject,
+    from: 'Ada Lovelace <ada@example.org>',
+    authorKey: 'ada@example.org',
+    date: 1_763_450_000_000,
+    excerpt: null,
+    messageCount: 1,
+    latestActivity: 1_763_450_000_000,
+    unreadCount: 0,
+    ...overrides,
+  }
+}
+
+/** Builds a page of thread cards: the last one, of a group whose newest range is range 7. */
+export function testThreadPage(
+  items: ThreadCard[] = [],
+  overrides: Partial<ThreadPage> = {},
+): ThreadPage {
+  return {
+    items,
+    nextCursor: null,
+    rangeId: 7,
+    lowWatermarkReached: false,
+    highWatermarkReached: true,
+    ...overrides,
+  }
+}
+
+/** Builds an article of a thread as the backend returns it: read, by Ada, located in the group. */
+export function testThreadArticle(
+  id: number,
+  parentId: number | null,
+  depth: number,
+  overrides: Partial<ThreadArticle> = {},
+): ThreadArticle {
+  return {
+    id,
+    parentId,
+    depth,
+    isStub: false,
+    subject: 'Hello',
+    from: 'Ada Lovelace <ada@example.org>',
+    authorKey: 'ada@example.org',
+    date: 1_763_450_000_000,
+    read: true,
+    otherGroup: null,
+    ...overrides,
+  }
+}
+
 /**
  * The backend with an account, asked by a browser that is logged in. Unless a test says
  * otherwise, a server is configured, so the application itself is shown, the group list of
- * the server is empty and no group is subscribed.
+ * the server is empty, no group is subscribed and a group has no threads.
  */
 export function backendLoggedIn(username = 'owner', servers: Server[] = [TEST_SERVER]) {
   server.use(
@@ -90,6 +152,7 @@ export function backendLoggedIn(username = 'owner', servers: Server[] = [TEST_SE
     ),
     http.get('/api/servers/:serverId/groups/refresh', () => HttpResponse.json(IDLE_REFRESH)),
     http.get('/api/subscriptions', () => HttpResponse.json([])),
+    http.get('/api/groups/:groupId/threads', () => HttpResponse.json(testThreadPage())),
   )
 }
 

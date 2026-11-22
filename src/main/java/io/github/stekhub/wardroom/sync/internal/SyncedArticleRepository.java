@@ -75,17 +75,6 @@ class SyncedArticleRepository {
                 .fetchOptional(row -> new SyncedRange(row.value1(), row.value2(), row.value3()));
     }
 
-    /** @return the nearest range of the group that starts above the article number */
-    Optional<SyncedRange> findRangeAbove(long groupId, long articleNumber) {
-        return database.select(SYNCED_RANGE.ID, SYNCED_RANGE.FIRST_NUMBER, SYNCED_RANGE.LAST_NUMBER)
-                .from(SYNCED_RANGE)
-                .where(SYNCED_RANGE.NEWSGROUP_ID.eq((int) groupId))
-                .and(SYNCED_RANGE.FIRST_NUMBER.gt(articleNumber))
-                .orderBy(SYNCED_RANGE.FIRST_NUMBER)
-                .limit(1)
-                .fetchOptional(row -> new SyncedRange(row.value1(), row.value2(), row.value3()));
-    }
-
     /** @return the ID of the new range */
     long insertRange(long groupId, long firstNumber, long lastNumber) {
         return database.insertInto(SYNCED_RANGE, SYNCED_RANGE.NEWSGROUP_ID, SYNCED_RANGE.FIRST_NUMBER,
@@ -128,22 +117,6 @@ class SyncedArticleRepository {
                 .where(SYNCED_RANGE.ID.eq((int) rangeId))
                 .execute();
         return new SyncedRange(rangeId, mergedFirst, mergedLast);
-    }
-
-    /**
-     * @return the date of the first article of the group from this number on that has a date and is not above the
-     *         last number
-     */
-    Optional<Long> findFirstDate(long groupId, long firstNumber, long lastNumber) {
-        return database.select(ARTICLE.DATE)
-                .from(ARTICLE_LOCATION)
-                .join(ARTICLE).on(ARTICLE.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
-                .where(ARTICLE_LOCATION.NEWSGROUP_ID.eq((int) groupId))
-                .and(ARTICLE_LOCATION.ARTICLE_NUMBER.between(firstNumber, lastNumber))
-                .and(ARTICLE.DATE.isNotNull())
-                .orderBy(ARTICLE_LOCATION.ARTICLE_NUMBER)
-                .limit(1)
-                .fetchOptional(ARTICLE.DATE);
     }
 
     /**

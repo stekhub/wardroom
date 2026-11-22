@@ -6,7 +6,7 @@
 
 ## Scope
 
-Fetching article overviews of subscribed groups: the background schedule, the first synchronization, manual refresh, loading older and newer discussions, jumping to a date, server expiry and renumbering, the cache size limit, and the synchronization settings. Fetching article content is covered by the article reading specification; building threads by the threading specification; showing threads, including the date view, by the discussion view specification.
+Fetching article overviews of subscribed groups: the background schedule, the first synchronization, manual refresh, loading older discussions, jumping to a date, server expiry and renumbering, the cache size limit, and the synchronization settings. Fetching article content is covered by the article reading specification; building threads by the threading specification; showing threads, including the date view, by the discussion view specification.
 
 ## User stories
 
@@ -37,19 +37,20 @@ Fetching article overviews of subscribed groups: the background schedule, the fi
 
 - The refresh button in the group header synchronizes that group immediately, outside the schedule.
 
-**Load older and load more**
+**Load older**
 
-- "Load older discussions" extends the range being viewed downwards by up to `sync.initial_depth` overviews; in the normal group view that is the newest range.
-- In a date view, "load more" extends the range upwards by the same amount.
-- A step stops at the server's low or high watermark or at the neighboring range, and merges with it ([ADR 0021](../../architecture/decisions/0021-jump-to-date.md)).
-- Articles newly stored by load older, load more and jump to date are marked read ([ADR 0022](../../architecture/decisions/0022-older-articles-arrive-read.md)).
+- "Load older discussions" extends the range being viewed downwards by up to `sync.initial_depth` overviews. In the normal group view that is the newest range; in a date view it is the range of the jump.
+- A step stops at the server's low watermark or at the neighboring range, and merges with it ([ADR 0021](../../architecture/decisions/0021-jump-to-date.md)).
+- Ranges are not extended upwards by the owner ([ADR 0033](../../architecture/decisions/0033-date-view-up-to-a-day.md)); the synchronization extends the newest range.
+- Articles newly stored by load older and jump to date are marked read ([ADR 0022](../../architecture/decisions/0022-older-articles-arrive-read.md)).
 
 **Jump to date**
 
-- The owner picks a date in the group header. The frontend sends the start of that day in the browser's time zone.
-- Wardroom searches for the first article on or after that time, then fetches up to `sync.initial_depth` overviews from there forward, and the group view shows the group from that date, oldest first.
-- If the start falls inside an existing range, nothing is fetched.
-- If the date is older than the oldest article on the server, the view starts at the oldest available article and states its date.
+- The owner picks a date in the group header. The frontend sends the end of that day in the browser's time zone, which is the start of the next day ([ADR 0033](../../architecture/decisions/0033-date-view-up-to-a-day.md)).
+- Wardroom searches for the last article before that time, then fetches up to `sync.initial_depth` overviews that end there, and the group view shows the group up to that day, newest first.
+- The fetch stops at the low watermark and at the neighboring range below, and merges with that range.
+- If the end falls inside an existing range, nothing is fetched.
+- If the day is before the oldest article on the server, nothing is fetched; the view states the date of the oldest article and offers that day.
 - If the date is in the future or after the newest article, the view shows the newest articles.
 
 **Expiry and renumbering**
@@ -84,8 +85,8 @@ All endpoints require a session and the CSRF token for state-changing requests (
 | Method and path | Request | Responses |
 |---|---|---|
 | `POST /api/groups/{id}/sync` | | `202` started or already running; `404`; `409` not subscribed or credentials invalid |
-| `POST /api/groups/{id}/jump` | `{ "from": <epoch ms> }` | `200` jump result; `404`; `409`; `502` server error |
-| `POST /api/groups/{id}/ranges/{rangeId}/extend` | `{ "direction": "OLDER" \| "NEWER" }` | `200` range; `404`; `409`; `502` |
+| `POST /api/groups/{id}/jump` | `{ "until": <epoch ms> }` | `200` jump result; `404`; `409`; `502` server error |
+| `POST /api/groups/{id}/ranges/{rangeId}/extend` | | `200` range; `404`; `409`; `502` |
 | `GET /api/settings` | | `200` settings |
 | `PUT /api/settings` | Settings | `200`; `400` out of range |
 
@@ -97,13 +98,15 @@ Jump and extend run during the request and return when the overviews are stored.
 { "rangeId": 7, "firstNumber": 120400, "lastNumber": 120899, "atOldest": false, "atNewest": false }
 ```
 
-`atOldest` and `atNewest` tell the frontend whether further loading in that direction is possible.
+`atOldest` tells the frontend whether "Load older discussions" can load more. `atNewest` says whether the range is the newest of the group.
 
 **Jump result**
 
 ```json
-{ "range": { "…": "range as above" }, "startNumber": 120400, "startDate": 1420070400000, "clampedToOldest": false }
+{ "range": { "…": "range as above" }, "oldestDate": null }
 ```
+
+`range` is the range that ends the view. When the chosen day is before the oldest article on the server, `range` is `null` and `oldestDate` is the date of that article.
 
 **Settings**
 
@@ -174,9 +177,9 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 - Incremental synchronization fetches only new numbers, in chunks; an interruption after a chunk resumes from there.
 - A crosspost gets a second location; a stub is filled in; a known article arriving under another number in the same group keeps one location with the new number.
 - Field order from `LIST OVERVIEW.FMT`, and the fallback when it is not supported; `XOVER` fallback.
-- Load older and load more stop at the watermarks and merge with neighboring ranges.
-- Articles newly stored by load older, load more and jump to date are read; articles already stored keep their read state.
-- Jump to date: finds the right start in a group with ascending dates; tolerates wrong dates and empty windows; clamps to the oldest article; a start inside an existing range fetches nothing; probes are not stored.
+- Load older stops at the low watermark and merges with the neighboring range.
+- Articles newly stored by load older and jump to date are read; articles already stored keep their read state.
+- Jump to date: finds the right end in a group with ascending dates; tolerates wrong dates and empty windows; a day before the oldest article fetches nothing and returns its date; an end inside an existing range fetches nothing; the fetch stops at the range below and merges with it; probes are not stored.
 - Expiry marks locations below the new low watermark; renumbering resets the group and runs a first synchronization.
 - `411`, `481`, timeouts and an open circuit breaker produce the documented status.
 - At most `max_connections − 1` background connections per server; an interactive action gets a connection while all groups are synchronizing.
@@ -189,7 +192,7 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 2. NNTP adapter: `GROUP`, `OVER`/`XOVER` with `LIST OVERVIEW.FMT`, overview parsing and header decoding.
 3. Group synchronization: first and incremental synchronization in chunks, ranges, expiry, renumbering.
 4. Scheduler with per-server parallelism and the reserved interactive connection.
-5. Load older, load more and jump to date with the date search.
+5. Load older and jump to date with the date search.
 6. Cache cleanup job and size measurement.
 7. Endpoints for manual refresh, jump, extend and settings.
-8. Frontend: refresh button, load older and load more, date picker in the group header, synchronization section on the settings page with cache use and warning.
+8. Frontend: refresh button, load older, date picker in the group header, synchronization section on the settings page with cache use and warning.

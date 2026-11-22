@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.stekhub.wardroom.nntp.NntpOverview;
 import io.github.stekhub.wardroom.sync.internal.DateSearch.DatesUnreadableException;
-import io.github.stekhub.wardroom.sync.internal.DateSearch.Start;
+import io.github.stekhub.wardroom.sync.internal.DateSearch.End;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,8 +16,6 @@ import org.junit.jupiter.api.Test;
 
 /** The date search of spec 005, against a group that exists only in memory. */
 class DateSearchTest {
-
-    private static final int DEPTH = 500;
 
     /** A group whose article with the number n was written at the time n × 1,000, unless a test says otherwise. */
     private static final class Group implements DateSearch.OverviewWindows {
@@ -56,19 +54,23 @@ class DateSearchTest {
             return overviews;
         }
 
-        Start find(long from) {
-            return DateSearch.find(this, lowestNumber, highestNumber, from, DEPTH);
+        End find(long until) {
+            return DateSearch.find(this, lowestNumber, highestNumber, until);
         }
     }
 
+    /** The article with the wanted number is the first from the time on: the end is just below it, or a little above. */
+    private static void assertEndsAt(End end, long wantedNumber) {
+        assertThat(end.beforeOldest()).isFalse();
+        assertThat(end.number()).isGreaterThanOrEqualTo(wantedNumber - 1)
+                .isLessThan(wantedNumber - 1 + DateSearch.WINDOW_SIZE);
+    }
+
     @Test
-    void theStartIsLessThanTheDepthBeforeTheFirstArticleOnOrAfterTheDate() {
+    void theEndIsTheLastArticleBeforeTheTimeOrLessThanAWindowAboveIt() {
         Group group = new Group(1, 10_000);
 
-        Start start = group.find(6_200_000);
-
-        assertThat(start.clampedToOldest()).isFalse();
-        assertThat(start.number()).isLessThanOrEqualTo(6_200).isGreaterThan(6_200 - DEPTH);
+        assertEndsAt(group.find(6_200_000), 6_200);
     }
 
     @Test
@@ -78,9 +80,10 @@ class DateSearchTest {
         for (long wantedNumber : new long[] {1_001, 1_500, 77_777, 2_500_000, 4_999_999}) {
             group.probes.clear();
 
-            Start start = group.find(wantedNumber * 1_000);
+            End end = group.find(wantedNumber * 1_000);
 
-            assertThat(start.number()).isLessThanOrEqualTo(wantedNumber).isGreaterThan(wantedNumber - DEPTH);
+            assertEndsAt(end, wantedNumber);
+            assertThat(end.oldestDate()).isEqualTo(1_000_000);
             assertThat(group.probes).hasSizeLessThanOrEqualTo(30);
             assertThat(group.probes).allSatisfy(probe -> {
                 String[] ends = probe.split("-");
@@ -90,36 +93,42 @@ class DateSearchTest {
     }
 
     @Test
-    void aDateBeforeTheOldestArticleStartsAtThatArticleAndSaysSo() {
+    void aTimeBeforeTheOldestArticleHasNothingToShowAndSaysFromWhenThatArticleIs() {
         Group group = new Group(400, 10_000);
 
-        assertThat(group.find(5)).isEqualTo(new Start(400, true));
+        assertThat(group.find(5)).isEqualTo(new End(400, true, 400_000));
         assertThat(group.probes).containsExactly("400-419");
     }
 
     @Test
-    void theDateOfTheOldestArticleItselfIsNotClamped() {
+    void theTimeOfTheOldestArticleItselfHasNothingToShowAndTheTimeAfterItHasThatArticle() {
         Group group = new Group(400, 10_000);
 
-        assertThat(group.find(400_000)).isEqualTo(new Start(400, false));
+        assertThat(group.find(400_000).beforeOldest()).isTrue();
+        assertEndsAt(group.find(400_001), 401);
     }
 
     @Test
-    void aDateAfterTheNewestArticleStartsWithinTheNewestArticles() {
+    void aTimeAfterTheNewestArticleEndsAtTheNewestArticle() {
         Group group = new Group(1, 10_000);
 
-        Start start = group.find(99_000_000);
-
-        assertThat(start.clampedToOldest()).isFalse();
-        assertThat(start.number()).isLessThanOrEqualTo(10_000).isGreaterThan(10_000 - DEPTH);
+        assertThat(group.find(99_000_000)).isEqualTo(new End(10_000, false, 1_000));
     }
 
     @Test
-    void aGroupWithFewerArticlesThanTheDepthIsReadFromItsStartOrFromTheFirstArticleOfTheDate() {
+    void aGroupWithFewArticlesIsSearchedLikeALargeOne() {
         Group group = new Group(1, 300);
 
-        assertThat(group.find(250_000).number()).isBetween(1L, 250L);
-        assertThat(group.probes).containsExactly("1-20");
+        assertEndsAt(group.find(250_000), 250);
+        assertThat(group.find(99_000_000).number()).isEqualTo(300);
+    }
+
+    @Test
+    void aGroupWithOneArticleEndsAtThatArticle() {
+        Group group = new Group(7, 7);
+
+        assertThat(group.find(99_000_000)).isEqualTo(new End(7, false, 7_000));
+        assertThat(group.find(7_000).beforeOldest()).isTrue();
     }
 
     @Test
@@ -128,10 +137,10 @@ class DateSearchTest {
         // The first midpoint is 5,001; four windows from there on have no article.
         group.withoutArticles(5_001, 5_080);
 
-        Start start = group.find(6_200_000);
+        End end = group.find(6_200_000);
 
         assertThat(group.probes).contains("5001-5020", "5021-5040", "5041-5060", "5061-5080", "5081-5100");
-        assertThat(start.number()).isLessThanOrEqualTo(6_200).isGreaterThan(6_200 - DEPTH);
+        assertEndsAt(end, 6_200);
     }
 
     @Test
@@ -159,15 +168,13 @@ class DateSearchTest {
         group.undatedNumbers.add(5_001L);
         group.undatedNumbers.add(5_002L);
 
-        Start start = group.find(6_200_000);
-
-        assertThat(start.number()).isLessThanOrEqualTo(6_200).isGreaterThan(6_200 - DEPTH);
+        assertEndsAt(group.find(6_200_000), 6_200);
     }
 
     @Test
     void aWrongDateThatNoProbeLooksAtChangesNothing() {
         Group group = new Group(1, 10_000);
-        Start expected = group.find(6_200_000);
+        End expected = group.find(6_200_000);
         Group groupWithWrongDates = new Group(1, 10_000);
         // Not the first article of any window that is probed.
         groupWithWrongDates.otherDates.put(5_010L, 1L);
@@ -177,14 +184,14 @@ class DateSearchTest {
     }
 
     @Test
-    void aWrongDateAtAProbeStillGivesAStartInsideTheGroup() {
+    void aWrongDateAtAProbeStillGivesAnEndInsideTheGroup() {
         Group group = new Group(1, 10_000);
         // The first midpoint: its article claims to be from the far future, so the search goes on below it.
         group.otherDates.put(5_001L, 99_000_000_000L);
 
-        Start start = group.find(6_200_000);
+        End end = group.find(6_200_000);
 
-        assertThat(start.number()).isBetween(1L, 10_000L);
-        assertThat(start.clampedToOldest()).isFalse();
+        assertThat(end.number()).isBetween(1L, 10_000L);
+        assertThat(end.beforeOldest()).isFalse();
     }
 }

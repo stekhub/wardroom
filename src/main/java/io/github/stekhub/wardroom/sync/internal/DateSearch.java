@@ -5,7 +5,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Finds the article number at which a group is read from a date on (spec 005, "Date search"; ADR 0021).
+ * Finds the article number up to which a group is shown for a date (spec 005, "Date search"; ADR 0021,
+ * ADR 0033).
  *
  * <p>NNTP cannot ask for articles by date. Article numbers are given in the order of arrival, so they serve as the
  * time axis: a binary search over the numbers looks at the date of a few overviews at each midpoint. The result is
@@ -30,10 +31,12 @@ final class DateSearch {
     }
 
     /**
-     * @param number          the article number to read from
-     * @param clampedToOldest whether the date is older than the oldest article, so reading starts at that article
+     * @param number       the highest article number to show: the articles before the time have this number or a
+     *                     lower one, and fewer than {@link #WINDOW_SIZE} numbers up to it are from the time on
+     * @param beforeOldest whether the time is not after the oldest article, so there is nothing to show
+     * @param oldestDate   the date of the oldest article that has one, in UTC milliseconds
      */
-    record Start(long number, boolean clampedToOldest) {
+    record End(long number, boolean beforeOldest, long oldestDate) {
     }
 
     /** No date could be read where the search needed one. */
@@ -47,30 +50,29 @@ final class DateSearch {
     /**
      * @param lowestNumber  the lowest article number to consider; not above the highest
      * @param highestNumber the highest article number to consider
-     * @param from          the time to read from, in UTC milliseconds
-     * @param depth         the search stops when fewer numbers than this remain; the start is the lowest of them
+     * @param until         the time before which articles are shown, in UTC milliseconds
      * @throws DatesUnreadableException when five windows in a row have no overview with a date, or the oldest
      *                                  articles have none
      */
-    static Start find(OverviewWindows overviewWindows, long lowestNumber, long highestNumber, long from, int depth) {
+    static End find(OverviewWindows overviewWindows, long lowestNumber, long highestNumber, long until) {
         NntpOverview oldestOverview = firstDatedOverview(overviewWindows, lowestNumber, highestNumber)
                 .orElseThrow(DatesUnreadableException::new);
-        if (oldestOverview.date() >= from) {
-            return new Start(lowestNumber, oldestOverview.date() > from);
+        if (oldestOverview.date() >= until) {
+            return new End(lowestNumber, true, oldestOverview.date());
         }
-        // The first article on or after the date lies between lowerEnd and upperEnd + 1.
+        // The first article from the time on lies between lowerEnd and upperEnd + 1.
         long lowerEnd = oldestOverview.number() + 1;
         long upperEnd = highestNumber;
-        while (upperEnd - lowerEnd + 1 >= depth) {
+        while (upperEnd - lowerEnd + 1 >= WINDOW_SIZE) {
             long midpoint = lowerEnd + (upperEnd - lowerEnd) / 2;
             Optional<NntpOverview> probe = firstDatedOverview(overviewWindows, midpoint, highestNumber);
-            if (probe.isEmpty() || probe.get().date() >= from) {
+            if (probe.isEmpty() || probe.get().date() >= until) {
                 upperEnd = midpoint - 1;
             } else {
                 lowerEnd = probe.get().number() + 1;
             }
         }
-        return new Start(Math.min(lowerEnd, highestNumber), false);
+        return new End(upperEnd, false, oldestOverview.date());
     }
 
     /**

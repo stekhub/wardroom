@@ -1,6 +1,6 @@
 # 0021. Jump to date and multiple synchronized ranges
 
-- Status: Accepted; read state of fetched articles superseded by [0022](0022-older-articles-arrive-read.md)
+- Status: Accepted; read state of fetched articles superseded by [0022](0022-older-articles-arrive-read.md); direction of the jump and "load more" superseded by [0033](0033-date-view-up-to-a-day.md)
 - Date: 2026-11-18
 - Supersedes: the single contiguous synchronized range of a group in [ADR 0013](0013-synchronization-and-caching.md) and the [data model](../data-model.md)
 

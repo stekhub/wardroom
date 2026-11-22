@@ -22,6 +22,10 @@ const SKELETON_ROWS = 3
 export function SubscriptionList() {
   const subscriptions = useSubscriptions()
   const location = useLocation()
+  /** The thread pages of a group belong to the group. */
+  const isOpen = (groupId: number) =>
+    location.pathname === `/groups/${String(groupId)}` ||
+    location.pathname.startsWith(`/groups/${String(groupId)}/`)
 
   if (subscriptions.data === undefined) {
     if (subscriptions.isError) {
@@ -55,7 +59,7 @@ export function SubscriptionList() {
           <SidebarMenuButton
             asChild
             tooltip={subscription.name}
-            isActive={location.pathname === `/groups/${String(subscription.groupId)}`}
+            isActive={isOpen(subscription.groupId)}
             className="group-data-[collapsible=icon]:p-1.5! [&_[data-symbol]_svg]:size-3"
           >
             <Link to={`/groups/${String(subscription.groupId)}`}>

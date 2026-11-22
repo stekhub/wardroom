@@ -117,17 +117,6 @@
         "required" : [ "username" ],
         "type" : "object"
       },
-      "ExtendRequest" : {
-        "properties" : {
-          "direction" : {
-            "description" : "OLDER loads towards lower article numbers, NEWER towards higher ones",
-            "enum" : [ "OLDER", "NEWER" ],
-            "type" : "string"
-          }
-        },
-        "required" : [ "direction" ],
-        "type" : "object"
-      },
       "Group" : {
         "properties" : {
           "description" : {
@@ -204,37 +193,28 @@
       },
       "JumpRequest" : {
         "properties" : {
-          "from" : {
-            "description" : "The time to read the group from, in UTC milliseconds: the start of the chosen day in the time zone of the browser",
+          "until" : {
+            "description" : "The time before which the group is shown, in UTC milliseconds: the end of the chosen day in the time zone of the browser, which is the start of the next day",
             "format" : "int64",
             "type" : "integer"
           }
         },
-        "required" : [ "from" ],
+        "required" : [ "until" ],
         "type" : "object"
       },
       "JumpResult" : {
         "properties" : {
-          "clampedToOldest" : {
-            "description" : "Whether the chosen date is older than the oldest article of the server",
-            "type" : "boolean"
-          },
-          "range" : {
-            "$ref" : "#/components/schemas/Range",
-            "description" : "The range the start lies in"
-          },
-          "startDate" : {
-            "description" : "The date of the first article from the start on that has one, in UTC milliseconds",
+          "oldestDate" : {
+            "description" : "The date of the oldest article of the server, in UTC milliseconds, when there is no range; otherwise null",
             "format" : "int64",
             "type" : [ "integer", "null" ]
           },
-          "startNumber" : {
-            "description" : "The article number the group is read from",
-            "format" : "int64",
-            "type" : "integer"
+          "range" : {
+            "$ref" : "#/components/schemas/Range",
+            "description" : "The range that ends the view; null when the chosen day is before the oldest article of the server",
+            "type" : "null"
           }
         },
-        "required" : [ "clampedToOldest", "range", "startNumber" ],
         "type" : "object"
       },
       "LoginRequest" : {
@@ -316,7 +296,7 @@
         "description" : "A range of article numbers whose overviews are stored",
         "properties" : {
           "atNewest" : {
-            "description" : "Whether nothing newer can be loaded",
+            "description" : "Whether the range is the newest of the group",
             "type" : "boolean"
           },
           "atOldest" : {
@@ -526,6 +506,152 @@
           }
         },
         "required" : [ "running" ],
+        "type" : "object"
+      },
+      "Thread" : {
+        "description" : "A thread with its articles in display order",
+        "properties" : {
+          "articles" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ThreadArticle"
+            },
+            "type" : "array"
+          },
+          "rootId" : {
+            "description" : "The current root of the thread",
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "articles", "rootId" ],
+        "type" : "object"
+      },
+      "ThreadArticle" : {
+        "description" : "An article or stub of a thread. All text in it is untrusted",
+        "properties" : {
+          "authorKey" : {
+            "description" : "The key the author icon is derived from; null for a stub",
+            "type" : [ "string", "null" ]
+          },
+          "date" : {
+            "description" : "UTC milliseconds; null when the date cannot be read",
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "depth" : {
+            "description" : "How many articles lie between it and the thread root; 0 for the root",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "from" : {
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "isStub" : {
+            "description" : "Whether the article is only referenced and not stored",
+            "type" : "boolean"
+          },
+          "otherGroup" : {
+            "description" : "The name of a group the article is located in, when it is not located in this group",
+            "type" : [ "string", "null" ]
+          },
+          "parentId" : {
+            "description" : "The article it answers; null for the thread root",
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "read" : {
+            "type" : "boolean"
+          },
+          "subject" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "depth", "id", "isStub", "read" ],
+        "type" : "object"
+      },
+      "ThreadCard" : {
+        "description" : "A thread of a group as its card shows it. All text in it is untrusted",
+        "properties" : {
+          "authorKey" : {
+            "description" : "The key the author icon is derived from",
+            "type" : [ "string", "null" ]
+          },
+          "cardArticleId" : {
+            "description" : "The article whose subject, author and date stand for the thread",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "date" : {
+            "description" : "The date of the card article in UTC milliseconds; null when it cannot be read",
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "excerpt" : {
+            "description" : "The beginning of the text of the card article; null when its content is not cached or it has no text of its own",
+            "type" : [ "string", "null" ]
+          },
+          "from" : {
+            "type" : [ "string", "null" ]
+          },
+          "latestActivity" : {
+            "description" : "The newest date among those articles in UTC milliseconds; null when none has a date",
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "messageCount" : {
+            "description" : "The articles of the thread located in the group",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "rootId" : {
+            "description" : "The topmost article of the thread, which can be a stub",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "subject" : {
+            "type" : [ "string", "null" ]
+          },
+          "unreadCount" : {
+            "description" : "How many of those articles are not read",
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "cardArticleId", "messageCount", "rootId", "unreadCount" ],
+        "type" : "object"
+      },
+      "ThreadPage" : {
+        "description" : "One page of the thread cards of a group",
+        "properties" : {
+          "highWatermarkReached" : {
+            "description" : "Whether nothing newer than the range can be loaded",
+            "type" : "boolean"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ThreadCard"
+            },
+            "type" : "array"
+          },
+          "lowWatermarkReached" : {
+            "description" : "Whether nothing older than the range can be loaded",
+            "type" : "boolean"
+          },
+          "nextCursor" : {
+            "description" : "To be sent as cursor for the next page; null on the last page",
+            "type" : [ "string", "null" ]
+          },
+          "rangeId" : {
+            "description" : "The synchronized range the list shows: the newest one of the group, or the one of the jump in a date view; null when the group has none yet",
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          }
+        },
+        "required" : [ "highWatermarkReached", "items", "lowWatermarkReached" ],
         "type" : "object"
       }
     }
@@ -891,7 +1017,7 @@
                 }
               }
             },
-            "description" : "Where the group is read from"
+            "description" : "The range that ends the view"
           },
           "400" : {
             "content" : {
@@ -934,7 +1060,7 @@
             "description" : "The server could not be asked, or the dates of the group could not be read"
           }
         },
-        "summary" : "Finds the first article on or after a time and loads the overviews from there on",
+        "summary" : "Finds the last article before a time and loads the overviews that end there",
         "tags" : [ "Synchronization" ]
       }
     },
@@ -999,16 +1125,6 @@
             "type" : "integer"
           }
         } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ExtendRequest"
-              }
-            }
-          },
-          "required" : true
-        },
         "responses" : {
           "200" : {
             "content" : {
@@ -1019,16 +1135,6 @@
               }
             },
             "description" : "The range as it is stored now"
-          },
-          "400" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ProblemDetail"
-                }
-              }
-            },
-            "description" : "The request has no valid direction"
           },
           "404" : {
             "content" : {
@@ -1061,7 +1167,7 @@
             "description" : "The server could not be asked"
           }
         },
-        "summary" : "Loads older or newer overviews next to a range",
+        "summary" : "Loads older overviews below a range",
         "tags" : [ "Synchronization" ]
       }
     },
@@ -1174,6 +1280,191 @@
         },
         "summary" : "Starts the synchronization of the group",
         "tags" : [ "Synchronization" ]
+      }
+    },
+    "/api/groups/{groupId}/threads" : {
+      "get" : {
+        "operationId" : "listThreads",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "groupId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "description" : "newest, activity (the default) or discussed; not together with until",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "An ISO 8601 instant: only threads that began before this time, newest first",
+          "in" : "query",
+          "name" : "until",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "The range of the jump; required with until",
+          "in" : "query",
+          "name" : "rangeId",
+          "required" : false,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "description" : "The nextCursor of the page before",
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "How many cards; 50 by default, 100 at most",
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ThreadPage"
+                }
+              }
+            },
+            "description" : "A page of thread cards"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "A parameter is invalid"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No group has this ID, or the group is not subscribed"
+          }
+        },
+        "summary" : "Lists the threads of a subscribed group as cards, one page at a time",
+        "tags" : [ "Threads" ]
+      }
+    },
+    "/api/groups/{groupId}/threads/{articleId}" : {
+      "get" : {
+        "operationId" : "getThread",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "groupId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "path",
+          "name" : "articleId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Thread"
+                }
+              }
+            },
+            "description" : "The thread"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No group or article has this ID, the group is not subscribed, or the thread has no article in the group"
+          }
+        },
+        "summary" : "Returns the thread that an article belongs to",
+        "tags" : [ "Threads" ]
+      }
+    },
+    "/api/groups/{groupId}/threads/{articleId}/mark-read" : {
+      "post" : {
+        "operationId" : "markThreadRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "groupId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "path",
+          "name" : "articleId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "The articles of the thread in the group are read"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "No group or article has this ID, or the thread has no article in the group"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The group is not subscribed"
+          }
+        },
+        "summary" : "Marks the articles of a thread that are located in the group as read",
+        "tags" : [ "Threads" ]
       }
     },
     "/api/servers" : {
