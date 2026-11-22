@@ -32,7 +32,7 @@ class GroupController {
     private final GroupListService groupListService;
     private final GroupListRefreshService groupListRefreshService;
 
-    @Operation(summary = "Lists the groups of the server by name, one page at a time", operationId = "listGroups")
+    @Operation(summary = "Lists the groups of the server, one page at a time", operationId = "listGroups")
     @ApiResponse(responseCode = "200", description = "One page of the groups the server still has")
     @ApiResponse(responseCode = "400", description = "A parameter breaks a rule", content = @Content(
             mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
@@ -43,9 +43,12 @@ class GroupController {
             @Parameter(description = "Search text. A group matches when every word appears in its name or its "
                     + "description; at most 200 characters")
             @RequestParam(name = "q", required = false) String query,
+            @Parameter(description = "The order: by name, or the groups with the most articles per day first",
+                    schema = @Schema(allowableValues = {"name", "activity"}, defaultValue = "name"))
+            @RequestParam(required = false) String sort,
             @Parameter(description = "From 0") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "1 to 100") @RequestParam(defaultValue = "50") int size) {
-        return groupListService.page(serverId, query, page, size);
+        return groupListService.page(serverId, query, sort, page, size);
     }
 
     @Operation(summary = "Starts a refresh of the group list", operationId = "refreshGroupList")

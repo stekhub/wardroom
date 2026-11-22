@@ -19,8 +19,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 11 | Discussion view | Spec 008 | Done |
 | 12 | Ignoring | Spec 010 | Done |
 | 13 | Posting | Spec 009 | Done |
-| 14 | Cache size limit | ADR 0023, 0034; spec 005 | In review |
-| 15 | Activity of a group | Spec 003 | Not started; spec change first |
+| 14 | Cache size limit | ADR 0023, 0034; spec 005 | Done |
+| 15 | Activity of a group | Spec 003 | In review |
 | 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Not started |
 | 17 | Release pipeline | ADR 0009, 0024 | Not started; discuss first |
 
@@ -114,7 +114,7 @@ Wardroom can first be used for reading after step 11.
 
 ### 15. Activity of a group
 
-Added to the MVP by the owner on 2026-11-22. Before the implementation: propose the change of spec 003 and of the data model to the owner. The direction:
+Added to the MVP by the owner on 2026-11-22. The change of spec 003 and of the data model was written with the step; the owner accepted it on 2026-11-22. The direction:
 
 - The group list shows how many articles a group gets per day, and can be sorted by it.
 - The group list refresh already reads the high watermark of every group, so no further commands to the server are needed.
@@ -129,7 +129,7 @@ Added to the MVP by the owner on 2026-11-22. Before the implementation: propose 
 - The high watermark of the group itself cannot serve, because the synchronization of a subscribed group moves it.
 - The value is approximate, because cancelled articles and spam count too.
 - A moving average was considered and dropped: it depends on the whole history of refreshes, a burst fades out slowly instead of dropping out, and its value cannot be checked.
-- To be decided with the spec change: whether the activity is shown as a number or as levels.
+- Shown as a number, not as levels; decided during the step and accepted by the owner.
 
 ### 16. Polish and documentation
 
@@ -160,6 +160,40 @@ Added to the MVP by the owner on 2026-11-22. Before the implementation: propose 
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 15, activity of a group (2026-11-22)**
+
+Built:
+
+- Migration V13: the two baselines and `articles_per_day` in `newsgroup`.
+- The group list refresh keeps the baselines and computes the activity, in the statement that stores a group.
+- `GET /api/servers/{id}/groups` has the parameter `sort` (`name` or `activity`), the field `articlesPerDay` of a group and the field `activityKnown` of the page.
+- Frontend: the discover view shows the activity in each row, has a select for the order, keeps the order in the address, and shows a hint while no activity is known.
+- Spec 003, the data model and the UI concept describe it.
+
+The spec change follows the direction the owner gave in the plan. It was written with the step, without a discussion before. The owner accepted it on 2026-11-22, with these decisions that the direction had left open:
+
+1. **The activity is shown as a number,** for example "240 per day", rounded to a whole number; below one article per day as "under 1 per day". Levels would hide the value and need thresholds that nobody can check.
+2. **A group gets both baselines at once,** with the values of the first refresh that lists it. The plan speaks of "the first baseline"; with both set, the rule for the 7 days needs no special case. In the first week the activity is counted from the first load.
+3. **The younger baseline changes places first, then the activity is computed.** The count therefore covers 7 to 14 days, as the plan says. After 30 days without a refresh it covers these 30 days once, and the next refresh after 7 days is back to 7.
+4. **The hint is shown once above the list,** not in every row, and only while no group of the server has an activity. A single group without a value (new, or numbered anew) shows nothing in its row.
+5. **A group that left the server keeps its baselines and its activity.** When it returns, the count goes on from them.
+6. **The order is the request parameter `sort`** and part of the address of the page (`?sort=activity`). Changing it shows the first page.
+7. **The page says with `activityKnown` whether to show the hint.** It is about the server, not about the search or the page.
+8. **An existing installation gets its baselines with the next refresh** after the update, and its first values one day later.
+9. **The row has a tooltip** on the activity: "New articles per day, counted over the last 7 to 14 days. Approximate."
+
+Findings:
+
+- A manual refresh shortly after another one changes neither the baselines nor, noticeably, the value. This is what the two baselines are for.
+- No index serves the order by activity. The page already counts all matching groups of the server for the total, so the order costs one more pass of the same size. Not measured with a large list.
+
+Verified:
+
+- `./mvnw verify` passes: 622 backend tests and 239 frontend tests.
+- Tried by hand on a test instance: the migration ran at the start. With activity values written into the test database, the discover view ordered by activity shows "240 per day", "12 per day", "under 1 per day" and "0 per day" in this order, and the groups without a value last, with nothing in their row.
+- Not tried by hand: a refresh that computes a value, because that needs a day between two refreshes of a server. The integration tests move the stored baselines into the past instead. The hint of the first day was not looked at in the browser either; a frontend test covers it.
+- The owner tested the feature by hand on 2026-11-22, before the commit. Found there: the order select had moved the time of the last refresh and the refresh button to the left when the row was too narrow. The select is now next to the search box, and the refresh part stays on the right.
 
 **Step 14, cache size limit (2026-11-22)**
 

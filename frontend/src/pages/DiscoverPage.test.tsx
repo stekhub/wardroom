@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
 import { App } from '@/App'
 import { backendLoggedIn, IDLE_REFRESH, problem, TEST_SERVER, testGroup } from '@/test/backend'
+import { formatActivity } from '@/groups/activity'
 import { server } from '@/test/server'
 
 const GROUPS_PATH = '/api/servers/:serverId/groups'
@@ -16,7 +17,13 @@ function openAt(path: string) {
 
 /** Answers the group list request with what the function returns for its parameters. */
 function groupsAnswer(answer: (query: string, page: number) => object) {
-  const requests: { query: string; page: number; size: string | null; serverId: string }[] = []
+  const requests: {
+    query: string
+    page: number
+    size: string | null
+    serverId: string
+    sort: string | null
+  }[] = []
   server.use(
     http.get(GROUPS_PATH, ({ request, params }) => {
       const parameters = new URL(request.url).searchParams
@@ -27,6 +34,7 @@ function groupsAnswer(answer: (query: string, page: number) => object) {
         page,
         size: parameters.get('size'),
         serverId: String(params.serverId),
+        sort: parameters.get('sort'),
       })
       return HttpResponse.json(answer(query, page))
     }),
@@ -35,7 +43,7 @@ function groupsAnswer(answer: (query: string, page: number) => object) {
 }
 
 function pageOf(items: object[], page = 0, total = items.length) {
-  return { items, page, size: 50, total }
+  return { items, page, size: 50, total, activityKnown: true }
 }
 
 // The list (spec 003, UI concept)
@@ -69,7 +77,13 @@ test('the discover view lists the groups with icon, name, description and postin
   expect(within(moderatedRow).getByText('Moderated')).toBeVisible()
   expect(within(archiveRow).getByText('No posting')).toBeVisible()
   expect(screen.getByText('3 groups · Page 1 of 1')).toBeVisible()
-  expect(requests[0]).toEqual({ query: '', page: 0, size: '50', serverId: String(TEST_SERVER.id) })
+  expect(requests[0]).toEqual({
+    query: '',
+    page: 0,
+    size: '50',
+    serverId: String(TEST_SERVER.id),
+    sort: 'name',
+  })
 })
 
 test('name and description from the server are shown as text, not as HTML', async () => {
@@ -163,7 +177,7 @@ test('the search and the page of the URL are shown, so bookmarks work', async ()
   expect(screen.getByRole('searchbox', { name: 'Search groups' })).toHaveValue('java')
   expect(screen.getByText('120 groups · Page 2 of 3')).toBeVisible()
   expect(requests).toEqual([
-    { query: 'java', page: 1, size: '50', serverId: String(TEST_SERVER.id) },
+    { query: 'java', page: 1, size: '50', serverId: String(TEST_SERVER.id), sort: 'name' },
   ])
 })
 
@@ -347,4 +361,94 @@ test('a refresh that is refused for invalid credentials leads to the server sett
   expect(
     await screen.findByRole('link', { name: 'Enter them again in the server settings.' }),
   ).toHaveAttribute('href', '/settings/server')
+})
+
+// Activity (spec 003)
+
+test('a row shows the activity of its group, and nothing while it is not known', async () => {
+  backendLoggedIn()
+  groupsAnswer(() =>
+    pageOf([
+      testGroup(1, 'example.busy', { articlesPerDay: 240.4 }),
+      testGroup(2, 'example.quiet', { articlesPerDay: 0.3 }),
+      // The backend sends null for an activity that is not known.
+      { ...testGroup(3, 'example.new'), articlesPerDay: null },
+    ]),
+  )
+
+  openAt('/discover')
+
+  const list = await screen.findByRole('list', { name: 'Groups' })
+  const [busyRow, quietRow, newRow] = within(list).getAllByRole('listitem')
+  if (busyRow === undefined || quietRow === undefined || newRow === undefined) {
+    throw new Error('The list has fewer than three rows')
+  }
+  expect(within(busyRow).getByText('240 per day')).toBeVisible()
+  expect(within(quietRow).getByText('under 1 per day')).toBeVisible()
+  expect(within(newRow).queryByText(/per day/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/shown one day after/)).not.toBeInTheDocument()
+})
+
+test('while no activity is known, the view says when it will be', async () => {
+  backendLoggedIn()
+  groupsAnswer(() => ({ ...pageOf([testGroup(1, 'example.new')]), activityKnown: false }))
+
+  openAt('/discover')
+
+  expect(
+    await screen.findByText(
+      'The activity of the groups is shown one day after the group list was first fetched.',
+    ),
+  ).toBeVisible()
+})
+
+test('the order by activity is asked for, kept in the URL and starts at the first page', async () => {
+  backendLoggedIn()
+  const requests = groupsAnswer((_query, page) =>
+    pageOf([testGroup(page + 1, 'example.a')], page, 120),
+  )
+
+  openAt('/discover?q=example&page=2')
+
+  const order = await screen.findByRole('combobox', { name: 'Order of the groups' })
+  expect(order).toHaveValue('name')
+  await userEvent.selectOptions(order, 'By activity')
+
+  await waitFor(() => {
+    expect(requests.at(-1)).toMatchObject({ query: 'example', sort: 'activity', page: 0 })
+  })
+  expect(window.location.search).toBe('?q=example&sort=activity')
+
+  await userEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+  await waitFor(() => {
+    expect(requests.at(-1)).toMatchObject({ query: 'example', sort: 'activity', page: 1 })
+  })
+  expect(window.location.search).toBe('?q=example&sort=activity&page=2')
+})
+
+test('the order of the URL is shown, and a search keeps it', async () => {
+  backendLoggedIn()
+  const requests = groupsAnswer(() => pageOf([testGroup(1, 'example.a')]))
+
+  openAt('/discover?sort=activity')
+
+  expect(await screen.findByRole('combobox', { name: 'Order of the groups' })).toHaveValue(
+    'activity',
+  )
+  await userEvent.type(screen.getByRole('searchbox', { name: 'Search groups' }), 'java')
+
+  await waitFor(() => {
+    expect(requests.at(-1)).toMatchObject({ query: 'java', sort: 'activity', page: 0 })
+  })
+  expect(window.location.search).toBe('?q=java&sort=activity')
+})
+
+test('the activity is shown as a whole number per day', () => {
+  expect(formatActivity(0)).toBe('0 per day')
+  expect(formatActivity(0.04)).toBe('under 1 per day')
+  expect(formatActivity(0.99)).toBe('under 1 per day')
+  expect(formatActivity(1)).toBe('1 per day')
+  expect(formatActivity(12.5)).toBe('13 per day')
+  expect(formatActivity(12345.6)).toBe('12,346 per day')
 })

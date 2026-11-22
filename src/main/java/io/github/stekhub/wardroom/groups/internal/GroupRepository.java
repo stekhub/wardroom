@@ -14,8 +14,11 @@ import lombok.RequiredArgsConstructor;
 import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.Record3;
+import org.jooq.SortField;
 import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Repository;
 
 /** Database access for the group list of a server (data model: {@code newsgroup}). */
@@ -28,15 +31,24 @@ class GroupRepository {
     /** SQLite takes a limited number of values in one statement. */
     private static final int IDS_PER_STATEMENT = 500;
 
+    private static final long MILLIS_PER_DAY = 24L * 60 * 60 * 1000;
+
+    /** A younger baseline of this age becomes the older one, so the activity covers 7 to 14 days. */
+    static final long BASELINE_AGE_MILLIS = 7 * MILLIS_PER_DAY;
+
+    /** A shorter time follows the time of day, so it gives no value. */
+    static final long SHORTEST_MEASURED_MILLIS = MILLIS_PER_DAY;
+
     private final DSLContext database;
 
     /**
      * A group as the group list page shows it.
      *
-     * @param description {@code null} when the server gave none
+     * @param description    {@code null} when the server gave none
+     * @param articlesPerDay {@code null} while the activity is not known
      */
     record StoredGroup(long id, String name, String description, PostingStatus postingStatus,
-                       boolean subscribed) {
+                       boolean subscribed, Double articlesPerDay) {
     }
 
     /** Which groups changed their place in the list of the server at the end of a refresh. */
@@ -46,20 +58,61 @@ class GroupRepository {
     /**
      * Stores the groups of one part of the list. A group that is known already keeps its ID, its description and
      * everything later features store for it; only what {@code LIST ACTIVE} reports is replaced.
+     *
+     * <p>The same statement keeps the two baselines of the activity and computes the articles per day (spec 003).
+     * A new group starts with both baselines at this refresh. The expressions read the row as it was before the
+     * statement, so they do not depend on their order.
+     *
+     * @param refreshTime the time of the refresh the part belongs to, in milliseconds
      */
-    void upsert(long serverId, List<NntpActiveGroup> activeGroups) {
+    void upsert(long serverId, List<NntpActiveGroup> activeGroups, long refreshTime) {
+        // The values of the refresh, as the statement names them. Constants are written into the statement,
+        // because the batch binds the values of the rows by their position.
+        Field<Long> now = DSL.excluded(NEWSGROUP.ACTIVITY_YOUNGER_AT);
+        Field<Long> highWatermarkNow = DSL.excluded(NEWSGROUP.HIGH_WATERMARK);
+        // No baseline yet, or the server numbered the group anew: both baselines start over.
+        Condition startsOver = NEWSGROUP.ACTIVITY_OLDER_AT.isNull()
+                .or(highWatermarkNow.lt(NEWSGROUP.ACTIVITY_OLDER_HIGH_WATERMARK))
+                .or(highWatermarkNow.lt(NEWSGROUP.ACTIVITY_YOUNGER_HIGH_WATERMARK));
+        Condition youngerBecomesOlder = now.minus(NEWSGROUP.ACTIVITY_YOUNGER_AT)
+                .ge(DSL.inline(BASELINE_AGE_MILLIS));
+        Field<Long> olderAt = DSL.when(startsOver, now)
+                .when(youngerBecomesOlder, NEWSGROUP.ACTIVITY_YOUNGER_AT)
+                .otherwise(NEWSGROUP.ACTIVITY_OLDER_AT);
+        Field<Long> olderHighWatermark = DSL.when(startsOver, highWatermarkNow)
+                .when(youngerBecomesOlder, NEWSGROUP.ACTIVITY_YOUNGER_HIGH_WATERMARK)
+                .otherwise(NEWSGROUP.ACTIVITY_OLDER_HIGH_WATERMARK);
+        Field<Long> youngerAt = DSL.when(startsOver.or(youngerBecomesOlder), now)
+                .otherwise(NEWSGROUP.ACTIVITY_YOUNGER_AT);
+        Field<Long> youngerHighWatermark = DSL.when(startsOver.or(youngerBecomesOlder), highWatermarkNow)
+                .otherwise(NEWSGROUP.ACTIVITY_YOUNGER_HIGH_WATERMARK);
+        // Without a branch that applies, the value is NULL: the activity is not known.
+        Field<Double> articlesPerDay = DSL.when(
+                DSL.not(startsOver).and(now.minus(olderAt).ge(DSL.inline(SHORTEST_MEASURED_MILLIS))),
+                highWatermarkNow.minus(olderHighWatermark).cast(SQLDataType.DOUBLE)
+                        .mul(DSL.inline((double) MILLIS_PER_DAY))
+                        .div(now.minus(olderAt)));
+
         BatchBindStep batch = database.batch(database
                 .insertInto(NEWSGROUP, NEWSGROUP.SERVER_ID, NEWSGROUP.NAME, NEWSGROUP.POSTING_STATUS,
-                        NEWSGROUP.LOW_WATERMARK, NEWSGROUP.HIGH_WATERMARK)
-                .values((Integer) null, null, null, null, null)
+                        NEWSGROUP.LOW_WATERMARK, NEWSGROUP.HIGH_WATERMARK, NEWSGROUP.ACTIVITY_OLDER_AT,
+                        NEWSGROUP.ACTIVITY_OLDER_HIGH_WATERMARK, NEWSGROUP.ACTIVITY_YOUNGER_AT,
+                        NEWSGROUP.ACTIVITY_YOUNGER_HIGH_WATERMARK)
+                .values((Integer) null, null, null, null, null, null, null, null, null)
                 .onConflict(NEWSGROUP.SERVER_ID, NEWSGROUP.NAME)
                 .doUpdate()
                 .set(NEWSGROUP.POSTING_STATUS, DSL.excluded(NEWSGROUP.POSTING_STATUS))
                 .set(NEWSGROUP.LOW_WATERMARK, DSL.excluded(NEWSGROUP.LOW_WATERMARK))
-                .set(NEWSGROUP.HIGH_WATERMARK, DSL.excluded(NEWSGROUP.HIGH_WATERMARK)));
+                .set(NEWSGROUP.HIGH_WATERMARK, highWatermarkNow)
+                .set(NEWSGROUP.ACTIVITY_OLDER_AT, olderAt)
+                .set(NEWSGROUP.ACTIVITY_OLDER_HIGH_WATERMARK, olderHighWatermark)
+                .set(NEWSGROUP.ACTIVITY_YOUNGER_AT, youngerAt)
+                .set(NEWSGROUP.ACTIVITY_YOUNGER_HIGH_WATERMARK, youngerHighWatermark)
+                .set(NEWSGROUP.ARTICLES_PER_DAY, articlesPerDay));
         for (NntpActiveGroup activeGroup : activeGroups) {
             batch = batch.bind((int) serverId, activeGroup.name(),
                     PostingStatus.ofListActiveStatus(activeGroup.status()).name(), activeGroup.lowWatermark(),
+                    activeGroup.highWatermark(), refreshTime, activeGroup.highWatermark(), refreshTime,
                     activeGroup.highWatermark());
         }
         batch.execute();
@@ -129,22 +182,32 @@ class GroupRepository {
 
     /**
      * @param searchWords every word must appear in the name or in the description; none means all groups
-     * @return one page of the groups the server still has, ordered by name
+     * @return one page of the groups the server still has, in the given order
      */
-    List<StoredGroup> findPage(long serverId, List<String> searchWords, long offset, int size) {
+    List<StoredGroup> findPage(long serverId, List<String> searchWords, GroupSort sort, long offset, int size) {
+        List<SortField<?>> order = sort == GroupSort.ACTIVITY
+                ? List.of(NEWSGROUP.ARTICLES_PER_DAY.desc().nullsLast(), NEWSGROUP.NAME.asc())
+                : List.of(NEWSGROUP.NAME.asc());
         return database.select(NEWSGROUP.ID, NEWSGROUP.NAME, NEWSGROUP.DESCRIPTION, NEWSGROUP.POSTING_STATUS,
-                        SUBSCRIPTION.ID)
+                        SUBSCRIPTION.ID, NEWSGROUP.ARTICLES_PER_DAY)
                 .from(NEWSGROUP)
                 .leftJoin(SUBSCRIPTION).on(SUBSCRIPTION.NEWSGROUP_ID.eq(NEWSGROUP.ID))
                 .where(listedAndMatching(serverId, searchWords))
-                .orderBy(NEWSGROUP.NAME)
+                .orderBy(order)
                 .limit(size)
                 .offset(offset)
                 .fetch(row -> new StoredGroup(row.value1(), row.value2(), row.value3(),
-                        PostingStatus.valueOf(row.value4()), row.value5() != null));
+                        PostingStatus.valueOf(row.value4()), row.value5() != null, row.value6()));
     }
 
-    /** @return how many groups {@link #findPage(long, List, long, int)} has over all pages */
+    /** @return whether the activity of at least one group the server still has is known */
+    boolean hasActivity(long serverId) {
+        return database.fetchExists(NEWSGROUP, NEWSGROUP.SERVER_ID.eq((int) serverId)
+                .and(NEWSGROUP.REMOVED_AT.isNull())
+                .and(NEWSGROUP.ARTICLES_PER_DAY.isNotNull()));
+    }
+
+    /** @return how many groups {@link #findPage(long, List, GroupSort, long, int)} has over all pages */
     int count(long serverId, List<String> searchWords) {
         return database.fetchCount(NEWSGROUP, listedAndMatching(serverId, searchWords));
     }

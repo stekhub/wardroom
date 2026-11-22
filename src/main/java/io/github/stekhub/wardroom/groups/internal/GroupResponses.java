@@ -17,11 +17,14 @@ final class GroupResponses {
                          @Schema(description = "null when the server gave none; to be shown as text only")
                          String description,
                          @NotNull PostingStatus postingStatus,
-                         @NotNull boolean subscribed) {
+                         @NotNull boolean subscribed,
+                         @Schema(description = "How many articles the group gets per day, counted over the "
+                                 + "last 7 to 14 days; approximate. null while it is not known")
+                         Double articlesPerDay) {
 
         static GroupResponse of(StoredGroup group) {
             return new GroupResponse(group.id(), group.name(), group.description(), group.postingStatus(),
-                    group.subscribed());
+                    group.subscribed(), group.articlesPerDay());
         }
     }
 
@@ -29,7 +32,10 @@ final class GroupResponses {
     record GroupPage(@NotNull List<GroupResponse> items,
                      @Schema(description = "From 0") @NotNull int page,
                      @NotNull int size,
-                     @Schema(description = "The number of groups over all pages") @NotNull int total) {
+                     @Schema(description = "The number of groups over all pages") @NotNull int total,
+                     @Schema(description = "Whether the activity of at least one group of the server is known. "
+                             + "It is not in the first day after the group list was first loaded")
+                     @NotNull boolean activityKnown) {
     }
 
     @Schema(name = "GroupListRefreshStatus")
