@@ -5,6 +5,7 @@ import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE_LOCATION;
 import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
 import static io.github.stekhub.wardroom.jooq.Tables.SYNCED_RANGE;
 
+import io.github.stekhub.wardroom.articles.AuthorKey;
 import io.github.stekhub.wardroom.nntp.NntpOverview;
 import io.github.stekhub.wardroom.platform.LogSafe;
 import java.util.List;
@@ -247,6 +248,7 @@ class SyncedArticleRepository {
                 .set(ARTICLE.IS_STUB, false)
                 .set(ARTICLE.SUBJECT, overview.subject())
                 .set(ARTICLE.FROM, overview.from())
+                .set(ARTICLE.AUTHOR_KEY, AuthorKey.of(overview.from()))
                 .set(ARTICLE.DATE, overview.date())
                 .set(ARTICLE.REFERENCES, overview.references())
                 .set(ARTICLE.BYTES, overview.bytes())
@@ -263,6 +265,7 @@ class SyncedArticleRepository {
                 .setNull(ARTICLE.THREAD_ROOT_ID)
                 .set(ARTICLE.SUBJECT, overview.subject())
                 .set(ARTICLE.FROM, overview.from())
+                .set(ARTICLE.AUTHOR_KEY, AuthorKey.of(overview.from()))
                 .set(ARTICLE.DATE, overview.date())
                 .set(ARTICLE.REFERENCES, overview.references())
                 .set(ARTICLE.BYTES, overview.bytes())

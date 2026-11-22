@@ -238,6 +238,7 @@ class ArticleContentTest {
         assertThat(filled.getIsStub()).isFalse();
         assertThat(filled.getSubject()).isEqualTo("Re: Grüße");
         assertThat(filled.getFrom()).isEqualTo("Bob <bob@example.org>");
+        assertThat(filled.getAuthorKey()).isEqualTo("bob@example.org");
         assertThat(filled.getDate()).isEqualTo(2 * DAY);
         assertThat(filled.getReferences()).isEqualTo("<a@example.org>");
         assertThat(structure()).containsExactlyInAnyOrderEntriesOf(Map.of(

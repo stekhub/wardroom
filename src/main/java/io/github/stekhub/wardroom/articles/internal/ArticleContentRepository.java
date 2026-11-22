@@ -5,6 +5,7 @@ import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE_LOCATION;
 import static io.github.stekhub.wardroom.jooq.Tables.NEWSGROUP;
 import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
 
+import io.github.stekhub.wardroom.articles.AuthorKey;
 import io.github.stekhub.wardroom.articles.internal.ArticleContentExtractor.ArticleHeaders;
 import io.github.stekhub.wardroom.articles.internal.ArticleContentExtractor.ExtractedContent;
 import io.github.stekhub.wardroom.jooq.tables.Article;
@@ -111,6 +112,7 @@ class ArticleContentRepository {
                 .setNull(ARTICLE.THREAD_ROOT_ID)
                 .set(ARTICLE.SUBJECT, headers.subject())
                 .set(ARTICLE.FROM, headers.from())
+                .set(ARTICLE.AUTHOR_KEY, AuthorKey.of(headers.from()))
                 .set(ARTICLE.DATE, headers.date())
                 .set(ARTICLE.REFERENCES, headers.references())
                 .set(ARTICLE.BYTES, bytes)

@@ -374,7 +374,12 @@ function backendWithThread(articles: ThreadArticle[], cards: ThreadCard[] = []) 
   server.use(
     http.get('/api/groups/:groupId/threads/:articleId', () => {
       state.threadRequests++
-      return HttpResponse.json({ rootId: state.articles[0]?.id ?? 0, articles: state.articles })
+      return HttpResponse.json({
+        rootId: state.articles[0]?.id ?? 0,
+        ignored: false,
+        ignoreRuleIds: [],
+        articles: state.articles,
+      })
     }),
     http.get('/api/articles/:articleId/content', ({ params }) =>
       HttpResponse.json({

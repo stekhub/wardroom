@@ -151,7 +151,12 @@ test('going back from a thread shows the date view without asking for the jump a
   const backend = backendWithJump()
   server.use(
     http.get('/api/groups/:groupId/threads/:articleId', () =>
-      HttpResponse.json({ rootId: 31, articles: [testThreadArticle(31, null, 0)] }),
+      HttpResponse.json({
+        rootId: 31,
+        ignored: false,
+        ignoreRuleIds: [],
+        articles: [testThreadArticle(31, null, 0)],
+      }),
     ),
     http.get('/api/articles/:articleId/content', ({ params }) =>
       HttpResponse.json({

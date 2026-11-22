@@ -107,6 +107,7 @@ class ThreadListTest {
         int notCachedId = article(groupId, 2, "<b>", "Other", null, 2 * DAY);
         database.update(ARTICLE)
                 .set(ARTICLE.FROM, "Jane Doe <Jane@Example.org>")
+                .set(ARTICLE.AUTHOR_KEY, "jane@example.org")
                 .set(ARTICLE.BODY_TEXT, "> a quote\nI have been   comparing\nthe two.\n-- \nJane")
                 .where(ARTICLE.ID.eq(cachedId))
                 .execute();
@@ -439,6 +440,7 @@ class ThreadListTest {
                 .set(ARTICLE.IS_STUB, false)
                 .set(ARTICLE.SUBJECT, subject)
                 .set(ARTICLE.FROM, "Ada <ada@example.org>")
+                .set(ARTICLE.AUTHOR_KEY, "ada@example.org")
                 .set(ARTICLE.REFERENCES, references)
                 .set(ARTICLE.DATE, date)
                 .returning(ARTICLE.ID)

@@ -1,4 +1,4 @@
-package io.github.stekhub.wardroom.articles.internal;
+package io.github.stekhub.wardroom.articles;
 
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -6,9 +6,10 @@ import java.util.regex.Pattern;
 
 /**
  * The key that stands for an author (UI concept, "Author icons"): the email address of {@code From}, lowercased
- * and trimmed; without an address, the display name.
+ * and trimmed; without an address, the display name. It is stored with the article when the article is stored or a
+ * stub is filled in (spec 010, "Matching").
  */
-final class AuthorKey {
+public final class AuthorKey {
 
     /** An address in angle brackets, as in {@code Jane Doe <jane@example.org>}. */
     private static final Pattern BRACKETED_ADDRESS = Pattern.compile("<\\s*([^<>\\s]+@[^<>\\s]+)\\s*>");
@@ -23,7 +24,7 @@ final class AuthorKey {
      * @param from the {@code From} of an article as it is stored; untrusted text
      * @return the key, or {@code null} when there is no {@code From} or it is blank, as for a stub
      */
-    static String of(String from) {
+    public static String of(String from) {
         if (from == null || from.isBlank()) {
             return null;
         }

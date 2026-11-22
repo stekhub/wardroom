@@ -1,10 +1,11 @@
-import { CheckCheck } from 'lucide-react'
+import { CheckCheck, EyeOff } from 'lucide-react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { UNEXPECTED_ERROR } from '@/api/problem'
 import { AuthorIcon } from '@/articles/AuthorIcon'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useIgnoring } from '@/ignoring/ignoreState'
 import { cn } from '@/lib/utils'
 import { type ThreadCard, useShownReadState } from '@/threads/threadState'
 import { Time } from '@/threads/Time'
@@ -18,6 +19,7 @@ const COUNT = new Intl.NumberFormat('en')
  */
 export function DiscussionCard({ groupId, card }: { groupId: number; card: ThreadCard }) {
   const { markThreadRead } = useShownReadState()
+  const { ignore } = useIgnoring()
   const unread = card.unreadCount > 0
 
   async function markRead() {
@@ -28,7 +30,7 @@ export function DiscussionCard({ groupId, card }: { groupId: number; card: Threa
 
   return (
     <article className="group relative rounded-xl border bg-card p-4 transition-shadow duration-150 focus-within:shadow-md hover:shadow-md motion-reduce:transition-none">
-      <h2 className={cn('pr-10 text-base leading-snug', unread ? 'font-bold' : 'font-medium')}>
+      <h2 className={cn('pr-20 text-base leading-snug', unread ? 'font-bold' : 'font-medium')}>
         {/* The link covers the card, so a click anywhere on it opens the thread. */}
         <Link
           to={`/groups/${String(groupId)}/threads/${String(card.rootId)}`}
@@ -72,8 +74,8 @@ export function DiscussionCard({ groupId, card }: { groupId: number; card: Threa
           {card.excerpt}
         </p>
       )}
-      {unread && (
-        <div className="absolute top-2.5 right-2.5 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none">
+      <div className="absolute top-2.5 right-2.5 flex gap-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none">
+        {unread && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -88,8 +90,22 @@ export function DiscussionCard({ groupId, card }: { groupId: number; card: Threa
             </TooltipTrigger>
             <TooltipContent>Mark thread as read</TooltipContent>
           </Tooltip>
-        </div>
-      )}
+        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Ignore thread"
+              onClick={() => void ignore('THREAD', card.cardArticleId)}
+            >
+              <EyeOff />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Ignore thread</TooltipContent>
+        </Tooltip>
+      </div>
     </article>
   )
 }

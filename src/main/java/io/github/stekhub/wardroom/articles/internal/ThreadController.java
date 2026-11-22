@@ -98,6 +98,8 @@ class ThreadController {
             @Schema(nullable = true) String from,
             @Schema(description = "The key the author icon is derived from; null for a stub", nullable = true)
             String authorKey,
+            @Schema(description = "Whether the owner ignores the author of the article")
+            @NotNull boolean ignoredAuthor,
             @Schema(description = "UTC milliseconds; null when the date cannot be read", nullable = true)
             Long date,
             @NotNull boolean read,
@@ -107,8 +109,8 @@ class ThreadController {
 
         static ThreadArticleBody of(Entry entry) {
             return new ThreadArticleBody(entry.id(), entry.parentId(), entry.depth(), entry.stub(),
-                    entry.subject(), entry.from(), entry.authorKey(), entry.date(), entry.read(),
-                    entry.otherGroup());
+                    entry.subject(), entry.from(), entry.authorKey(), entry.ignoredAuthor(), entry.date(),
+                    entry.read(), entry.otherGroup());
         }
     }
 
@@ -116,10 +118,16 @@ class ThreadController {
     record ThreadBody(
             @Schema(description = "The current root of the thread")
             @NotNull long rootId,
+            @Schema(description = "Whether the owner ignores the thread")
+            @NotNull boolean ignored,
+            @Schema(description = "The ignore rules that ignore the thread; removing them all stops ignoring it. "
+                    + "Empty when the thread is not ignored")
+            @NotNull List<Long> ignoreRuleIds,
             @NotNull List<ThreadArticleBody> articles) {
 
         static ThreadBody of(ThreadView threadView) {
-            return new ThreadBody(threadView.rootId(),
+            return new ThreadBody(threadView.rootId(), !threadView.ignoreRuleIds().isEmpty(),
+                    threadView.ignoreRuleIds(),
                     threadView.articles().stream().map(ThreadArticleBody::of).toList());
         }
     }

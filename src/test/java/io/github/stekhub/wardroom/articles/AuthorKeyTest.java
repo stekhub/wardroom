@@ -1,4 +1,4 @@
-package io.github.stekhub.wardroom.articles.internal;
+package io.github.stekhub.wardroom.articles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

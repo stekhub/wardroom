@@ -149,6 +149,7 @@ class SynchronizationTest {
         assertThat(reply.getIsStub()).isFalse();
         assertThat(reply.getSubject()).isEqualTo("Re: Hello");
         assertThat(reply.getFrom()).isEqualTo("Ada <ada@example.org>");
+        assertThat(reply.getAuthorKey()).isEqualTo("ada@example.org");
         assertThat(reply.getDate()).isEqualTo(OVERVIEW_DATE_MILLIS);
         assertThat(reply.get(ARTICLE.REFERENCES)).isEqualTo("<a@example.org>");
         assertThat(reply.getBytes()).isEqualTo(900L);
@@ -282,6 +283,7 @@ class SynchronizationTest {
         ArticleRecord article = database.selectFrom(ARTICLE).fetchSingle();
         assertThat(article.getIsStub()).isFalse();
         assertThat(article.getSubject()).isEqualTo("Hello");
+        assertThat(article.getAuthorKey()).isEqualTo("ada@example.org");
         assertThat(article.getDate()).isEqualTo(OVERVIEW_DATE_MILLIS);
         assertThat(support.locationNumbers(groupId)).containsExactly(3L);
         assertThat(support.subscription(groupId).get("unreadCount").asInt()).isEqualTo(1);

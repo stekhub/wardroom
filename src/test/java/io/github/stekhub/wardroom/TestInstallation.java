@@ -3,6 +3,7 @@ package io.github.stekhub.wardroom;
 import static io.github.stekhub.wardroom.jooq.Tables.APP_SETTING;
 import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE;
 import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE_LOCATION;
+import static io.github.stekhub.wardroom.jooq.Tables.IGNORE_RULE;
 import static io.github.stekhub.wardroom.jooq.Tables.NEWSGROUP;
 import static io.github.stekhub.wardroom.jooq.Tables.NNTP_SERVER;
 import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
@@ -36,6 +37,7 @@ public final class TestInstallation {
 
     /** Empties the tables, which puts the settings back to their defaults, and creates the account. */
     public static TestBrowser loggedInOwner(MockMvcTester mvc, DSLContext database) {
+        database.deleteFrom(IGNORE_RULE).execute();
         database.deleteFrom(READ_STATE).execute();
         database.deleteFrom(ARTICLE_LOCATION).execute();
         database.deleteFrom(ARTICLE).execute();
