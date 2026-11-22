@@ -29,7 +29,23 @@ docker compose pull
 docker compose up -d
 ```
 
-Before Wardroom changes the database for a new version, it saves a copy in `config/backups`.
+Before Wardroom changes the database for a new version, it saves a copy in `config/backups`. It keeps the two newest copies.
+
+**Going back to an earlier version**
+
+The name of a copy says which version of Wardroom left the data. For example, `wardroom-0.9.0-schema13-20270115T093000123Z.db` is the data as Wardroom 0.9.0 left it. Use the copy whose version you go back to.
+
+1. Stop the container: `docker compose stop`
+2. In the Compose file, set the image to that version, for example `ghcr.io/stekhub/wardroom:0.9.0`.
+3. Copy the backup over the database, and delete the files `wardroom.db-wal` and `wardroom.db-shm` next to it if they exist:
+
+   ```bash
+   cp config/backups/wardroom-0.9.0-schema13-20270115T093000123Z.db config/wardroom.db
+   ```
+
+4. Start the container: `docker compose up -d`
+
+Everything that changed after the update is lost, for example articles read since then. An earlier version does not start with the database of a newer one; it names the backup directory in the log.
 
 ## Troubleshooting
 

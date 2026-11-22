@@ -1,11 +1,10 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo/wardroom-header-dark.svg">
-    <img src="assets/logo/wardroom-header-light.svg" alt="Wardroom" width="416">
+    <img src="assets/logo/wardroom-header-light.svg" alt="Wardroom" width="624">
   </picture>
+  <h2 align="center">Newsgroups deserve a modern home.</h2>
 </div>
-
-**Newsgroups deserve a modern home.**
 
 Newsgroups are among the oldest places for discussion on the internet, and they are still alive: open, decentralized and owned by no single company. But the software for reading them is fading. Many newsreaders are no longer maintained, and few feel at home on today's web.
 
@@ -15,15 +14,30 @@ Wardroom works with any server that speaks NNTP, the newsgroup protocol. That ca
 
 Wardroom is made for text discussions. It does not download binaries or attachments.
 
+### Digital archaeology
+
+Newsgroups hold decades of conversation. Pick any date and read a group as it was back then: the first debates about a new language, forgotten announcements, threads that shaped a community. Wardroom finds the right place on the server in seconds, without downloading everything in between, so a discussion from twenty years ago is as close as today's.
+
+### Find the groups that are still alive
+
+A server can offer tens of thousands of groups, and many of them went quiet long ago. Sort the groups by activity, and Wardroom shows how many articles each one gets per day. The lively ones come first, so you see at a glance where people still talk.
+
+### And everything else you need
+
 - **Threaded discussions:** articles are grouped into threads and shown as a conversation.
-- **Jump to date:** pick a date and read a group as it was back then. Wardroom finds the right place on the server in seconds, without downloading everything in between, so discussions from many years ago are as easy to reach as today's.
 - **Subscriptions:** search the groups your server offers, subscribe to the ones you like and see unread counts.
 - **Posting:** start new threads and reply to articles.
 - **Local cache:** synchronized articles are stored locally, so reading is fast.
 - **Ignoring:** hide authors and threads you do not want to see.
 - **Simple to run:** one container, one data directory, one owner account, one NNTP server.
 
-<!-- TODO: add a screenshot of the discussion view here once the UI exists. -->
+<p align="center">
+  <img src="docs/images/discover-groups.png" alt="The discover view: the groups of the server, sorted by activity">
+</p>
+
+<p align="center">
+  <img src="docs/images/discussion.png" alt="A discussion opened as a conversation">
+</p>
 
 ## Quick install
 

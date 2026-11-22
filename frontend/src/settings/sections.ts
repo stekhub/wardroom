@@ -1,16 +1,16 @@
 import { EyeOff, IdCard, Info, KeyRound, type LucideIcon, RefreshCw, Server } from 'lucide-react'
 
+/** The last part of a section's URL, `/settings/{path}`. */
+export type SettingsSectionPath =
+  'server' | 'synchronization' | 'posting-identity' | 'ignored' | 'account' | 'about'
+
 export type SettingsSection = {
-  /** The last part of the section's URL, `/settings/{path}`. */
-  path: string
+  path: SettingsSectionPath
   title: string
   icon: LucideIcon
 }
 
-/**
- * The sections of the settings page, in the order of the UI concept. A section without content
- * yet is filled by the implementation step that builds its feature.
- */
+/** The sections of the settings page, in the order of the UI concept. */
 export const SETTINGS_SECTIONS: readonly [SettingsSection, ...SettingsSection[]] = [
   { path: 'server', title: 'Server', icon: Server },
   { path: 'synchronization', title: 'Synchronization', icon: RefreshCw },

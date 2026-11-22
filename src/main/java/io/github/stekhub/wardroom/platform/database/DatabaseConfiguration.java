@@ -6,7 +6,9 @@ import io.github.stekhub.wardroom.platform.WardroomProperties;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.sqlite.SQLiteConfig;
@@ -53,10 +55,16 @@ class DatabaseConfiguration {
         return dataSource;
     }
 
-    /** Replaces Flyway's plain migration with the startup sequence of ADR 0004. */
+    /**
+     * Replaces Flyway's plain migration with the startup sequence of ADR 0004. A build without version information
+     * stores "development" as its version (ADR 0032).
+     */
     @Bean
-    FlywayMigrationStrategy flywayMigrationStrategy(WardroomProperties properties) {
-        DatabaseMigrator migrator = new DatabaseMigrator(properties.backupDirectory());
+    FlywayMigrationStrategy flywayMigrationStrategy(WardroomProperties properties,
+            ObjectProvider<BuildProperties> buildProperties) {
+        BuildProperties build = buildProperties.getIfAvailable();
+        DatabaseMigrator migrator = new DatabaseMigrator(properties.backupDirectory(),
+                build == null ? "development" : build.getVersion());
         return migrator::migrate;
     }
 }

@@ -2,13 +2,15 @@ import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
+import { licenseNotices } from './licenseNotices.ts'
 
 // During development the backend runs on port 8119 and Vite forwards the API to it,
 // so frontend and API share one origin as they do in the built application.
 const backend = 'http://localhost:8119'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  // The stylesheet imports these packages (src/index.css); the license notices name them too.
+  plugins: [react(), tailwindcss(), licenseNotices(['tailwindcss', 'tw-animate-css', 'shadcn'])],
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, 'src') },
   },

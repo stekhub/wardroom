@@ -116,4 +116,5 @@ Run from the repository root with JDK 25. Maven, Node.js and pnpm are downloaded
 - The mock NNTP server is `MockNntpServer` in `src/test/java/.../nntp/mock`; answers and faults are scripted with `MockReply`. Fixtures are in `src/test/resources/nntp` and keep their bytes.
 - The shell tool removes one backslash of two in a here-document. Write files that contain backslashes with the file tool.
 - To try the built jar by hand without touching real data: `java -jar target/wardroom-*.jar --server.port=8129 --wardroom.data-dir=<scratch directory>`. With another property name the application uses `/config`.
+- The build writes the license notices of all frontend packages into `licenses/third-party-licenses.txt` (`frontend/licenseNotices.ts`). A package that only reaches the stylesheet through `@import` in `src/index.css` is added to the list in `vite.config.ts`.
 - shadcn/ui components are added with `pnpm dlx shadcn@latest add <name>` in `frontend/`.
