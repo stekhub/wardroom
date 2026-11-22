@@ -1,5 +1,6 @@
 package io.github.stekhub.wardroom.sync.internal;
 
+import io.github.stekhub.wardroom.articles.ArticleCache;
 import io.github.stekhub.wardroom.groups.SubscribedGroups;
 import io.github.stekhub.wardroom.groups.SubscribedGroups.SubscribedGroup;
 import io.github.stekhub.wardroom.nntp.NntpException;
@@ -42,6 +43,7 @@ class SynchronizationSchedule {
     private final NntpServers nntpServers;
     private final Settings settings;
     private final SynchronizationService synchronizationService;
+    private final ArticleCache articleCache;
 
     private final AtomicBoolean runInProgress = new AtomicBoolean();
     private Long lastDueAt;
@@ -89,6 +91,8 @@ class SynchronizationSchedule {
             } finally {
                 runInProgress.set(false);
             }
+            // The run may have made the database larger than the cache size limit allows (ADR 0023).
+            articleCache.cleanUpSoon();
         });
         return true;
     }

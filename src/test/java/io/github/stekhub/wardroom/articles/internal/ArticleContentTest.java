@@ -57,6 +57,9 @@ class ArticleContentTest {
     @Autowired
     ThreadService threadService;
 
+    @Autowired
+    CacheRepository cacheRepository;
+
     TestBrowser browser;
     MockNntpServer mockServer;
     long serverId;
@@ -99,6 +102,20 @@ class ArticleContentTest {
         assertThat(cached).isEqualTo(fetched);
         assertThat(articleCommands()).containsExactly("ARTICLE <a@example.org>");
         assertThat(stored(articleId).getContentFetchedAt()).isNotNull();
+    }
+
+    @Test
+    void anArticleWhoseContentTheCacheCleanupDeletedIsFetchedAgainWhenItIsOpened() {
+        int articleId = article(1, "<a@example.org>", "Hello", null, DAY);
+        mockServer.on("ARTICLE <a@example.org>").reply("220 0 <a@example.org>", "Subject: Hello", "", "Text", ".");
+        JsonNode fetched = body(expectOk(browser.get(contentPath(articleId))));
+
+        cacheRepository.clearContent(List.of(articleId));
+
+        assertThat(stored(articleId).getContentFetchedAt()).isNull();
+        assertThat(stored(articleId).getSubject()).isEqualTo("Hello");
+        assertThat(body(expectOk(browser.get(contentPath(articleId))))).isEqualTo(fetched);
+        assertThat(articleCommands()).hasSize(2);
     }
 
     @Test

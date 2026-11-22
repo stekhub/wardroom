@@ -18,8 +18,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 10 | Article reading | Spec 007 | Done |
 | 11 | Discussion view | Spec 008 | Done |
 | 12 | Ignoring | Spec 010 | Done |
-| 13 | Posting | Spec 009 | In review |
-| 14 | Cache size limit | ADR 0023; spec 005 | Not started; new ADR first |
+| 13 | Posting | Spec 009 | Done |
+| 14 | Cache size limit | ADR 0023, 0034; spec 005 | In review |
 | 15 | Activity of a group | Spec 003 | Not started; spec change first |
 | 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Not started |
 | 17 | Release pipeline | ADR 0009, 0024 | Not started; discuss first |
@@ -110,7 +110,7 @@ Wardroom can first be used for reading after step 11.
 ### 14. Cache size limit
 
 - ADR 0023 and the cache parts of spec 005: measurement, cleanup job, setting with current use, warning.
-- Switching the limit off (added by the owner on 2026-11-22): the owner can switch the cache size limit off in the synchronization section of the settings page. Without a limit, the cleanup does not run and nothing is deleted; the section still shows the current use. Before the implementation: propose a new ADR, because ADR 0023 has no way to switch the limit off, and the change of spec 005. To be decided then: whether the limit is on or off by default, how the setting and the settings response express "no limit", and what the section says about a cache that grows without a limit.
+- Switching the limit off (added by the owner on 2026-11-22): the owner can switch the cache size limit off in the synchronization section of the settings page. Without a limit, the cleanup does not run and nothing is deleted; the section still shows the current use. ADR 0034 describes it; the owner accepted it on 2026-11-22.
 
 ### 15. Activity of a group
 
@@ -160,6 +160,44 @@ Added to the MVP by the owner on 2026-11-22. Before the implementation: propose 
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 14, cache size limit (2026-11-22)**
+
+Built:
+
+- The measurement of the database size, and the cleanup job `CacheCleanup` in the `articles` module. It runs in the background at the start, after each synchronization run and after the settings were saved.
+- The partial index on `article(date)` for articles with content (migration V12).
+- The settings `cache.max_size_gb` and `cache.limit_enabled`, and the fields `cacheLimitEnabled`, `maxCacheSizeGb`, `cacheUsedBytes` and `cacheLimitUnreachable` of the settings endpoints.
+- Frontend: in the synchronization section the checkbox "Limit the cache size", the field "Maximum cache size", the current use, and the warning when the limit cannot be reached.
+- ADR 0034, accepted by the owner on 2026-11-22, and the changes of spec 005, the data model and the UI concept that follow from it.
+
+Decisions. The owner asked for a limit that can be switched off; the three points the plan left open were decided during the step and accepted by the owner with ADR 0034 afterwards. These are the first three points below. The others are open to a veto:
+
+- **The limit is on by default,** with 5 GB. An installation in which nothing was changed behaves as ADR 0023 says.
+- **"No limit" is a setting of its own,** `cache.limit_enabled`, and the field `cacheLimitEnabled`. The size keeps its value while the limit is off, and is still required and checked in a request.
+- **While the limit is off, the size field is not shown.** The use reads "1.2 GB used", and a hint says that nothing is removed and the cache grows for as long as groups are subscribed.
+- **Switching the limit on runs the cleanup at once.** Every save of the settings starts a check in the background.
+- **The warning is computed when the settings are read:** the limit is on, the database is above it, and no content is left that may be deleted. While a cleanup is still running, it is not shown.
+- **The answer of `PUT /api/settings` has the two read-only values too,** so that the section shows the use against the saved limit without asking again. The use is the one before the cleanup that the save started.
+- **The flags of the content are emptied with it** (`body_flowed`, `body_delsp`, `body_truncated`). ADR 0023 names four columns; the flags mean nothing without the text.
+- **The use is shown in GB with one decimal, in MB below 1 GB,** and as "less than 1 MB" below that.
+- **A manual refresh of one group starts no cleanup.** ADR 0023 says "after each synchronization run"; the run is the scheduled one over all groups.
+
+Findings:
+
+- **The measured size falls only when whole pages become free.** The text of an article that is larger than a page is stored in pages of its own, and these are free at once. Short texts share a page with other data of their article, and deleting them frees nothing that the measurement sees. A cache of mostly short articles can therefore lose all its content before the size is below the limit, and then shows the warning. ADR 0023 accepts that the limit is a target; this is a second reason for it. Not measured on a real database.
+
+Verified:
+
+- `./mvnw verify` passes: 609 backend tests and 234 frontend tests.
+- Tried by hand on a test instance: the migration ran at the start, the synchronization section shows the checkbox, the size field and the use ("less than 1 MB of 5 GB"); with the checkbox off and saved, the field is gone, the hint is shown and the use reads "less than 1 MB used".
+- Not tried by hand: a cleanup. The smallest limit is 1 GB, and no test database is that large. The integration tests run the job with limits in bytes.
+- The owner tested the feature by hand on 2026-11-22, before the commit.
+- Not covered by a test: that a synchronization run and the start of Wardroom start the cleanup. The job itself and the save of the settings are covered.
+
+For later steps:
+
+- Step 16: the user guide has no part about the settings yet; the cache size limit and its switch belong there.
 
 **Step 13, separate posting server (2026-11-22)**
 

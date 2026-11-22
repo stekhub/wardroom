@@ -8,4 +8,7 @@ public interface Settings {
      *         caller does not keep them
      */
     SynchronizationSettings synchronization();
+
+    /** @return the current settings of the cache size limit, read for every call */
+    CacheSettings cache();
 }

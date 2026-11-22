@@ -414,7 +414,8 @@ class GroupListRefreshTest {
     @Test
     void scheduleFollowsTheIntervalOfTheSettings() {
         assertThat(browser.put("/api/settings",
-                "{\"syncIntervalMinutes\": 15, \"initialDepth\": 500, \"groupListIntervalHours\": 2}")).hasStatusOk();
+                "{\"syncIntervalMinutes\": 15, \"initialDepth\": 500, \"groupListIntervalHours\": 2,"
+                        + " \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5}")).hasStatusOk();
         long refreshedAt = refreshAndWait(browser, serverId).get("refreshedAt").asLong();
 
         groupListSchedule.startDueRefreshes(refreshedAt + 2 * HOUR.toMillis() - 1);

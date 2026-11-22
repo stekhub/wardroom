@@ -77,7 +77,8 @@ class SynchronizationFailureTest {
         when(connections.background(eq(SERVER_SETTINGS), any())).thenThrow(new NntpException(
                 NntpFailureType.AUTH_FAILED, "The server rejected the user name or password (481)"));
         SynchronizationSchedule synchronizationSchedule = new SynchronizationSchedule(
-                new SynchronizationProperties(true, Duration.ofSeconds(1)), subscribedGroups, nntpServers, settings, synchronizationService);
+                new SynchronizationProperties(true, Duration.ofSeconds(1)), subscribedGroups, nntpServers, settings,
+                synchronizationService, () -> { });
 
         assertThat(synchronizationSchedule.startRun()).isTrue();
         await().atMost(Duration.ofSeconds(10)).until(() -> !synchronizationSchedule.isRunInProgress());
@@ -91,7 +92,8 @@ class SynchronizationFailureTest {
     void aRunLeavesAServerWithInvalidCredentialsAlone() {
         when(nntpServers.credentialsInvalid(SERVER_ID)).thenReturn(true);
         SynchronizationSchedule synchronizationSchedule = new SynchronizationSchedule(
-                new SynchronizationProperties(true, Duration.ofSeconds(1)), subscribedGroups, nntpServers, settings, synchronizationService);
+                new SynchronizationProperties(true, Duration.ofSeconds(1)), subscribedGroups, nntpServers, settings,
+                synchronizationService, () -> { });
 
         assertThat(synchronizationSchedule.startRun()).isTrue();
         await().atMost(Duration.ofSeconds(10)).until(() -> !synchronizationSchedule.isRunInProgress());

@@ -1,5 +1,6 @@
 package io.github.stekhub.wardroom.settings.internal;
 
+import io.github.stekhub.wardroom.settings.CacheUse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -23,12 +24,13 @@ import org.springframework.web.bind.annotation.RestController;
 class SettingsController {
 
     private final SettingsService settingsService;
+    private final CacheUse cacheUse;
 
     @Operation(summary = "Returns the instance settings", operationId = "getSettings")
     @ApiResponse(responseCode = "200", description = "The settings")
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     SettingsBody settings() {
-        return SettingsBody.of(settingsService.synchronization());
+        return currentSettings();
     }
 
     @Operation(summary = "Saves the instance settings", operationId = "saveSettings")
@@ -38,6 +40,14 @@ class SettingsController {
             schema = @Schema(implementation = ProblemDetail.class)))
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     SettingsBody save(@Valid @RequestBody SettingsBody request) {
-        return SettingsBody.of(settingsService.save(request));
+        settingsService.save(request);
+        // A lower limit, or a limit that was switched on, is applied at once (spec 005).
+        cacheUse.settingsChanged();
+        return currentSettings();
+    }
+
+    private SettingsBody currentSettings() {
+        return SettingsBody.of(settingsService.synchronization(), settingsService.cache(), cacheUse.usedBytes(),
+                cacheUse.limitUnreachable());
     }
 }
