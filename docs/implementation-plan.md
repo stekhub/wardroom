@@ -17,9 +17,9 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 9 | Threading | Spec 006 | Done |
 | 10 | Article reading | Spec 007 | Done |
 | 11 | Discussion view | Spec 008 | In review |
-| 12 | Ignoring | Spec 010 | Not started |
+| 12 | Ignoring | Spec 010 | In review |
 | 13 | Posting | Spec 009 | Not started |
-| 14 | Cache size limit | ADR 0023; spec 005 | Not started |
+| 14 | Cache size limit | ADR 0023; spec 005 | Not started; new ADR first |
 | 15 | Activity of a group | Spec 003 | Not started; spec change first |
 | 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Not started |
 | 17 | Release pipeline | ADR 0009, 0024 | Not started; discuss first |
@@ -110,6 +110,7 @@ Wardroom can first be used for reading after step 11.
 ### 14. Cache size limit
 
 - ADR 0023 and the cache parts of spec 005: measurement, cleanup job, setting with current use, warning.
+- Switching the limit off (added by the owner on 2026-11-22): the owner can switch the cache size limit off in the synchronization section of the settings page. Without a limit, the cleanup does not run and nothing is deleted; the section still shows the current use. Before the implementation: propose a new ADR, because ADR 0023 has no way to switch the limit off, and the change of spec 005. To be decided then: whether the limit is on or off by default, how the setting and the settings response express "no limit", and what the section says about a cache that grows without a limit.
 
 ### 15. Activity of a group
 
@@ -159,6 +160,40 @@ Added to the MVP by the owner on 2026-11-22. Before the implementation: propose 
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 12, ignoring (2026-11-22)**
+
+Built:
+
+- The `ignoring` module: the table `ignore_rule`, the endpoints `GET`, `POST` and `DELETE /api/ignore-rules`, and `IgnoreFilters`, the conditions the other modules build their queries with.
+- `article.author_key` with its index. The synchronization and the content fetch store it when they store an article or fill in a stub.
+- The thread list leaves out ignored threads and threads whose card article is by an ignored author. "● N new" on a card leaves out articles by ignored authors.
+- The unread counts in the sidebar leave out articles by ignored authors, the articles of ignored threads, and the articles of threads that are hidden because of their card article.
+- The thread response has `ignored`; each of its articles has `ignoredAuthor`.
+- Frontend: "Ignore thread" on the cards and in the header of the thread page, "Ignore author" in a menu of each article, the toast with "Undo", the line "Ignored author · {name}" with "Show", the notice "You ignore this thread" with "Stop ignoring", and the settings section "Ignored".
+
+Deviations and decisions, open to a veto:
+
+- **The author keys of stored articles are filled in at the start, not in the migration.** Spec 010 names a "migration with backfill". Migrations are plain SQL (ADR 0004), and the key needs the rules for addresses in `From`, which SQL cannot express. `AuthorKeyStartup` computes the missing keys at every start, in batches of 1,000; a copy of a database with 101,006 articles took 3.6 seconds, once.
+- **The thread response also has `ignoreRuleIds`.** Spec 010 gives it only `ignored`. "Stop ignoring" on the thread page must remove the rule, and the page could not know which one. More than one rule can ignore a thread, when two ignored threads become one; the button removes them all.
+- **Ignoring a thread that is already ignored returns the rule that ignores it,** also when the root of the thread has changed since. Otherwise a second rule would be created for the same thread.
+- **Labels.** The label of an author rule is the display name, as the thread page shows it; without a name, the address. The label of a thread rule is the subject of the root; when the root is a stub, the subject of the article the owner chose; without any, "(no subject)".
+- **The menu of an article** is a button "More actions" with one entry, "Ignore author". Spec 010 speaks of "each article's menu"; none existed. Step 13 adds its actions there or beside it.
+- **An article by an ignored author that is shown again** stays shown until the page is left, carries the badge "Ignored author", and is not marked as read. It has no "Ignore author" in its menu.
+- **A rule change asks for the loaded thread lists again.** A loaded list is otherwise never asked for again (spec 008); here it must be, because cards appear, disappear or change their count. The list can change its order when a synchronization ran since it was loaded.
+- **The toast with "Undo" stays 8 seconds,** twice as long as other toasts.
+- **Rules are kept when a server is removed.** They apply in all groups and match by value (data model).
+- **Unread counts with rules are slower.** Without any rule, the count is the query it was. With a rule, each group is counted with a query that finds the card article of every thread. For a few dozen groups this is not noticeable; it is asked for every 30 seconds.
+
+Verified:
+
+- `./mvnw verify` passes: 543 backend tests and 197 frontend tests.
+- Tried by hand against a fake NNTP server with 500 articles: ignoring a thread from its card (card gone, unread count 500 to 481), the notice on the thread page and "Stop ignoring", "Ignore author" in the menu (the line "Ignored author · Ada Example", unread count 495 to 338, the rule in the settings section), and removing the rule there (count back to 495).
+- Not tried by hand: "Undo" in the toast, "Show" on an ignored line, and a real server.
+
+For later steps:
+
+- Step 13: reply buttons go into or beside the menu "More actions" of an article. An article posted with Wardroom needs its author key when it is stored.
 
 **Step 11, discussion view (2026-11-21)**
 

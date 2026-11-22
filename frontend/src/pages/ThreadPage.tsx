@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCheck } from 'lucide-react'
+import { ArrowLeft, CheckCheck, EyeOff } from 'lucide-react'
 import { type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -8,9 +8,16 @@ import { problemMessage, UNEXPECTED_ERROR } from '@/api/problem'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { type Subscription, useSubscriptions } from '@/groups/subscriptionState'
+import { type IgnoreRule, useIgnoring } from '@/ignoring/ignoreState'
 import { ReadingColumn } from '@/pages/ReadingColumn'
 import { ThreadArticles } from '@/threads/ThreadArticles'
-import { RequestFailure, type Thread, threadKey, useShownReadState } from '@/threads/threadState'
+import {
+  RequestFailure,
+  type Thread,
+  type ThreadArticle,
+  threadKey,
+  useShownReadState,
+} from '@/threads/threadState'
 
 /**
  * The thread page (spec 008): one thread with its replies nested, in the place of the thread list
@@ -99,6 +106,7 @@ async function fetchThread(groupId: number, articleId: number): Promise<Thread> 
 function OpenThread({ groupId, articleId }: { groupId: number; articleId: number }) {
   const queryClient = useQueryClient()
   const { showArticleRead, markThreadRead } = useShownReadState()
+  const { ignore, stopIgnoring } = useIgnoring()
   const key = threadKey(groupId, articleId)
   const thread = useQuery<Thread, RequestFailure>({
     queryKey: key,
@@ -164,6 +172,42 @@ function OpenThread({ groupId, articleId }: { groupId: number; articleId: number
     )
   }
 
+  /** Shows the thread as ignored by the rule, or as not ignored, without asking for it again. */
+  function showThreadIgnored(rule: IgnoreRule | null) {
+    queryClient.setQueryData<Thread>(key, (shown) =>
+      shown === undefined
+        ? shown
+        : { ...shown, ignored: rule !== null, ignoreRuleIds: rule === null ? [] : [rule.id] },
+    )
+  }
+
+  async function stopIgnoringThread() {
+    if (await stopIgnoring(shownThread.ignoreRuleIds)) {
+      showThreadIgnored(null)
+    } else {
+      toast.error(UNEXPECTED_ERROR)
+    }
+  }
+
+  /** Every article of the author on this page is shown as ignored, or as before. */
+  function ignoreAuthorOf(article: ThreadArticle) {
+    const authorKey = article.authorKey ?? null
+    void ignore('AUTHOR', article.id, (rule) => {
+      queryClient.setQueryData<Thread>(key, (shown) =>
+        shown === undefined
+          ? shown
+          : {
+              ...shown,
+              articles: shown.articles.map((candidate) =>
+                (candidate.authorKey ?? null) === authorKey
+                  ? { ...candidate, ignoredAuthor: rule !== null }
+                  : candidate,
+              ),
+            },
+      )
+    })
+  }
+
   /** A stub was fetched: its author, its date and maybe its place in the thread are known now. */
   async function showFilledStub() {
     let current: Thread
@@ -194,17 +238,49 @@ function OpenThread({ groupId, articleId }: { groupId: number; articleId: number
         <h1 className="min-w-0 flex-1 text-xl font-semibold tracking-tight break-words">
           {subject}
         </h1>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!unreadInGroup}
-          onClick={() => void markRead()}
-        >
-          <CheckCheck />
-          Mark thread as read
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!unreadInGroup}
+            onClick={() => void markRead()}
+          >
+            <CheckCheck />
+            Mark thread as read
+          </Button>
+          {!shownThread.ignored && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void ignore('THREAD', articleId, showThreadIgnored)}
+            >
+              <EyeOff />
+              Ignore thread
+            </Button>
+          )}
+        </div>
       </header>
+      {shownThread.ignored && (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm"
+        >
+          <p className="flex items-center gap-2">
+            <EyeOff aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+            You ignore this thread
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void stopIgnoringThread()}
+          >
+            Stop ignoring
+          </Button>
+        </div>
+      )}
       <ThreadArticles
         thread={shownThread}
         onArticleRead={(article) => {
@@ -213,6 +289,7 @@ function OpenThread({ groupId, articleId }: { groupId: number; articleId: number
           }
         }}
         onStubFilled={() => void showFilledStub()}
+        onIgnoreAuthor={ignoreAuthorOf}
       />
     </>
   )

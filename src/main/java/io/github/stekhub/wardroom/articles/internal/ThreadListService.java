@@ -57,18 +57,23 @@ class ThreadListService {
                 String excerpt, int messageCount, Long latestActivity, int unreadCount) {
     }
 
-    /** A thread as its page shows it: the articles in display order. */
-    record ThreadView(long rootId, List<Entry> articles) {
+    /**
+     * A thread as its page shows it: the articles in display order.
+     *
+     * @param ignoreRuleIds the rules that ignore the thread; empty when it is not ignored (spec 010)
+     */
+    record ThreadView(long rootId, List<Long> ignoreRuleIds, List<Entry> articles) {
     }
 
     /**
      * An article or stub of a thread.
      *
-     * @param depth      how many articles lie between it and the thread root, the root being 0
-     * @param otherGroup the group it was posted to, when it is not located in the group of the page
+     * @param depth         how many articles lie between it and the thread root, the root being 0
+     * @param ignoredAuthor whether the owner ignores the author (spec 010)
+     * @param otherGroup    the group it was posted to, when it is not located in the group of the page
      */
     record Entry(long id, Long parentId, int depth, boolean stub, String subject, String from, String authorKey,
-                 Long date, boolean read, String otherGroup) {
+                 boolean ignoredAuthor, Long date, boolean read, String otherGroup) {
     }
 
     /**
@@ -121,7 +126,7 @@ class ThreadListService {
         }
         List<Card> cards = threadCards.stream()
                 .map(threadCard -> new Card(threadCard.threadRootId(), threadCard.cardArticleId(),
-                        threadCard.subject(), threadCard.from(), AuthorKey.of(threadCard.from()), threadCard.date(),
+                        threadCard.subject(), threadCard.from(), threadCard.authorKey(), threadCard.date(),
                         Excerpt.of(threadCard.textStart()), threadCard.messageCount(), threadCard.latestActivity(),
                         threadCard.unreadCount()))
                 .toList();
@@ -139,7 +144,7 @@ class ThreadListService {
             throw new GroupNotFoundException();
         }
         long threadRootId = threadRootInGroup(groupId, articleId);
-        return new ThreadView(threadRootId,
+        return new ThreadView(threadRootId, threadListRepository.findIgnoreRuleIds(threadRootId),
                 inDisplayOrder(threadRootId, threadListRepository.findThreadArticles(threadRootId, groupId)));
     }
 
@@ -206,8 +211,8 @@ class ThreadListService {
             }
             entries.add(new Entry(threadArticle.articleId(), placed.parentId(), placed.depth(),
                     threadArticle.stub(), threadArticle.subject(), threadArticle.from(),
-                    AuthorKey.of(threadArticle.from()), threadArticle.date(), threadArticle.read(),
-                    threadArticle.otherGroup()));
+                    threadArticle.authorKey(), threadArticle.ignoredAuthor(), threadArticle.date(),
+                    threadArticle.read(), threadArticle.otherGroup()));
             List<ThreadArticle> replies = repliesByParentId.get(threadArticle.articleId());
             if (replies == null) {
                 continue;

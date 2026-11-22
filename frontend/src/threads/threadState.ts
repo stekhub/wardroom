@@ -55,6 +55,11 @@ const THREAD_LISTS_KEY = 'threads'
 /** How long a list that is not shown is kept, so that going back shows it as it was left. */
 export const LIST_KEPT_MILLIS = 30 * 60_000
 
+/** The first part of the key of every thread list, of every group. */
+export function allThreadLists() {
+  return [THREAD_LISTS_KEY] as const
+}
+
 export function threadListsOfGroup(groupId: number) {
   return [THREAD_LISTS_KEY, groupId] as const
 }

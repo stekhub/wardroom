@@ -8,6 +8,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ThreadPage } from '@/pages/ThreadPage'
 import { ServerGate } from '@/server/ServerGate'
 import { AccountSection } from '@/settings/AccountSection'
+import { IgnoredSection } from '@/settings/IgnoredSection'
 import { SETTINGS_SECTIONS } from '@/settings/sections'
 import { ServerSection } from '@/settings/ServerSection'
 import { EmptySettingsSection } from '@/settings/SettingsSectionFrame'
@@ -19,6 +20,7 @@ import { AppShell } from '@/shell/AppShell'
 const SECTION_CONTENT: Record<string, ReactNode> = {
   server: <ServerSection />,
   synchronization: <SynchronizationSection />,
+  ignored: <IgnoredSection />,
   account: <AccountSection />,
 }
 

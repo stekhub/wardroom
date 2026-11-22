@@ -2,12 +2,14 @@ package io.github.stekhub.wardroom.groups.internal;
 
 import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE;
 import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE_LOCATION;
+import static io.github.stekhub.wardroom.jooq.Tables.IGNORE_RULE;
 import static io.github.stekhub.wardroom.jooq.Tables.NEWSGROUP;
 import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
 import static io.github.stekhub.wardroom.jooq.Tables.SUBSCRIPTION;
 import static io.github.stekhub.wardroom.jooq.Tables.SYNCED_RANGE;
 
 import io.github.stekhub.wardroom.groups.SubscribedGroups.SubscribedGroup;
+import io.github.stekhub.wardroom.ignoring.IgnoreFilters;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,7 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record1;
 import org.jooq.Select;
+import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.springframework.stereotype.Repository;
 
@@ -34,6 +37,7 @@ class SubscriptionRepository {
      *
      * @param description   {@code null} when the server gave none
      * @param removed       whether the server no longer lists the group
+     * @param unreadCount   the unread articles of the group, without what the owner ignores (spec 010)
      * @param lastSyncedAt  the time of the last successful synchronization in milliseconds, or {@code null}
      * @param lastSyncError why the last synchronization failed, or {@code null}
      */
@@ -57,11 +61,65 @@ class SubscriptionRepository {
 
     /** @return all subscribed groups, ordered by name */
     List<StoredSubscription> findAll() {
-        Field<Integer> unreadCount = DSL.field(DSL.selectCount()
+        // Without ignore rules, which is the usual case, the count needs no look at authors and threads.
+        if (database.fetchExists(IGNORE_RULE)) {
+            return findAll(DSL.val(0)).stream()
+                    .map(subscription -> new StoredSubscription(subscription.groupId(), subscription.serverId(),
+                            subscription.name(), subscription.description(), subscription.postingStatus(),
+                            subscription.removed(), countUnreadNotIgnored(subscription.groupId()),
+                            subscription.lastSyncedAt(), subscription.lastSyncError()))
+                    .toList();
+        }
+        return findAll(DSL.field(DSL.selectCount()
                 .from(ARTICLE_LOCATION)
                 .join(ARTICLE).on(ARTICLE.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
                 .where(ARTICLE_LOCATION.NEWSGROUP_ID.eq(NEWSGROUP.ID))
-                .and(unread()));
+                .and(unread())));
+    }
+
+    /**
+     * The unread articles of a group that the owner does not ignore (spec 010). Not counted are:
+     *
+     * <ul>
+     * <li>articles by an ignored author,</li>
+     * <li>the articles of an ignored thread,</li>
+     * <li>the articles of a thread whose card article is by an ignored author, because the thread list hides
+     * that thread.</li>
+     * </ul>
+     */
+    private int countUnreadNotIgnored(long groupId) {
+        // An article without a place yet is a thread of its own until it is threaded.
+        Field<Integer> threadRootOfArticle = DSL.coalesce(ARTICLE.THREAD_ROOT_ID, ARTICLE.ID);
+        Field<Boolean> authorIgnored = DSL.field(IgnoreFilters.authorIgnored(ARTICLE.AUTHOR_KEY));
+        // The card article of a thread in a group (spec 006, "A thread in a group"): the thread root when it is
+        // among these articles, otherwise the oldest of them.
+        Field<Boolean> cardAuthorIgnored = DSL.firstValue(authorIgnored).over()
+                .partitionBy(threadRootOfArticle)
+                .orderBy(DSL.when(ARTICLE.ID.eq(threadRootOfArticle), 0).otherwise(1),
+                        DSL.when(ARTICLE.DATE.isNull(), 1).otherwise(0),
+                        ARTICLE.DATE,
+                        ARTICLE_LOCATION.ARTICLE_NUMBER);
+        Field<Boolean> unread = DSL.field(DSL.notExists(DSL.selectOne().from(READ_STATE)
+                .where(READ_STATE.ARTICLE_ID.eq(ARTICLE.ID))));
+        Table<?> articlesOfGroup = database.select(
+                        threadRootOfArticle.as("thread_root"),
+                        unread.as("unread"),
+                        authorIgnored.as("author_ignored"),
+                        cardAuthorIgnored.as("card_author_ignored"))
+                .from(ARTICLE_LOCATION)
+                .join(ARTICLE).on(ARTICLE.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
+                .where(ARTICLE_LOCATION.NEWSGROUP_ID.eq((int) groupId))
+                .and(ARTICLE.IS_STUB.isFalse())
+                .asTable("articles_of_group");
+        return database.fetchCount(DSL.selectOne()
+                .from(articlesOfGroup)
+                .where(articlesOfGroup.field("unread", Boolean.class).isTrue())
+                .and(articlesOfGroup.field("author_ignored", Boolean.class).isFalse())
+                .and(articlesOfGroup.field("card_author_ignored", Boolean.class).isFalse())
+                .andNot(IgnoreFilters.threadIgnored(articlesOfGroup.field("thread_root", Integer.class))));
+    }
+
+    private List<StoredSubscription> findAll(Field<Integer> unreadCount) {
         return database.select(NEWSGROUP.ID, NEWSGROUP.SERVER_ID, NEWSGROUP.NAME, NEWSGROUP.DESCRIPTION,
                         NEWSGROUP.POSTING_STATUS, NEWSGROUP.REMOVED_AT, unreadCount, NEWSGROUP.LAST_SYNCED_AT,
                         NEWSGROUP.LAST_SYNC_ERROR)

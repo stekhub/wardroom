@@ -63,6 +63,11 @@ interface ArticleContentProps {
   articleId: number
   /** Called once when the article was marked as read. */
   onRead?: () => void
+  /**
+   * Whether displaying the text marks the article as read. An article by an ignored author that
+   * the owner looks at stays unread (spec 010).
+   */
+  marksRead?: boolean
 }
 
 /**
@@ -70,7 +75,7 @@ interface ArticleContentProps {
  * the article is marked as read once its text is displayed. Content that was fetched is kept, so
  * an article is asked for once.
  */
-export function ArticleContent({ articleId, onRead }: ArticleContentProps) {
+export function ArticleContent({ articleId, onRead, marksRead = true }: ArticleContentProps) {
   const { ref, seen } = useSeen()
   const queryClient = useQueryClient()
   const [askingAgain, setAskingAgain] = useState(false)
@@ -98,7 +103,7 @@ export function ArticleContent({ articleId, onRead }: ArticleContentProps) {
   return (
     <div ref={ref} className="min-h-6">
       {content.data !== undefined ? (
-        <LoadedContent content={content.data} onRead={onRead} />
+        <LoadedContent content={content.data} onRead={onRead} marksRead={marksRead} />
       ) : content.error !== null && !content.isFetching ? (
         <div
           className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground"
@@ -129,10 +134,16 @@ export function ArticleContent({ articleId, onRead }: ArticleContentProps) {
   )
 }
 
-function LoadedContent({ content, onRead }: { content: Content; onRead?: () => void }) {
+interface LoadedContentProps {
+  content: Content
+  onRead?: () => void
+  marksRead: boolean
+}
+
+function LoadedContent({ content, onRead, marksRead }: LoadedContentProps) {
   const [fixedWidth, setFixedWidth] = useState(false)
   const [headersShown, setHeadersShown] = useState(false)
-  useMarkRead(content.articleId, onRead)
+  useMarkRead(content.articleId, marksRead, onRead)
 
   const attachments = content.omittedParts.filter((part) => part.mediaType !== 'text/html')
   const htmlOnly = content.body === '' && attachments.length < content.omittedParts.length
@@ -208,7 +219,7 @@ function formatSize(bytes: number): string {
 }
 
 /** Marks the article as read once, when its content is displayed. A failure is not shown. */
-function useMarkRead(articleId: number, onRead?: () => void) {
+function useMarkRead(articleId: number, marksRead: boolean, onRead?: () => void) {
   const reloadSubscriptions = useReloadSubscriptions()
   const marked = useRef(false)
   const whenRead = useRef(onRead)
@@ -216,7 +227,7 @@ function useMarkRead(articleId: number, onRead?: () => void) {
     whenRead.current = onRead
   }, [onRead])
   useEffect(() => {
-    if (marked.current) {
+    if (marked.current || !marksRead) {
       return
     }
     marked.current = true
@@ -230,5 +241,5 @@ function useMarkRead(articleId: number, onRead?: () => void) {
       },
       () => undefined,
     )
-  }, [articleId, reloadSubscriptions])
+  }, [articleId, marksRead, reloadSubscriptions])
 }

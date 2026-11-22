@@ -131,6 +131,7 @@ export function testThreadArticle(
     subject: 'Hello',
     from: 'Ada Lovelace <ada@example.org>',
     authorKey: 'ada@example.org',
+    ignoredAuthor: false,
     date: 1_763_450_000_000,
     read: true,
     otherGroup: null,
@@ -152,6 +153,7 @@ export function backendLoggedIn(username = 'owner', servers: Server[] = [TEST_SE
     ),
     http.get('/api/servers/:serverId/groups/refresh', () => HttpResponse.json(IDLE_REFRESH)),
     http.get('/api/subscriptions', () => HttpResponse.json([])),
+    http.get('/api/ignore-rules', () => HttpResponse.json([])),
     http.get('/api/groups/:groupId/threads', () => HttpResponse.json(testThreadPage())),
   )
 }

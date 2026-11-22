@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
+import { toast } from 'sonner'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import { server } from '@/test/server'
 
@@ -27,6 +28,11 @@ window.ResizeObserver = class {
   }
 }
 
+// jsdom does not capture pointers; toasts and menus ask for it when they are pressed.
+Element.prototype.setPointerCapture = () => undefined
+Element.prototype.releasePointerCapture = () => undefined
+Element.prototype.hasPointerCapture = () => false
+
 // jsdom does not scroll; the application scrolls to the top when a view opens.
 window.scrollTo = () => undefined
 
@@ -37,6 +43,8 @@ beforeAll(() => {
 
 afterEach(() => {
   server.resetHandlers()
+  // Toasts are kept outside the page; one test must not see those of another.
+  toast.dismiss()
   cleanup()
   // Every test starts at the start page and without cookies.
   window.history.replaceState(null, '', '/')

@@ -2,10 +2,12 @@ package io.github.stekhub.wardroom.articles.internal;
 
 import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE;
 import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE_LOCATION;
+import static io.github.stekhub.wardroom.jooq.Tables.IGNORE_RULE;
 import static io.github.stekhub.wardroom.jooq.Tables.NEWSGROUP;
 import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
 import static io.github.stekhub.wardroom.jooq.Tables.SYNCED_RANGE;
 
+import io.github.stekhub.wardroom.ignoring.IgnoreFilters;
 import io.github.stekhub.wardroom.jooq.tables.Article;
 import io.github.stekhub.wardroom.jooq.tables.ArticleLocation;
 import java.util.List;
@@ -21,6 +23,9 @@ import org.springframework.stereotype.Repository;
 /**
  * Database access for the discussion view: the thread cards of a group, the articles of one thread, and "mark
  * thread as read" (spec 008). The figures of a thread follow spec 006, "A thread in a group".
+ *
+ * <p>What the owner ignores is left out of the cards and of their unread counts (spec 010). The thread page shows
+ * everything and says what is ignored.
  */
 @Repository
 @RequiredArgsConstructor
@@ -44,17 +49,18 @@ class ThreadListRepository {
      * @param cardArticleId  the article whose subject, author and date stand for the thread
      * @param subject        of the card article; untrusted text, or {@code null}
      * @param from           of the card article; untrusted text, or {@code null}
+     * @param authorKey      of the card article, or {@code null}
      * @param date           of the card article, or {@code null} when it cannot be read
      * @param textStart      the beginning of the cached text of the card article, or {@code null}
      * @param messageCount   the articles of the thread that are located in the group and are no stubs
      * @param latestActivity the newest date among those articles, or {@code null} when none has a date
-     * @param unreadCount    how many of those articles are not read
+     * @param unreadCount    how many of those articles are not read and not by an ignored author
      * @param firstKey       the first sort key of the thread in the order that was asked for
      * @param secondKey      the second sort key; the thread root in an order that has none
      */
-    record ThreadCard(long threadRootId, long cardArticleId, String subject, String from, Long date,
-                      String textStart, int messageCount, Long latestActivity, int unreadCount, long firstKey,
-                      long secondKey) {
+    record ThreadCard(long threadRootId, long cardArticleId, String subject, String from, String authorKey,
+                      Long date, String textStart, int messageCount, Long latestActivity, int unreadCount,
+                      long firstKey, long secondKey) {
     }
 
     /**
@@ -72,16 +78,20 @@ class ThreadListRepository {
      * @param parentId      the article it answers, or {@code null}
      * @param subject       untrusted text; {@code null} for a stub
      * @param from          untrusted text; {@code null} for a stub
+     * @param authorKey     {@code null} for a stub
+     * @param ignoredAuthor whether the owner ignores the author
      * @param numberInGroup its article number in the group, or {@code null} when it is not located there
      * @param otherGroup    the name of a group it is located in, when it is not located in this group but
      *                      elsewhere; otherwise {@code null}
      */
-    record ThreadArticle(long articleId, Long parentId, boolean stub, String subject, String from, Long date,
-                         boolean read, Long numberInGroup, String otherGroup) {
+    record ThreadArticle(long articleId, Long parentId, boolean stub, String subject, String from,
+                         String authorKey, boolean ignoredAuthor, Long date, boolean read, Long numberInGroup,
+                         String otherGroup) {
     }
 
     /**
      * One page of the threads of a group: every thread that has an article located in the group that is no stub.
+     * Left out are the threads the owner ignores and the threads whose card article is by an ignored author.
      *
      * @param until  only threads whose card article is dated before this time; {@code null} for all
      * @param range  only threads whose card article has a number in this range; {@code null} for all
@@ -99,6 +109,7 @@ class ThreadListRepository {
                         DSL.when(ARTICLE.DATE.isNull(), 1).otherwise(0),
                         ARTICLE.DATE,
                         ARTICLE_LOCATION.ARTICLE_NUMBER);
+        Condition authorIgnored = IgnoreFilters.authorIgnored(ARTICLE.AUTHOR_KEY);
         Table<?> articlesOfGroup = database.select(
                         threadRootOfArticle.as("thread_root"),
                         ARTICLE.ID.as("article_id"),
@@ -106,8 +117,9 @@ class ThreadListRepository {
                         ARTICLE_LOCATION.ARTICLE_NUMBER.as("card_number"),
                         DSL.count().over().partitionBy(threadRootOfArticle).as("message_count"),
                         DSL.max(ARTICLE.DATE).over().partitionBy(threadRootOfArticle).as("latest_activity"),
-                        DSL.count(DSL.when(READ_STATE.ID.isNull(), 1)).over().partitionBy(threadRootOfArticle)
-                                .as("unread_count"),
+                        DSL.count(DSL.when(READ_STATE.ID.isNull().andNot(authorIgnored), 1)).over()
+                                .partitionBy(threadRootOfArticle).as("unread_count"),
+                        DSL.field(authorIgnored).as("author_ignored"),
                         positionInThread.as("position"))
                 .from(ARTICLE_LOCATION)
                 .join(ARTICLE).on(ARTICLE.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
@@ -133,7 +145,9 @@ class ThreadListRepository {
                 ? DSL.coalesce(latestActivity, NO_DATE)
                 : threadRoot.cast(Long.class);
 
-        Condition shown = articlesOfGroup.field("position", Integer.class).eq(1);
+        Condition shown = articlesOfGroup.field("position", Integer.class).eq(1)
+                .and(articlesOfGroup.field("author_ignored", Boolean.class).isFalse())
+                .andNot(IgnoreFilters.threadIgnored(threadRoot));
         if (until != null) {
             shown = shown.and(cardDate.lt(until));
         }
@@ -147,7 +161,8 @@ class ThreadListRepository {
         }
 
         Article cardArticle = ARTICLE.as("card_article");
-        return database.select(threadRoot, cardArticleId, cardArticle.SUBJECT, cardArticle.FROM, cardDate,
+        return database.select(threadRoot, cardArticleId, cardArticle.SUBJECT, cardArticle.FROM,
+                        cardArticle.AUTHOR_KEY, cardDate,
                         DSL.substring(cardArticle.BODY_TEXT, 1, EXCERPT_SOURCE_LENGTH), messageCount,
                         latestActivity, unreadCount, firstKey, secondKey)
                 .from(articlesOfGroup)
@@ -156,7 +171,8 @@ class ThreadListRepository {
                 .orderBy(firstKey.desc(), secondKey.desc(), threadRoot.desc())
                 .limit(limit)
                 .fetch(row -> new ThreadCard(row.value1(), row.value2(), row.value3(), row.value4(), row.value5(),
-                        row.value6(), row.value7(), row.value8(), row.value9(), row.value10(), row.value11()));
+                        row.value6(), row.value7(), row.value8(), row.value9(), row.value10(), row.value11(),
+                        row.value12()));
     }
 
     /** @return the range of the group with the highest article numbers, or empty when the group has none */
@@ -201,16 +217,33 @@ class ThreadListRepository {
                 .from(ARTICLE_LOCATION)
                 .join(NEWSGROUP).on(NEWSGROUP.ID.eq(ARTICLE_LOCATION.NEWSGROUP_ID))
                 .where(ARTICLE_LOCATION.ARTICLE_ID.eq(ARTICLE.ID)));
+        Field<Boolean> ignoredAuthor = DSL.field(IgnoreFilters.authorIgnored(ARTICLE.AUTHOR_KEY));
         return database.select(ARTICLE.ID, ARTICLE.PARENT_ID, ARTICLE.IS_STUB, ARTICLE.SUBJECT, ARTICLE.FROM,
-                        ARTICLE.DATE, read, locationInGroup.ARTICLE_NUMBER, anyGroup)
+                        ARTICLE.AUTHOR_KEY, ignoredAuthor, ARTICLE.DATE, read, locationInGroup.ARTICLE_NUMBER,
+                        anyGroup)
                 .from(ARTICLE)
                 .leftJoin(locationInGroup).on(locationInGroup.ARTICLE_ID.eq(ARTICLE.ID)
                         .and(locationInGroup.NEWSGROUP_ID.eq((int) groupId)))
                 .where(ARTICLE.THREAD_ROOT_ID.eq((int) threadRootId).or(ARTICLE.ID.eq((int) threadRootId)))
                 .fetch(row -> new ThreadArticle(row.value1(),
                         row.value2() == null ? null : row.value2().longValue(), Boolean.TRUE.equals(row.value3()),
-                        row.value4(), row.value5(), row.value6(), Boolean.TRUE.equals(row.value7()), row.value8(),
-                        row.value8() == null ? row.value9() : null));
+                        row.value4(), row.value5(), row.value6(), Boolean.TRUE.equals(row.value7()),
+                        row.value8(), Boolean.TRUE.equals(row.value9()), row.value10(),
+                        row.value10() == null ? row.value11() : null));
+    }
+
+    /**
+     * @return the rules that ignore the thread: those with the Message-ID of one of its articles. Empty when the
+     *         thread is not ignored
+     */
+    List<Long> findIgnoreRuleIds(long threadRootId) {
+        return database.selectDistinct(IGNORE_RULE.ID)
+                .from(IGNORE_RULE)
+                .join(ARTICLE).on(ARTICLE.MESSAGE_ID.eq(IGNORE_RULE.VALUE))
+                .where(IGNORE_RULE.KIND.eq(IgnoreFilters.THREAD))
+                .and(ARTICLE.THREAD_ROOT_ID.eq((int) threadRootId).or(ARTICLE.ID.eq((int) threadRootId)))
+                .orderBy(IGNORE_RULE.ID)
+                .fetch(row -> row.value1().longValue());
     }
 
     /**

@@ -1,9 +1,16 @@
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Ellipsis, EyeOff } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { ArticleContent } from '@/articles/ArticleContent'
 import { AuthorIcon } from '@/articles/AuthorIcon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Thread, ThreadArticle } from '@/threads/threadState'
 import { Time } from '@/threads/Time'
 import { authorName } from '@/threads/times'
@@ -56,15 +63,26 @@ interface ThreadArticlesProps {
   onArticleRead: (article: ThreadArticle) => void
   /** Called when a stub was fetched: the thread knows more about it now. */
   onStubFilled: () => void
+  /** Called when the owner chose "Ignore author" in the menu of an article. */
+  onIgnoreAuthor: (article: ThreadArticle) => void
 }
 
 /**
  * The articles of a thread, replies nested below what they answer (spec 008, "Thread page"). Each
  * level is indented and marked with a vertical line; a click on a line, or on the button of an
  * article, collapses the article and its replies to one line. What is collapsed is not remembered.
+ *
+ * An article by an ignored author is one line in its place, and its replies stay visible (spec
+ * 010). The owner can show it for this page view, which does not mark it as read.
  */
-export function ThreadArticles({ thread, onArticleRead, onStubFilled }: ThreadArticlesProps) {
+export function ThreadArticles({
+  thread,
+  onArticleRead,
+  onStubFilled,
+  onIgnoreAuthor,
+}: ThreadArticlesProps) {
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<number>>(() => new Set())
+  const [shownIgnoredIds, setShownIgnoredIds] = useState<ReadonlySet<number>>(() => new Set())
   const reportedIds = useRef(new Set<number>())
 
   function toggle(articleId: number) {
@@ -134,6 +152,13 @@ export function ThreadArticles({ thread, onArticleRead, onStubFilled }: ThreadAr
             onDisplayed={() => {
               displayed(row.article)
             }}
+            ignoredShown={shownIgnoredIds.has(row.article.id)}
+            onShowIgnored={() => {
+              setShownIgnoredIds((shown) => new Set(shown).add(row.article.id))
+            }}
+            onIgnoreAuthor={() => {
+              onIgnoreAuthor(row.article)
+            }}
           />
         </li>
       ))}
@@ -146,12 +171,39 @@ interface ArticleRowProps {
   collapsed: boolean
   onToggle: () => void
   onDisplayed: () => void
+  /** Whether the owner asked to see this article although its author is ignored. */
+  ignoredShown: boolean
+  onShowIgnored: () => void
+  onIgnoreAuthor: () => void
 }
 
 /** One article: who wrote it and when, and its text. Names come from the article and are text. */
-function ArticleRow({ row, collapsed, onToggle, onDisplayed }: ArticleRowProps) {
+function ArticleRow({
+  row,
+  collapsed,
+  onToggle,
+  onDisplayed,
+  ignoredShown,
+  onShowIgnored,
+  onIgnoreAuthor,
+}: ArticleRowProps) {
   const { article, replyCount } = row
   const author = article.isStub ? 'Not available locally' : authorName(article.from)
+  if (article.ignoredAuthor && !ignoredShown) {
+    return (
+      <article className="min-w-0 flex-1 py-2" aria-label={`Article by ignored author ${author}`}>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <EyeOff aria-hidden="true" className="size-4 shrink-0" />
+          <span className="max-w-full truncate">Ignored author · {author}</span>
+          <Button type="button" variant="ghost" size="xs" onClick={onShowIgnored}>
+            Show
+          </Button>
+        </div>
+      </article>
+    )
+  }
+  const canIgnoreAuthor =
+    !article.isStub && !article.ignoredAuthor && (article.authorKey ?? null) !== null
   return (
     <article className="min-w-0 flex-1 py-3" aria-label={`Article by ${author}`}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
@@ -193,12 +245,43 @@ function ArticleRow({ row, collapsed, onToggle, onDisplayed }: ArticleRowProps) 
             {article.otherGroup !== null && article.otherGroup !== undefined && (
               <Badge variant="outline">Posted to {article.otherGroup}</Badge>
             )}
+            {article.ignoredAuthor && <Badge variant="outline">Ignored author</Badge>}
+            {canIgnoreAuthor && (
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label="More actions"
+                        className="ml-auto text-muted-foreground"
+                      >
+                        <Ellipsis />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>More actions</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={onIgnoreAuthor}>
+                    <EyeOff />
+                    Ignore author
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </>
         )}
       </div>
       {!collapsed && (
         <div className="mt-2 animate-in pl-8 duration-150 fade-in motion-reduce:animate-none">
-          <ArticleContent articleId={article.id} onRead={onDisplayed} />
+          <ArticleContent
+            articleId={article.id}
+            onRead={onDisplayed}
+            marksRead={!article.ignoredAuthor}
+          />
         </div>
       )}
     </article>
