@@ -48,6 +48,9 @@ Instance-level server configuration. The MVP allows exactly one row (enforced in
 | `groups_refreshed_at` | Last successful group list refresh |
 | `groups_refresh_error` | Last refresh failure, nullable |
 | `posting_name`, `posting_email`, `posting_signature` | Posting identity, nullable until first set ([spec 009](../specs/009-article-posting/spec.md)) |
+| `posting_host`, `posting_port`, `posting_tls_mode` | The separate posting server ([spec 002](../specs/002-nntp-server-configuration/spec.md)); all empty when posts go to the server itself |
+| `posting_auth_method` | Empty when the posting server uses the login of the server; otherwise `NONE` or `USER_PASS` |
+| `posting_username`, `posting_password_encrypted` | The posting server's own login, nullable; the password in the format of `password_encrypted` |
 
 ### `newsgroup`
 

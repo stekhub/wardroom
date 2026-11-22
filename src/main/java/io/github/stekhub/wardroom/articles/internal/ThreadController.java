@@ -105,12 +105,15 @@ class ThreadController {
             @NotNull boolean read,
             @Schema(description = "The name of a group the article is located in, when it is not located in this "
                     + "group", nullable = true)
-            String otherGroup) {
+            String otherGroup,
+            @Schema(description = "Whether the owner posted the article from this group and the server does not "
+                    + "list it there yet")
+            @NotNull boolean sent) {
 
         static ThreadArticleBody of(Entry entry) {
             return new ThreadArticleBody(entry.id(), entry.parentId(), entry.depth(), entry.stub(),
                     entry.subject(), entry.from(), entry.authorKey(), entry.ignoredAuthor(), entry.date(),
-                    entry.read(), entry.otherGroup());
+                    entry.read(), entry.otherGroup(), entry.sent());
         }
     }
 

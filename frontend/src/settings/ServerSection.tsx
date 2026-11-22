@@ -80,7 +80,9 @@ export function ServerSection() {
         saveLabel="Save"
         onSaved={(saved) => {
           setServers([saved.server])
-          if (saved.connectionTest.success) {
+          if (saved.connectionTest.postingServerFailure != null) {
+            toast.warning('Settings saved, but the posting server cannot be used.')
+          } else if (saved.connectionTest.success) {
             toast.success('Settings saved')
           } else {
             toast.warning('Settings saved, but the connection test failed.')

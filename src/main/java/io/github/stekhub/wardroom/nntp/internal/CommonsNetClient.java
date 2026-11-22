@@ -9,6 +9,7 @@ import io.github.stekhub.wardroom.nntp.NntpFailureType;
 import io.github.stekhub.wardroom.nntp.NntpGroupDescription;
 import io.github.stekhub.wardroom.nntp.NntpGroupStatus;
 import io.github.stekhub.wardroom.nntp.NntpOverview;
+import io.github.stekhub.wardroom.nntp.NntpPostResult;
 import io.github.stekhub.wardroom.nntp.NntpServerSettings;
 import io.github.stekhub.wardroom.nntp.NntpTlsMode;
 import io.github.stekhub.wardroom.nntp.internal.OverviewParser.ParsedLine;
@@ -17,6 +18,7 @@ import io.github.stekhub.wardroom.platform.ProtocolAnomaly;
 import io.github.stekhub.wardroom.platform.ProtocolAnomalyKind;
 import io.github.stekhub.wardroom.platform.ProtocolAnomalyLog;
 import java.io.IOException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -39,11 +41,15 @@ final class CommonsNetClient implements NntpClient {
     private static final int GROUP_SELECTED = 211;
     private static final int LIST_FOLLOWS = 215;
     private static final int ARTICLE_FOLLOWS = 220;
+    private static final int ARTICLE_RECEIVED = 240;
+    private static final int SEND_ARTICLE = 340;
     private static final int OVERVIEW_FOLLOWS = 224;
     private static final int NO_SUCH_GROUP = 411;
     private static final int NO_CURRENT_ARTICLE = 420;
     private static final int NO_ARTICLES_IN_RANGE = 423;
     private static final int NO_SUCH_ARTICLE = 430;
+    private static final int POSTING_NOT_PERMITTED = 440;
+    private static final int POSTING_FAILED = 441;
     private static final int AUTHENTICATION_REQUIRED = 480;
     private static final int AUTHENTICATION_ACCEPTED = 281;
     private static final int PASSWORD_REQUIRED = 381;
@@ -314,6 +320,36 @@ final class CommonsNetClient implements NntpClient {
         }
     }
 
+    @Override
+    public NntpPostResult post(String article) {
+        ensureReaderMode();
+        String command = "POST";
+        try {
+            Writer articleWriter = wireClient.postArticle();
+            if (articleWriter == null) {
+                return switch (wireClient.getReplyCode()) {
+                    case POSTING_NOT_PERMITTED, ACCESS_DENIED ->
+                            new NntpPostResult(NntpPostResult.Outcome.NOT_ALLOWED, replyText());
+                    case AUTHENTICATION_REQUIRED ->
+                            new NntpPostResult(NntpPostResult.Outcome.AUTHENTICATION_REQUIRED, replyText());
+                    default -> throw unexpectedResponse(command);
+                };
+            }
+            // The writer applies dot-stuffing, writes CRLF and ends the article with the terminating dot.
+            try (articleWriter) {
+                articleWriter.write(WireText.encode(article));
+            }
+            wireClient.completePendingCommand();
+        } catch (IOException e) {
+            throw failure(e, command);
+        }
+        return switch (wireClient.getReplyCode()) {
+            case ARTICLE_RECEIVED -> new NntpPostResult(NntpPostResult.Outcome.ACCEPTED, replyText());
+            case POSTING_FAILED -> new NntpPostResult(NntpPostResult.Outcome.REJECTED, replyText());
+            default -> throw unexpectedResponse(command);
+        };
+    }
+
     /** A Message-ID with whitespace or control characters would be read as more than one argument or command. */
     private static boolean canBeSent(String messageId) {
         return !messageId.isEmpty()
@@ -547,6 +583,11 @@ final class CommonsNetClient implements NntpClient {
         String message = e.getMessage() == null ? "" : e.getMessage();
         int marker = message.toLowerCase(Locale.ROOT).lastIndexOf("reply: ");
         return marker < 0 ? message : message.substring(marker + "reply: ".length());
+    }
+
+    /** The text of the last answer after its response code, escaped and shortened. */
+    private String replyText() {
+        return replyLine().replaceFirst("^\\d{3}[ -]?", "").strip();
     }
 
     private String replyLine() {

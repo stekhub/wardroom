@@ -4,11 +4,13 @@ import { AuthGate } from '@/auth/AuthGate'
 import { DiscoverPage } from '@/pages/DiscoverPage'
 import { GroupPage } from '@/pages/GroupPage'
 import { LeavingPage } from '@/pages/LeavingPage'
+import { NewDiscussionPage } from '@/pages/NewDiscussionPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ThreadPage } from '@/pages/ThreadPage'
 import { ServerGate } from '@/server/ServerGate'
 import { AccountSection } from '@/settings/AccountSection'
 import { IgnoredSection } from '@/settings/IgnoredSection'
+import { PostingIdentitySection } from '@/settings/PostingIdentitySection'
 import { SETTINGS_SECTIONS } from '@/settings/sections'
 import { ServerSection } from '@/settings/ServerSection'
 import { EmptySettingsSection } from '@/settings/SettingsSectionFrame'
@@ -20,6 +22,7 @@ import { AppShell } from '@/shell/AppShell'
 const SECTION_CONTENT: Record<string, ReactNode> = {
   server: <ServerSection />,
   synchronization: <SynchronizationSection />,
+  'posting-identity': <PostingIdentitySection />,
   ignored: <IgnoredSection />,
   account: <AccountSection />,
 }
@@ -43,6 +46,7 @@ export const routes: RouteObject[] = [
               { index: true, element: <Navigate to="/discover" replace /> },
               { path: 'discover', element: <DiscoverPage /> },
               { path: 'groups/:groupId', element: <GroupPage /> },
+              { path: 'groups/:groupId/new', element: <NewDiscussionPage /> },
               { path: 'groups/:groupId/threads/:articleId', element: <ThreadPage /> },
               {
                 path: 'settings',

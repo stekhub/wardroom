@@ -14,4 +14,11 @@ public interface Threads {
      * again.
      */
     void recomputeGroup(long groupId);
+
+    /**
+     * Gives one article its place, from its own headers. For an article that is stored outside a synchronization
+     * and may have no location, such as one the owner posted (spec 009). To be called after the article is stored,
+     * outside a transaction. A failure is logged and not passed on.
+     */
+    void threadArticle(long articleId);
 }

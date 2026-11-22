@@ -9,9 +9,11 @@ import io.github.stekhub.wardroom.nntp.NntpTlsMode;
  * @param username           {@code null} unless the authentication is {@link AuthMethod#USER_PASS}
  * @param passwordEncrypted  the encrypted password in the format of {@link CredentialCipher}, or {@code null}
  * @param credentialsInvalid whether the server rejected the credentials or the password can no longer be read
+ * @param postingServer      the separate server for posting, or {@code null} when posts go to this server
  */
 record StoredServer(long id, String name, String host, int port, NntpTlsMode tlsMode, AuthMethod authMethod,
-                    String username, byte[] passwordEncrypted, int maxConnections, boolean credentialsInvalid) {
+                    String username, byte[] passwordEncrypted, int maxConnections, boolean credentialsInvalid,
+                    StoredPostingServer postingServer) {
 
     boolean passwordStored() {
         return passwordEncrypted != null;

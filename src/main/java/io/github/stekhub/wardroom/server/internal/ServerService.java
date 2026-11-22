@@ -15,6 +15,7 @@ import io.github.stekhub.wardroom.server.internal.ServerRequests.ConnectionTestR
 import io.github.stekhub.wardroom.server.internal.ServerRequests.SavedServer;
 import io.github.stekhub.wardroom.server.internal.ServerRequests.ServerRequest;
 import io.github.stekhub.wardroom.server.internal.ServerRequests.ServerResponse;
+import io.github.stekhub.wardroom.server.internal.ServerRules.ValidPostingServer;
 import io.github.stekhub.wardroom.server.internal.ServerRules.ValidServer;
 import java.util.List;
 import java.util.Objects;
@@ -35,6 +36,8 @@ class ServerService implements NntpServers {
 
     private static final String PASSWORD_UNREADABLE =
             "The stored password can no longer be read. Enter the password again.";
+    private static final String POSTING_PASSWORD_UNREADABLE =
+            "The stored password of the posting server can no longer be read. Enter the password again.";
 
     private final ServerRepository serverRepository;
     private final CredentialCipher credentialCipher;
@@ -60,7 +63,7 @@ class ServerService implements NntpServers {
      * is unreachable for the moment can be set up.
      */
     SavedServer create(ServerRequest request) {
-        ValidServer validServer = ServerRules.validate(request, false);
+        ValidServer validServer = ServerRules.validate(request, false, false);
         StoredServer created;
         saveLock.lock();
         try {
@@ -68,16 +71,18 @@ class ServerService implements NntpServers {
                 if (serverRepository.anyServerExists()) {
                     throw new ServerExistsException();
                 }
-                StoredServer newServer = toStoredServer(0, validServer, encrypted(validServer.newPassword()), false);
+                StoredServer newServer = toStoredServer(0, validServer, encrypted(validServer.newPassword()), false,
+                        postingServerAfterSaving(null, validServer.postingServer()));
                 long serverId = serverRepository.insert(newServer);
                 eventPublisher.publishEvent(new ServerCreated(serverId));
-                return toStoredServer(serverId, validServer, newServer.passwordEncrypted(), false);
+                return toStoredServer(serverId, validServer, newServer.passwordEncrypted(), false,
+                        newServer.postingServer());
             });
         } finally {
             saveLock.unlock();
         }
         log.info("The server {} ({}:{}) was added", created.id(), created.host(), created.port());
-        return testAfterSaving(created, validServer.newPassword());
+        return testAfterSaving(created, validServer);
     }
 
     /**
@@ -91,15 +96,17 @@ class ServerService implements NntpServers {
         try {
             StoredServer before = serverRepository.findById(serverId).orElseThrow(ServerNotFoundException::new);
             validServer = ServerRules.validate(request,
-                    before.authMethod() == AuthMethod.USER_PASS && before.passwordStored());
+                    before.authMethod() == AuthMethod.USER_PASS && before.passwordStored(),
+                    postingPasswordStored(before));
             updated = toStoredServer(serverId, validServer, passwordAfterUpdate(before, validServer),
-                    before.credentialsInvalid() && !credentialsChange(before, validServer));
+                    before.credentialsInvalid() && !credentialsChange(before, validServer),
+                    postingServerAfterSaving(before.postingServer(), validServer.postingServer()));
             serverRepository.update(updated);
         } finally {
             saveLock.unlock();
         }
         log.info("The server {} ({}:{}) was changed", updated.id(), updated.host(), updated.port());
-        return testAfterSaving(updated, validServer.newPassword());
+        return testAfterSaving(updated, validServer);
     }
 
     /** Removes the server and, in the same transaction, everything other modules store for it. */
@@ -122,17 +129,29 @@ class ServerService implements NntpServers {
                 : serverRepository.findById(request.id()).orElseThrow(ServerNotFoundException::new);
         boolean storedPasswordAvailable = stored != null && stored.authMethod() == AuthMethod.USER_PASS
                 && stored.passwordStored();
-        ValidServer validServer = ServerRules.validate(request.server(), storedPasswordAvailable);
+        ValidServer validServer = ServerRules.validate(request.server(), storedPasswordAvailable,
+                stored != null && postingPasswordStored(stored));
         long serverId = stored == null ? 0 : stored.id();
+        NntpServerSettings serverSettings;
         try {
             String password = validServer.authMethod() == AuthMethod.NONE || validServer.newPassword() != null
                     ? validServer.newPassword()
                     : decryptedPassword(stored);
-            return connectionTester.test(new NntpServerSettings(serverId, validServer.host(), validServer.port(),
-                    validServer.tlsMode(), validServer.username(), password, validServer.maxConnections()));
+            serverSettings = new NntpServerSettings(serverId, validServer.host(), validServer.port(),
+                    validServer.tlsMode(), validServer.username(), password, validServer.maxConnections());
         } catch (CredentialDecryptionException e) {
             return ConnectionTestResult.failed(ConnectionFailureType.AUTH_FAILED, PASSWORD_UNREADABLE);
         }
+        ValidPostingServer validPostingServer = validServer.postingServer();
+        if (validPostingServer == null) {
+            return connectionTester.test(serverSettings);
+        }
+        // Nothing is saved: the stored password is taken as it is, and a new one is used without encrypting it.
+        byte[] storedPostingPassword = stored == null || stored.postingServer() == null
+                ? null
+                : stored.postingServer().passwordEncrypted();
+        return test(serverSettings, toStoredPostingServer(validPostingServer, storedPostingPassword),
+                validPostingServer.newPassword());
     }
 
     @Override
@@ -145,6 +164,27 @@ class ServerService implements NntpServers {
             return Optional.of(connectionSettings(stored.get(), null));
         } catch (CredentialDecryptionException e) {
             throw new NntpException(NntpFailureType.AUTH_FAILED, PASSWORD_UNREADABLE);
+        }
+    }
+
+    @Override
+    public Optional<NntpServerSettings> postingServerSettings(long serverId) {
+        Optional<StoredServer> stored = serverRepository.findById(serverId);
+        if (stored.isEmpty() || stored.get().postingServer() == null) {
+            return Optional.empty();
+        }
+        NntpServerSettings serverSettings;
+        try {
+            serverSettings = connectionSettings(stored.get(), null);
+        } catch (CredentialDecryptionException e) {
+            throw new NntpException(NntpFailureType.AUTH_FAILED, PASSWORD_UNREADABLE);
+        }
+        try {
+            return Optional.of(postingServerSettings(serverSettings, stored.get().postingServer(), null));
+        } catch (CredentialDecryptionException e) {
+            log.warn("The stored password of the posting server of the server {} cannot be decrypted: {}. Enter "
+                    + "the password again in the server settings.", serverId, e.getMessage());
+            throw new NntpException(NntpFailureType.AUTH_FAILED, POSTING_PASSWORD_UNREADABLE);
         }
     }
 
@@ -163,15 +203,17 @@ class ServerService implements NntpServers {
     /**
      * Saving closes the idle connections and the circuit breaker of the server, then runs the connection test with
      * what was saved. A login that the server rejects marks the credentials as invalid; one that works clears the
-     * mark.
+     * mark. What the separate posting server answers changes nothing about that mark.
      *
-     * @param newPassword the password that was just saved, or {@code null} when the stored one was kept
+     * @param validServer what was just saved, with the new passwords; a password that was kept is read from the
+     *                    database
      */
-    private SavedServer testAfterSaving(StoredServer saved, String newPassword) {
+    private SavedServer testAfterSaving(StoredServer saved, ValidServer validServer) {
         connections.reset(saved.id());
         ConnectionTestResult connectionTest;
         try {
-            connectionTest = connectionTester.test(connectionSettings(saved, newPassword));
+            connectionTest = test(connectionSettings(saved, validServer.newPassword()), saved.postingServer(),
+                    validServer.postingServer() == null ? null : validServer.postingServer().newPassword());
         } catch (CredentialDecryptionException e) {
             connectionTest = ConnectionTestResult.failed(ConnectionFailureType.AUTH_FAILED, PASSWORD_UNREADABLE);
         }
@@ -184,6 +226,51 @@ class ServerService implements NntpServers {
         }
         StoredServer current = serverRepository.findById(saved.id()).orElse(saved);
         return new SavedServer(ServerResponse.of(current), connectionTest);
+    }
+
+    /**
+     * Tests the server and then, when that worked, its separate posting server. Whether posting is offered is then
+     * what the posting server says.
+     *
+     * @param postingServer        {@code null} when posts go to the server itself
+     * @param knownPostingPassword the password of the posting server's own login in clear text when the caller has
+     *                             it, otherwise the stored one is used
+     */
+    private ConnectionTestResult test(NntpServerSettings serverSettings, StoredPostingServer postingServer,
+            String knownPostingPassword) {
+        ConnectionTestResult serverTest = connectionTester.test(serverSettings);
+        if (!serverTest.success() || postingServer == null) {
+            return serverTest;
+        }
+        try {
+            return connectionTester.testPostingServer(
+                    postingServerSettings(serverSettings, postingServer, knownPostingPassword));
+        } catch (CredentialDecryptionException e) {
+            return ConnectionTestResult.postingServerFailed(ConnectionFailureType.AUTH_FAILED,
+                    POSTING_PASSWORD_UNREADABLE);
+        }
+    }
+
+    /**
+     * The settings to connect to the posting server with: its own host, port and TLS mode, and either the login of
+     * the server or its own. One connection is enough for a post.
+     */
+    private NntpServerSettings postingServerSettings(NntpServerSettings serverSettings,
+            StoredPostingServer postingServer, String knownPassword) throws CredentialDecryptionException {
+        String username = serverSettings.username();
+        String password = serverSettings.password();
+        if (!postingServer.sameLogin()) {
+            username = null;
+            password = null;
+            if (postingServer.authMethod() == AuthMethod.USER_PASS) {
+                username = postingServer.username();
+                password = knownPassword != null
+                        ? knownPassword
+                        : credentialCipher.decrypt(postingServer.passwordEncrypted());
+            }
+        }
+        return new NntpServerSettings(serverSettings.serverId(), postingServer.host(), postingServer.port(),
+                postingServer.tlsMode(), username, password, 1);
     }
 
     /** @param knownPassword the password in clear text when the caller has it, otherwise the stored one is used */
@@ -216,6 +303,40 @@ class ServerService implements NntpServers {
         return validServer.newPassword() == null ? before.passwordEncrypted() : encrypted(validServer.newPassword());
     }
 
+    private static boolean postingPasswordStored(StoredServer server) {
+        StoredPostingServer postingServer = server.postingServer();
+        return postingServer != null && postingServer.authMethod() == AuthMethod.USER_PASS
+                && postingServer.passwordStored();
+    }
+
+    /**
+     * The posting server as it is stored after saving. A password of its own is kept when the request has none;
+     * it is deleted when the posting server no longer logs in with a login of its own.
+     *
+     * @param before the posting server that is stored now, or {@code null}
+     * @return {@code null} when posts go to the server itself
+     */
+    private StoredPostingServer postingServerAfterSaving(StoredPostingServer before,
+            ValidPostingServer validPostingServer) {
+        if (validPostingServer == null) {
+            return null;
+        }
+        byte[] passwordEncrypted = null;
+        if (validPostingServer.authMethod() == AuthMethod.USER_PASS) {
+            passwordEncrypted = validPostingServer.newPassword() != null
+                    ? encrypted(validPostingServer.newPassword())
+                    : before.passwordEncrypted();
+        }
+        return toStoredPostingServer(validPostingServer, passwordEncrypted);
+    }
+
+    private static StoredPostingServer toStoredPostingServer(ValidPostingServer validPostingServer,
+            byte[] passwordEncrypted) {
+        return new StoredPostingServer(validPostingServer.host(), validPostingServer.port(),
+                validPostingServer.tlsMode(), validPostingServer.authMethod(), validPostingServer.username(),
+                passwordEncrypted);
+    }
+
     private static boolean credentialsChange(StoredServer before, ValidServer validServer) {
         return before.authMethod() != validServer.authMethod()
                 || !Objects.equals(before.username(), validServer.username())
@@ -227,9 +348,9 @@ class ServerService implements NntpServers {
     }
 
     private static StoredServer toStoredServer(long serverId, ValidServer validServer, byte[] passwordEncrypted,
-            boolean credentialsInvalid) {
+            boolean credentialsInvalid, StoredPostingServer postingServer) {
         return new StoredServer(serverId, validServer.name(), validServer.host(), validServer.port(),
                 validServer.tlsMode(), validServer.authMethod(), validServer.username(), passwordEncrypted,
-                validServer.maxConnections(), credentialsInvalid);
+                validServer.maxConnections(), credentialsInvalid, postingServer);
     }
 }

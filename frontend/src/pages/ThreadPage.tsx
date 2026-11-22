@@ -58,7 +58,7 @@ export function ThreadPage() {
   return (
     <ReadingColumn>
       <BackToGroup subscription={subscription} />
-      <OpenThread key={articleId} groupId={groupId} articleId={articleId} />
+      <OpenThread key={articleId} subscription={subscription} articleId={articleId} />
     </ReadingColumn>
   )
 }
@@ -103,7 +103,14 @@ async function fetchThread(groupId: number, articleId: number): Promise<Thread> 
   return data
 }
 
-function OpenThread({ groupId, articleId }: { groupId: number; articleId: number }) {
+function OpenThread({
+  subscription,
+  articleId,
+}: {
+  subscription: Subscription
+  articleId: number
+}) {
+  const groupId = subscription.groupId
   const queryClient = useQueryClient()
   const { showArticleRead, markThreadRead } = useShownReadState()
   const { ignore, stopIgnoring } = useIgnoring()
@@ -208,8 +215,11 @@ function OpenThread({ groupId, articleId }: { groupId: number; articleId: number
     })
   }
 
-  /** A stub was fetched: its author, its date and maybe its place in the thread are known now. */
-  async function showFilledStub() {
+  /**
+   * Asks for the thread again and keeps the "new" markers: after a stub was fetched, whose author,
+   * date and maybe place in the thread are known now, and after a reply was sent.
+   */
+  async function showThreadAgain() {
     let current: Thread
     try {
       current = await fetchThread(groupId, articleId)
@@ -288,7 +298,17 @@ function OpenThread({ groupId, articleId }: { groupId: number; articleId: number
             showArticleRead(groupId, shownThread.rootId)
           }
         }}
-        onStubFilled={() => void showFilledStub()}
+        replies={{
+          groupId,
+          groupName: subscription.name,
+          allowed: subscription.postingStatus !== 'NOT_ALLOWED',
+          moderated: subscription.postingStatus === 'MODERATED',
+          onPosted: () => {
+            toast.success('Your post was sent')
+            void showThreadAgain()
+          },
+        }}
+        onStubFilled={() => void showThreadAgain()}
         onIgnoreAuthor={ignoreAuthorOf}
       />
     </>

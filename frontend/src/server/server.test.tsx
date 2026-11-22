@@ -149,7 +149,7 @@ test('"Test connection" sends the form without saving and shows the result', asy
   await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
 
   expect(await screen.findByText('Connection successful')).toBeVisible()
-  expect(screen.getByText('The server allows posting.')).toBeVisible()
+  expect(screen.getByText('Posting: available')).toBeVisible()
   expect(sent.body).toEqual({
     name: 'My provider',
     host: 'news.example.com',
@@ -400,4 +400,164 @@ test('when the servers cannot be loaded, an error with a retry button is shown',
   await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
 
   expect(await screen.findByRole('heading', { name: 'Discover groups' })).toBeVisible()
+})
+
+// Posting server (spec 002)
+
+test('the posting server is off at first and its fields appear with the checkbox', async () => {
+  await openServerStep()
+
+  expect(
+    screen.getByRole('checkbox', { name: 'Use a separate server for posting' }),
+  ).not.toBeChecked()
+  expect(screen.queryByLabelText('Posting host')).not.toBeInTheDocument()
+
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Use a separate server for posting' }))
+
+  expect(screen.getByLabelText('Posting host')).toBeVisible()
+  expect(screen.getByLabelText('Posting port')).toHaveValue(563)
+  expect(screen.getByRole('checkbox', { name: 'Use the same login as for reading' })).toBeChecked()
+  expect(screen.queryByLabelText('Posting username')).not.toBeInTheDocument()
+
+  await userEvent.selectOptions(screen.getByLabelText('Posting TLS mode'), 'NONE')
+  expect(screen.getByLabelText('Posting port')).toHaveValue(119)
+})
+
+test('a posting server with the login of the server is sent with its host, port and TLS mode', async () => {
+  await openServerStep()
+  await fillInServerWithLogin()
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Use a separate server for posting' }))
+  await userEvent.type(screen.getByLabelText('Posting host'), ' post.example.com ')
+  const sent = capture('post', '/api/servers/connection-test', 200, SUCCESSFUL_TEST)
+
+  await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+
+  expect(await screen.findByText('Posting: available')).toBeVisible()
+  expect(sent.body).toMatchObject({
+    host: 'news.example.com',
+    postingServer: { host: 'post.example.com', port: 563, tlsMode: 'IMPLICIT', sameLogin: true },
+  })
+  expect((sent.body as { postingServer: object }).postingServer).not.toHaveProperty('authMethod')
+})
+
+test('without the same login, the posting server has its own authentication', async () => {
+  await openServerStep()
+  await fillInServerWithLogin()
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Use a separate server for posting' }))
+  await userEvent.type(screen.getByLabelText('Posting host'), 'post.example.com')
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Use the same login as for reading' }))
+  const sent = capture('post', '/api/servers/connection-test', 200, SUCCESSFUL_TEST)
+
+  await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+
+  expect(
+    await screen.findAllByText(/^Enter a (username|password) with 1 to 255 characters\.$/),
+  ).toHaveLength(2)
+  expect(sent.count).toBe(0)
+
+  await userEvent.type(screen.getByLabelText('Posting username'), 'poster')
+  await userEvent.type(screen.getByLabelText('Posting password'), 'posting-Passw0rd')
+  await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+
+  await waitFor(() => {
+    expect(sent.count).toBe(1)
+  })
+  expect(sent.body).toMatchObject({
+    postingServer: {
+      host: 'post.example.com',
+      sameLogin: false,
+      authMethod: 'USER_PASS',
+      username: 'poster',
+      password: 'posting-Passw0rd',
+    },
+  })
+})
+
+test('the login of the server is not sent to a posting server without TLS', async () => {
+  await openServerStep()
+  await fillInServerWithLogin()
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Use a separate server for posting' }))
+  await userEvent.type(screen.getByLabelText('Posting host'), 'post.example.com')
+  await userEvent.selectOptions(screen.getByLabelText('Posting TLS mode'), 'NONE')
+  const sent = capture('post', '/api/servers/connection-test', 200, SUCCESSFUL_TEST)
+
+  await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+
+  expect(
+    await screen.findByText('The posting server uses the login of the server and needs TLS.'),
+  ).toBeVisible()
+  expect(sent.count).toBe(0)
+})
+
+test('fields of a posting server that is not used do not keep the form from being sent', async () => {
+  await openServerStep()
+  await fillInServerWithLogin()
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Use a separate server for posting' }))
+  await userEvent.clear(screen.getByLabelText('Posting port'))
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Use a separate server for posting' }))
+  const sent = capture('post', '/api/servers/connection-test', 200, SUCCESSFUL_TEST)
+
+  await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+
+  await waitFor(() => {
+    expect(sent.count).toBe(1)
+  })
+  expect(sent.body).not.toHaveProperty('postingServer')
+})
+
+test('a stored posting server is shown and a rule of the backend is shown at its field', async () => {
+  await openServerSection({
+    postingServer: {
+      host: 'post.example.com',
+      port: 119,
+      tlsMode: 'IMPLICIT',
+      sameLogin: false,
+      authMethod: 'USER_PASS',
+      username: 'poster',
+      passwordStored: true,
+    },
+  })
+
+  expect(screen.getByRole('checkbox', { name: 'Use a separate server for posting' })).toBeChecked()
+  expect(screen.getByLabelText('Posting host')).toHaveValue('post.example.com')
+  expect(screen.getByLabelText('Posting port')).toHaveValue(119)
+  expect(
+    screen.getByRole('checkbox', { name: 'Use the same login as for reading' }),
+  ).not.toBeChecked()
+  expect(screen.getByLabelText('Posting username')).toHaveValue('poster')
+  expect(screen.getByLabelText('Posting password')).toHaveValue('')
+
+  server.use(
+    http.post('/api/servers/connection-test', () =>
+      HttpResponse.json(
+        {
+          status: 400,
+          detail: 'The host must be a host name.',
+          errors: [{ field: 'postingServer.host', message: 'The host must be a host name.' }],
+        },
+        { status: 400, headers: { 'Content-Type': 'application/problem+json' } },
+      ),
+    ),
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+
+  expect(await screen.findByText('The host must be a host name.')).toBeVisible()
+  expect(screen.getByLabelText('Posting host')).toBeInvalid()
+})
+
+test('a posting server that cannot be used is named in a successful result', async () => {
+  await openServerStep()
+  await fillInServerWithLogin()
+  capture('post', '/api/servers/connection-test', 200, {
+    success: true,
+    failure: null,
+    postingAllowed: null,
+    postingServerFailure: { type: 'UNREACHABLE', message: 'Host not found: post.example.com' },
+  })
+
+  await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+
+  expect(await screen.findByText('Connection successful')).toBeVisible()
+  expect(screen.getByText('Posting: the posting server cannot be used')).toBeVisible()
+  expect(screen.getByText(/Host not found: post\.example\.com/)).toBeVisible()
 })

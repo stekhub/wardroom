@@ -41,6 +41,23 @@ class ConnectionTester {
     }
 
     /**
+     * The test of the separate posting server, after the test of the server itself worked. A failure here is part
+     * of a successful result: reading works without the posting server.
+     */
+    ConnectionTestResult testPostingServer(NntpServerSettings postingServerSettings) {
+        String target = LogSafe.escape(postingServerSettings.host()) + ":" + postingServerSettings.port();
+        try (NntpClient client = connector.connect(postingServerSettings)) {
+            boolean postingAllowed = postingAllowed(client);
+            log.info("Connection test with the posting server {} succeeded", target);
+            return ConnectionTestResult.succeeded(postingAllowed);
+        } catch (NntpException e) {
+            ConnectionFailureType type = failureType(e.type());
+            log.info("Connection test with the posting server {} failed: {} ({})", target, type, e.getMessage());
+            return ConnectionTestResult.postingServerFailed(type, e.getMessage());
+        }
+    }
+
+    /**
      * Whether the server offers posting. A capability list that names {@code POST} says so. A list that names
      * {@code READER} but not {@code POST} is a complete list of a server that does not offer posting. Every other
      * server is judged by its greeting: older servers have no capability list, and some servers send a list that

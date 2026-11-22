@@ -1,41 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/api/client'
-import { problemMessage, UNEXPECTED_ERROR } from '@/api/problem'
 import type { components } from '@/api/schema'
 import { ArticleText } from '@/articles/ArticleText'
+import { type Content, type ContentError, contentKey, fetchContent } from '@/articles/contentState'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useReloadSubscriptions } from '@/groups/subscriptionState'
 
-type Content = components['schemas']['ArticleContent']
 type OmittedPart = components['schemas']['OmittedPart']
-
-/** Why the content of an article could not be shown. */
-class ContentError extends Error {
-  /** Whether the server answered that it no longer has the article (410). */
-  readonly gone: boolean
-
-  constructor(message: string, gone: boolean) {
-    super(message)
-    this.gone = gone
-  }
-}
-
-function contentKey(articleId: number) {
-  return ['article-content', articleId] as const
-}
-
-async function fetchContent(articleId: number, askAgain: boolean): Promise<Content> {
-  const parameters = { params: { path: { articleId } } }
-  const { data, error, response } = askAgain
-    ? await api.POST('/api/articles/{articleId}/content/retry', parameters)
-    : await api.GET('/api/articles/{articleId}/content', parameters)
-  if (data === undefined) {
-    throw new ContentError(problemMessage(error, UNEXPECTED_ERROR), response.status === 410)
-  }
-  return data
-}
 
 /** Whether the element has been on screen. Without a way to tell, it counts as on screen. */
 function useSeen(): { ref: React.RefObject<HTMLDivElement | null>; seen: boolean } {

@@ -77,10 +77,32 @@ class ThreadRepository {
     }
 
     /**
-     * @return the articles located in the group that are no stubs and have no place yet, by article number, oldest
-     *         first; at most {@code limit}
+     * @return the articles of the group that are no stubs and have no place yet; at most {@code limit}. First the
+     *         articles located in the group, by article number, oldest first; then the articles the owner posted
+     *         from the group that have no location in it yet (spec 009)
      */
     List<UnthreadedArticle> findUnthreaded(long groupId, int limit) {
+        List<UnthreadedArticle> unthreadedArticles = new ArrayList<>(findUnthreadedLocated(groupId, limit));
+        if (unthreadedArticles.size() < limit) {
+            ArticleLocation locationInGroup = ARTICLE_LOCATION.as("location_in_group");
+            unthreadedArticles.addAll(database
+                    .select(ARTICLE.ID, ARTICLE.MESSAGE_ID, ARTICLE.REFERENCES, HEADERS_WITHOUT_REFERENCES)
+                    .from(ARTICLE)
+                    .where(ARTICLE.POSTED_FROM_NEWSGROUP_ID.eq((int) groupId))
+                    .and(ARTICLE.IS_STUB.isFalse())
+                    .and(ARTICLE.THREAD_ROOT_ID.isNull())
+                    .andNotExists(DSL.selectOne().from(locationInGroup)
+                            .where(locationInGroup.ARTICLE_ID.eq(ARTICLE.ID))
+                            .and(locationInGroup.NEWSGROUP_ID.eq((int) groupId)))
+                    .orderBy(ARTICLE.ID)
+                    .limit(limit - unthreadedArticles.size())
+                    .fetch(row -> new UnthreadedArticle(row.value1(), row.value2(), row.value3(),
+                            RawHeaders.value(row.value4(), IN_REPLY_TO))));
+        }
+        return unthreadedArticles;
+    }
+
+    private List<UnthreadedArticle> findUnthreadedLocated(long groupId, int limit) {
         return database.select(ARTICLE.ID, ARTICLE.MESSAGE_ID, ARTICLE.REFERENCES, HEADERS_WITHOUT_REFERENCES)
                 .from(ARTICLE_LOCATION)
                 .join(ARTICLE).on(ARTICLE.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
@@ -266,9 +288,13 @@ class ThreadRepository {
                                 .and(member.THREAD_ROOT_ID.isNotNull())
                                 .andNotExists(DSL.selectOne().from(anyLocation)
                                         .where(anyLocation.ARTICLE_ID.eq(member.ID))))))
-                .and(ARTICLE.IS_STUB.isTrue().orExists(DSL.selectOne().from(otherLocation)
-                        .where(otherLocation.ARTICLE_ID.eq(ARTICLE.ID))
-                        .and(otherLocation.NEWSGROUP_ID.ne((int) groupId))))
+                .and(ARTICLE.IS_STUB.isTrue()
+                        .orExists(DSL.selectOne().from(otherLocation)
+                                .where(otherLocation.ARTICLE_ID.eq(ARTICLE.ID))
+                                .and(otherLocation.NEWSGROUP_ID.ne((int) groupId)))
+                        // An article the owner posted from another group stays without a location (spec 009).
+                        .or(ARTICLE.POSTED_FROM_NEWSGROUP_ID.isNotNull()
+                                .and(ARTICLE.POSTED_FROM_NEWSGROUP_ID.ne((int) groupId))))
                 .forEach(row -> (Boolean.TRUE.equals(row.value2()) ? stubIds : remainingArticleIds)
                         .add(row.value1()));
         for (List<Integer> part : parts(remainingArticleIds)) {
@@ -291,15 +317,23 @@ class ThreadRepository {
                 .execute();
     }
 
-    /** @return the groups that have articles without a place, lowest ID first */
+    /**
+     * @return the groups that have articles without a place, lowest ID first: articles located in the group, and
+     *         articles the owner posted from it
+     */
     List<Long> findGroupsWithUnthreadedArticles() {
-        return database.selectDistinct(ARTICLE_LOCATION.NEWSGROUP_ID)
+        return database.select(ARTICLE_LOCATION.NEWSGROUP_ID)
                 .from(ARTICLE)
                 .join(ARTICLE_LOCATION).on(ARTICLE_LOCATION.ARTICLE_ID.eq(ARTICLE.ID))
                 .where(ARTICLE.THREAD_ROOT_ID.isNull())
                 .and(ARTICLE.IS_STUB.isFalse())
-                .orderBy(ARTICLE_LOCATION.NEWSGROUP_ID)
-                .fetch(row -> row.value1().longValue());
+                .union(DSL.select(ARTICLE.POSTED_FROM_NEWSGROUP_ID)
+                        .from(ARTICLE)
+                        .where(ARTICLE.POSTED_FROM_NEWSGROUP_ID.isNotNull())
+                        .and(ARTICLE.THREAD_ROOT_ID.isNull())
+                        .and(ARTICLE.IS_STUB.isFalse()))
+                .fetch(row -> row.value1().longValue())
+                .stream().sorted().toList();
     }
 
     /** Deletes every stub. Links to a stub go with it. */
@@ -316,12 +350,15 @@ class ThreadRepository {
                 .execute();
     }
 
-    /** @return the groups that have articles, lowest ID first */
+    /** @return the groups that have articles, located in them or posted from them, lowest ID first */
     List<Long> findGroupsWithArticles() {
-        return database.selectDistinct(ARTICLE_LOCATION.NEWSGROUP_ID)
+        return database.select(ARTICLE_LOCATION.NEWSGROUP_ID)
                 .from(ARTICLE_LOCATION)
-                .orderBy(ARTICLE_LOCATION.NEWSGROUP_ID)
-                .fetch(row -> row.value1().longValue());
+                .union(DSL.select(ARTICLE.POSTED_FROM_NEWSGROUP_ID)
+                        .from(ARTICLE)
+                        .where(ARTICLE.POSTED_FROM_NEWSGROUP_ID.isNotNull()))
+                .fetch(row -> row.value1().longValue())
+                .stream().sorted().toList();
     }
 
     /**

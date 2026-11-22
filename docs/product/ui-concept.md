@@ -62,6 +62,8 @@ A full-page, centered card without the sidebar, with a step indicator: **1 Accou
 1. **Account:** username and password, entered twice ([spec 001](../specs/001-user-authentication/spec.md)). Completing the step creates the account and logs in.
 2. **Server:** the server form with connection test ([spec 002](../specs/002-nntp-server-configuration/spec.md)). This step cannot be skipped, because Wardroom is unusable without a server.
 
+- The server form ends with the checkbox "Use a separate server for posting", off by default. When it is on, a group "Posting server" appears below it with host, port, TLS mode and the checkbox "Use the same login as for reading", on by default. When that one is off, authentication, username and password of the posting server appear. The form is the same in the wizard and on the settings page.
+
 - After step 2, Wardroom opens the discover view, where the group list is being fetched.
 - The account cannot be changed from step 2, because it already exists. If the browser is closed after step 1, the next login continues with step 2.
 
@@ -71,7 +73,7 @@ Opened with the settings button in the sidebar header. A section navigation on t
 
 | Section | Icon (Lucide) | Content |
 |---|---|---|
-| Server | `server` | Server form, connection test, removal ([spec 002](../specs/002-nntp-server-configuration/spec.md)) |
+| Server | `server` | Server form with the optional posting server, connection test, removal ([spec 002](../specs/002-nntp-server-configuration/spec.md)) |
 | Synchronization | `refresh-cw` | Intervals, depth, cache size and current use ([spec 005](../specs/005-article-synchronization/spec.md)) |
 | Posting identity | `id-card` | Display name, email address, signature ([spec 009](../specs/009-article-posting/spec.md)) |
 | Ignored | `eye-off` | Ignored authors and threads ([spec 010](../specs/010-ignoring/spec.md)) |
