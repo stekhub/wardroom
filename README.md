@@ -41,7 +41,7 @@ A server can offer tens of thousands of groups, and many of them went quiet long
 
 ## Quick install
 
-You need Docker with Docker Compose and access to an NNTP server.
+You need Docker with Docker Compose and access to an NNTP server. The image runs on amd64 and arm64, for example on a Raspberry Pi 3, 4 or 5 with a 64-bit operating system.
 
 1. Create a directory for Wardroom and save this file in it as `compose.yaml`:
 

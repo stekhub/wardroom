@@ -29,6 +29,16 @@ docker compose pull
 docker compose up -d
 ```
 
+The image has three kinds of tags:
+
+| Tag | Meaning |
+|---|---|
+| `latest` | The newest release. The reference Compose file uses it. |
+| `0.9` | The newest release of 0.9, for example 0.9.2. |
+| `0.9.0` | Exactly this release. It never changes. |
+
+The [releases](https://github.com/stekhub/wardroom/releases) list what changed in each version.
+
 Before Wardroom changes the database for a new version, it saves a copy in `config/backups`. It keeps the two newest copies.
 
 **Going back to an earlier version**
