@@ -2,7 +2,7 @@
 
 Thank you for your interest in Wardroom. This document explains how to contribute.
 
-Wardroom is in early development. The scope of the first version is fixed by the specifications, so please read "Before you start" first.
+The planned features are fixed by the specifications and the [implementation plan](docs/implementation-plan.md), so please read "Before you start" first.
 
 ## Before you start
 

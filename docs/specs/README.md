@@ -22,3 +22,15 @@ The order in which the specifications are implemented is in the [implementation 
 | [008](008-discussion-view/spec.md) | Discussion view | Accepted |
 | [009](009-article-posting/spec.md) | Article posting | Accepted |
 | [010](010-ignoring/spec.md) | Ignoring authors and threads | Accepted |
+| [011](011-login-throttling-and-session-timeout/spec.md) | Login throttling and session timeout | Accepted |
+| [012](012-two-factor-authentication/spec.md) | Two-factor authentication | Accepted |
+| [013](013-dark-theme/spec.md) | Dark theme | Proposed |
+| [014](014-next-unread-and-mark-as-unread/spec.md) | Next unread and mark as unread | Proposed |
+| [015](015-accessibility-and-mobile-fixes/spec.md) | Accessibility and mobile fixes | Proposed |
+| [016](016-full-text-search/spec.md) | Full-text search | Proposed |
+| [017](017-installable-web-app/spec.md) | Installable web app | Proposed |
+| [018](018-notifications/spec.md) | Notifications | Proposed |
+| [019](019-classic-view/spec.md) | Classic view | Proposed |
+| [020](020-bookmarks/spec.md) | Bookmarks | Proposed |
+| [021](021-newest-articles/spec.md) | Newest articles | Proposed |
+| [022](022-group-list-filters-and-paging/spec.md) | Group list filters and paging | Accepted |

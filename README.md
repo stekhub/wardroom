@@ -32,11 +32,11 @@ A server can offer tens of thousands of groups, and many of them went quiet long
 - **Simple to run:** one container, one data directory, one owner account, one NNTP server.
 
 <p align="center">
-  <img src="docs/images/discover-groups.png" alt="The discover view: the groups of the server, sorted by activity">
+  <img src="docs/images/discover-groups.png" width="800" alt="The discover view: the groups of the server, sorted by activity">
 </p>
 
 <p align="center">
-  <img src="docs/images/discussion.png" alt="A discussion opened as a conversation">
+  <img src="docs/images/discussion.png" width="800" alt="A discussion opened as a conversation">
 </p>
 
 ## Quick install
