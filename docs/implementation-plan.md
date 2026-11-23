@@ -21,8 +21,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 13 | Posting | Spec 009 | Done |
 | 14 | Cache size limit | ADR 0023, 0034; spec 005 | Done |
 | 15 | Activity of a group | Spec 003 | Done |
-| 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | In review |
-| 17 | Release pipeline | ADR 0009, 0024 | Not started; discuss first |
+| 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Done |
+| 17 | Release pipeline | ADR 0009, 0024 | In review |
 
 Status values: `Not started`, `In progress`, `In review`, `Done`.
 
@@ -143,9 +143,16 @@ Added to the MVP by the owner on 2026-11-22. The change of spec 003 and of the d
 
 ### 17. Release pipeline
 
-- To be discussed with the owner before implementation: release workflow, publishing to `ghcr.io/stekhub/wardroom` for amd64 and arm64, tags, GitHub setup.
-- When the repository is made public: turn on private vulnerability reporting in the repository settings (Settings, Security), because `CONTRIBUTING.md` points to it. GitHub offers it only for public repositories. Remind the owner.
-- Until the first release, the README needs a line saying that Wardroom is in development and no image is published yet.
+The owner made the repository public and asked for the release of 0.9.0 on 2026-11-23.
+
+- Workflow `.github/workflows/release.yml`, started by pushing a tag `vX.Y.Z`. It stops if the tag differs from the version in `pom.xml`, runs `mvnw verify`, builds the image for amd64 and arm64, starts both and waits until they are healthy (ADR 0024), publishes them to `ghcr.io/stekhub/wardroom` and creates the GitHub release with generated notes.
+- The jar is built once: the build stage of the Dockerfile runs on the runner's architecture, and arm64 is emulated only for the runtime stage and the health check.
+- The version in `pom.xml` is `0.9.0` for the release. After the release, the next development version is set on a new branch.
+- The steps of a release are in `CONTRIBUTING.md`; the tags of the image are explained in the user guide.
+- The README says that the image runs on arm64. The line saying that no image is published yet was not needed: the release follows this step.
+- Open to a veto (own decisions): the tags `0.9.0`, `0.9` and `latest`, without a tag for the major version while it is 0; no provenance attestation and no SBOM, because GitHub lists the attestation as a platform "unknown/unknown"; the OCI labels title, description, license `AGPL-3.0-or-later` and source.
+- For the owner, in the repository settings: turn on private vulnerability reporting (Settings, Security), because `CONTRIBUTING.md` points to it. It is still off.
+- After the first release: check that the package `wardroom` on GitHub is public, so it can be pulled without a login.
 
 ## Working on a step
 

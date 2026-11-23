@@ -117,4 +117,5 @@ Run from the repository root with JDK 25. Maven, Node.js and pnpm are downloaded
 - The shell tool removes one backslash of two in a here-document. Write files that contain backslashes with the file tool.
 - To try the built jar by hand without touching real data: `java -jar target/wardroom-*.jar --server.port=8129 --wardroom.data-dir=<scratch directory>`. With another property name the application uses `/config`.
 - The build writes the license notices of all frontend packages into `licenses/third-party-licenses.txt` (`frontend/licenseNotices.ts`). A package that only reaches the stylesheet through `@import` in `src/index.css` is added to the list in `vite.config.ts`.
+- A release is made by pushing a tag `vX.Y.Z` whose version matches `pom.xml`; the workflow `release.yml` publishes the image for amd64 and arm64. The steps are in `CONTRIBUTING.md`.
 - shadcn/ui components are added with `pnpm dlx shadcn@latest add <name>` in `frontend/`.

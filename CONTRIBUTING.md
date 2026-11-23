@@ -68,6 +68,21 @@ More commands are listed in the [user guide](docs/user-guide.md#building-from-so
 
 Wardroom itself is built with the help of an AI coding assistant, under clear rules. Contributions made with AI tools are welcome under the same rules. Please read the [AI guidelines](docs/ai-guidelines.md).
 
+## Releases
+
+Only the maintainer makes releases.
+
+1. On a branch, set the version in `pom.xml` to the release version without `-SNAPSHOT`, for example `0.9.1`. Merge it.
+2. Tag the merge commit on `main` and push the tag:
+
+   ```bash
+   git tag v0.9.1
+   git push origin v0.9.1
+   ```
+
+3. The workflow `Release` tests the commit, builds the image for amd64 and arm64, checks that it becomes healthy on both, publishes it to `ghcr.io/stekhub/wardroom` and creates the GitHub release. It stops if the tag and the version in `pom.xml` differ.
+4. On a new branch, set the version to the next development version, for example `0.9.2-SNAPSHOT`.
+
 ## Reporting a security problem
 
 Please report security problems privately, through GitHub's private vulnerability reporting: open the "Security" tab of the repository and choose "Report a vulnerability".
