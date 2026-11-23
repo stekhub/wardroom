@@ -22,7 +22,19 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 14 | Cache size limit | ADR 0023, 0034; spec 005 | Done |
 | 15 | Activity of a group | Spec 003 | Done |
 | 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Done |
-| 17 | Release pipeline | ADR 0009, 0024 | In review |
+| 17 | Release pipeline | ADR 0009, 0024 | Done |
+| 18 | Security improvements | Spec 011, 012 | Not started |
+| 19 | Dark theme | Spec 013; UI concept | Not started |
+| 20 | Next unread and mark as unread | Spec 014 | Not started |
+| 21 | Accessibility and mobile fixes | Spec 015, 022; UI concept | Not started |
+| 22 | Full-text search | Spec 016 | Not started |
+| 23 | Release 1.0 | ADR 0004; CONTRIBUTING | Not started |
+| 24 | Windows app (after 1.0) | ADR to be written; spec to be written | Not started |
+| 25 | Installable web app (after 1.0) | Spec 017 | Not started |
+| 26 | Notifications (after 1.0) | Spec 018 | Not started |
+| 27 | Classic view (after 1.0) | Spec 019; spec 008 | Not started |
+| 28 | Bookmarks (after 1.0) | Spec 020; ADR to be written | Not started |
+| 29 | Newest articles (after 1.0) | Spec 021 | Not started |
 
 Status values: `Not started`, `In progress`, `In review`, `Done`.
 
@@ -153,6 +165,142 @@ The owner made the repository public and asked for the release of 0.9.0 on 2026-
 - Open to a veto (own decisions): the tags `0.9.0`, `0.9` and `latest`, without a tag for the major version while it is 0; no provenance attestation and no SBOM, because GitHub lists the attestation as a platform "unknown/unknown"; the OCI labels title, description, license `AGPL-3.0-or-later` and source.
 - For the owner, in the repository settings: turn on private vulnerability reporting (Settings, Security), because `CONTRIBUTING.md` points to it. It is still off.
 - After the first release: check that the package `wardroom` on GitHub is public, so it can be pulled without a login.
+
+### 18. Security improvements
+
+The first step after the release of 0.9.0, decided by the owner on 2026-11-23. The specs were refined with the owner and accepted on 2026-11-23.
+
+- Login throttling tied to the account ([spec 011](specs/011-login-throttling-and-session-timeout/spec.md)).
+- Failed logins are logged with the client address ([spec 011](specs/011-login-throttling-and-session-timeout/spec.md)).
+- Sessions without "Remember me" end 30 minutes after the browser stopped sending requests, so a closed browser is logged out; an open page keeps its session ([spec 011](specs/011-login-throttling-and-session-timeout/spec.md)).
+- Two-factor authentication with an authenticator app, turned on in the settings, with a QR code that has the Wardroom logo in the middle ([spec 012](specs/012-two-factor-authentication/spec.md)).
+- Not part of this step: the easier password reset trigger (ADR 0017) and the NNTP password from a file, which stay [deferred](open-questions.md#deferred-beyond-the-mvp).
+
+### 19 to 23. On the way to 1.0
+
+Decided by the owner on 2026-11-23. Version 1.0 is kept to the core done well: reading, writing and finding, secure and polished. Larger optional features follow after 1.0 (steps 24 to 29). The order matters: each step builds on the ones before. The specs were written from the decisions below on 2026-11-23; the owner accepts each one, or changes it, before its step.
+
+### 19. Dark theme
+
+[Spec 013](specs/013-dark-theme/spec.md), proposed on 2026-11-23 and waiting for the owner.
+
+- A dark theme next to the light one, with the choice Light, Dark or System in the settings. The default is System.
+- The choice is stored in the browser, so each device has its own.
+- The logo in the application and the icon in the browser tab follow the theme.
+- First, so that the later steps are built for both themes from the start.
+
+### 20. Next unread and mark as unread
+
+[Spec 014](specs/014-next-unread-and-mark-as-unread/spec.md), proposed on 2026-11-23 and waiting for the owner.
+
+- The key `N` opens the next unread article, across threads in the current sort order. At the end of a group, it goes to the next group with unread articles. No other keys for now.
+- Opening an article with `N` marks it as read at once, as reading does today.
+- Mark as unread: the owner marks an article as unread again.
+- The key does nothing while the owner types in a field.
+- A setting "Keyboard shortcuts", on by default, turns `N` off, because WCAG 2.2 criterion 2.1.4 asks that a shortcut of a single letter can be turned off. Proposed by the AI assistant and accepted by the owner. It is stored in the browser, like the theme.
+
+### 21. Accessibility and mobile fixes
+
+[Spec 015](specs/015-accessibility-and-mobile-fixes/spec.md), proposed on 2026-11-23 and waiting for the owner.
+
+- A systematic check of the whole application against WCAG 2.2 AA, with the keyboard alone, with the screen reader NVDA, and zoomed to 200 and 400 percent, in both themes. The spec has a short checklist for the screen reader test. No automated accessibility checks.
+- The mobile layout is fixed where needed, also because WCAG 2.2 asks that pages work at 320 pixels wide: the menu closes after a group or another page was chosen, buttons that take too much space show only their icon below 768 pixels, with a tooltip and a label, and every page is checked at the width of a phone.
+- Group list filters and paging ([spec 022](specs/022-group-list-filters-and-paging/spec.md), accepted on 2026-11-24): binary groups are hidden in the group list unless "Show binary groups" is checked, and a paging row at the bottom jumps to any page.
+- After the frontend changes before it, so that it checks them. Later frontend steps are checked with the same checklist (`docs/accessibility-checklist.md`).
+
+### 22. Full-text search
+
+[Spec 016](specs/016-full-text-search/spec.md), proposed on 2026-11-23 and waiting for the owner.
+
+- One search over all cached articles, by words in the subject, the author and the text, with the results on a new page. Not limited to one group.
+- Only what is cached is searched; no content is fetched in advance for it. The text of an article is found once it was opened, the subject and author of every synchronized article.
+- All words must match; a phrase can be put in quotes. No other operators.
+- Results are ordered by best match.
+- The search field is in the top bar of every page.
+- The results page is a simple list of articles. Each entry shows the subject, the author, the group and the date, and opens its thread at that article. More results are loaded like the thread list.
+- Added by the AI assistant, open to a veto: each entry also shows a short excerpt around the words found, with these words in bold, so the owner sees why it matched. The excerpt is untrusted text and is drawn as text, never as HTML.
+
+### 23. Release 1.0
+
+- A check of the user guide against the finished application, and a test of the upgrade from a database of version 0.9.0.
+- Then version 1.0.0 is released as described in `CONTRIBUTING.md`.
+
+### 24 to 29. After 1.0
+
+Decided by the owner on 2026-11-23, and moved behind 1.0 to keep it small. The order is a starting point and is adjusted to what people ask for after 1.0. Steps 25 to 29 have proposed specs; step 24 gets its ADR and spec before it starts; they are checked again before each step, because the steps before may change them.
+
+### 24. Windows app
+
+Decided by the owner on 2026-11-23: the first step after 1.0, because the owner wants it. It needs a new ADR, because Wardroom is then no longer only one Docker container.
+
+**The application**
+
+- Wardroom runs on Windows without Docker, in its own window. It is the same application as the image, with a small desktop mode on top: it listens on `127.0.0.1` only, on a free port, keeps its data in the user's own application data folder, and a second start brings the open window to the front.
+- The window is Edge in app mode, which is part of Windows 10 and 11, without an address bar or tabs. If Edge cannot be found, the default browser opens.
+- A short start page is shown while the application starts.
+- An icon in the notification area offers "Open", "Start with Windows" and "Quit". "Start with Windows" is off by default; it lets Wardroom synchronize and notify while the computer is on. Added by the AI assistant and accepted by the owner.
+- The Java runtime is included, so no Java has to be installed.
+
+**The installer**
+
+- An MSI built with `jpackage` on a Windows machine of the release workflow.
+- A fixed upgrade ID (`--win-upgrade-uuid`), so a new version replaces the old one.
+- Installed per user (`--win-per-user-install`), without an administrator prompt.
+- A Start menu entry and a desktop shortcut by default. winget installs silently, so the defaults apply there; an installer started by hand asks.
+- The MSI is attached to each GitHub release. It is not signed; the user guide explains the SmartScreen warning when it is downloaded directly.
+
+**Distribution with winget**
+
+- winget is the way to install on Windows: `winget install stekhub.Wardroom`. The README and the user guide show the command. Updates with `winget upgrade stekhub.Wardroom`.
+- Once, by hand: `wingetcreate new` with the address of the first MSI creates the package `stekhub.Wardroom` (publisher, license AGPL-3.0, description, project address) and opens a pull request to Microsoft's package repository. Microsoft checks the package automatically and a moderator merges it; the first time takes a few days.
+- Once, by the owner: a GitHub access token that lets `wingetcreate` open pull requests, stored as a secret of the repository.
+- For each release, the workflow builds the image as today, builds the MSI and attaches it to the release, then runs `wingetcreate update stekhub.Wardroom` with the new version and address. The new version is usually available within a day.
+- If the winget step fails, for example because the token expired or a check failed, the rest of the release is not affected. The pull request explains the reason.
+- `CONTRIBUTING.md` describes the token and what to do when the winget step fails.
+
+### 25. Installable web app
+
+[Spec 017](specs/017-installable-web-app/spec.md), proposed on 2026-11-23 and waiting for the owner.
+
+- Wardroom can be added to the home screen of a phone and opens there like an app, with its own name and icon: a web app manifest, icons and the tags in the page header. No service worker and no offline use.
+- Moved after 1.0 by the owner on 2026-11-23. It is small and depends on no other step, so its place can change.
+
+### 26. Notifications
+
+[Spec 018](specs/018-notifications/spec.md), proposed on 2026-11-23 and waiting for the owner.
+
+- A bell on threads and on groups turns notifications on. A thread the owner posts in gets the bell on its own, so replies to own articles are notified.
+- A thread with the bell: a notification when a synchronization finds a new reply in it, so within the synchronization interval (15 minutes by default).
+- A group with the bell: once a day, one summary with the number of new articles per group with the bell. At 20:00 in the time zone of the container by default; the time is a setting.
+- Notifications are sent to one or more notification URLs set in the settings, each with a test button. The URLs follow the common format of the Shoutrrr library, so a URL written for another self-hosted application works here too. Wardroom implements the format itself and starts with `ntfy://` and `generic://` (a plain HTTP request to any webhook); further services on demand. No browser push.
+- A notification URL can contain a token, so it is stored encrypted like the NNTP password and never logged.
+- The user guide names ntfy as an example service. The owner asked for this exception to the rule that the docs name no other applications.
+
+### 27. Classic view
+
+[Spec 019](specs/019-classic-view/spec.md), proposed on 2026-11-23 and waiting for the owner.
+
+- A second way to show the groups, next to the card view ([spec 008](specs/008-discussion-view/spec.md)): the subscribed groups on the left as today, a compact tree of the threads at the top, and the selected article below it.
+- The choice applies to all groups: the whole interface switches to the classic view.
+- The tree has a toggle to open or close a thread, the subject indented by reply depth, the author and the date. Unread articles are bold, with a dot. It is in thread order, newest thread first, as the cards; no sorting or resizing of columns.
+- Only on wide screens. On a narrow screen (below 768 pixels) the card view is shown, whatever the choice; the setting says so.
+- `N` and mark as unread (step 20) work in it too, and it is checked for accessibility as in step 21.
+
+### 28. Bookmarks
+
+[Spec 020](specs/020-bookmarks/spec.md), proposed on 2026-11-23 and waiting for the owner.
+
+- The owner bookmarks an article. A thread is bookmarked through its first article, so there are no separate thread bookmarks. This also replaces the deferred item "keeping articles".
+- "Bookmarks" in the sidebar opens a page with the bookmarked articles, newest bookmark first. Each shows the group, subject, author, date and an excerpt, and opens its thread at that article.
+- A bookmarked article is kept when the cache is cleaned.
+- Unsubscribing removes the bookmarks of the group with its articles; the confirmation says so.
+
+### 29. Newest articles
+
+[Spec 021](specs/021-newest-articles/spec.md), proposed on 2026-11-23 and waiting for the owner.
+
+- One page with the newest articles of all subscribed groups, as single articles that open their thread. Read and unread articles are shown, unread ones marked; ignored ones are left out.
+- The page is the start page after login.
 
 ## Working on a step
 

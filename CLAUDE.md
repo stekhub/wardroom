@@ -41,7 +41,7 @@ Wardroom is a free, open-source (AGPL), self-hosted NNTP Usenet client with a mo
 
 - Java 25, Spring Boot 4, Maven Wrapper, Spring Modulith; module boundaries are verified in a test.
 - Visibility: in a module's base package, `public` only for what other modules may use. In sub-packages such as `internal`, classes and constructors are package-private, Spring beans included; `public` there only when another package of the same module needs the type.
-- SQLite with Flyway (plain SQL migrations) and jOOQ generated from the migrated schema; generated code is not committed. Migration rules in ADR 0004; before the first release, migrations may still be reset.
+- SQLite with Flyway (plain SQL migrations) and jOOQ generated from the migrated schema; generated code is not committed. Migration rules in ADR 0004.
 - In migrations, declare columns for times in milliseconds and for article numbers as `BIGINT`; jOOQ maps `INTEGER` to 32-bit numbers.
 - Configuration via `@ConfigurationProperties` records with Bean Validation. Records for value objects and DTOs. Lombok only for `@RequiredArgsConstructor`, `@Slf4j`, `@Builder`; no `@Data` on domain classes.
 - NNTP only through Wardroom's own `NntpClient` adapter around Apache Commons Net; circuit breaker with Resilience4j and retries with Spring Framework, as in ADR 0006 and 0026.
