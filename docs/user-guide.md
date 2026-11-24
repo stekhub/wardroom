@@ -89,7 +89,8 @@ INFO  ... Login from 192.168.1.20
 ```
 
 - The address is the one the connection came from. Behind a reverse proxy, the line may also show `(X-Forwarded-For: ...)` with the address the proxy reported. Anyone who reaches Wardroom directly can make this value up.
-- After 5 failed logins in a row, every further login has to wait, up to 60 seconds. This also holds after a restart. Attempts during the waiting time are not logged one by one.
+- After 5 failed logins in a row with your username, every further login with it has to wait, up to 60 seconds. This also holds after a restart. Attempts during the waiting time are not logged one by one.
+- Logins with another username never make you wait. So choose a username that is hard to guess: somebody who knows it can hold up your login with wrong passwords. Sessions that are open keep working.
 - A wrong code of two-factor authentication in the settings counts like a failed login. The log then says `Wrong code for two-factor authentication in the settings`.
 - The entered username and password are never logged.
 - With these lines, a tool of your choice can block addresses that keep failing.

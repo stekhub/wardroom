@@ -38,7 +38,10 @@ public enum ProtocolAnomalyKind {
     RESPONSE_MALFORMED_LINE("response.malformed-line"),
 
     /** A well-formed status line with a response code that the protocol does not allow for the command. */
-    RESPONSE_UNEXPECTED_CODE("response.unexpected-code");
+    RESPONSE_UNEXPECTED_CODE("response.unexpected-code"),
+
+    /** A line, or an answer that is read as a whole, that is longer than Wardroom reads. */
+    RESPONSE_TOO_LONG("response.too-long");
 
     private final String id;
 

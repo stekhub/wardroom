@@ -51,19 +51,15 @@ class AuthenticationTest {
     DSLContext database;
 
     @Autowired
-    LoginThrottle loginThrottle;
-
-    @Autowired
     CountingCleanup countingCleanup;
 
     TestBrowser browser;
 
-    /** Every test starts like a fresh installation: no account, no session, no failed logins. */
+    /** Every test starts like a fresh installation: no account and no session, so no failed logins either. */
     @BeforeEach
     void startWithoutAccount() {
         database.deleteFrom(SPRING_SESSION).execute();
         database.deleteFrom(WARDROOM_USER).execute();
-        loginThrottle.recordSuccess();
         countingCleanup.calls.set(0);
         browser = new TestBrowser(mvc);
     }

@@ -25,6 +25,8 @@ final class NntpFailures {
     static NntpException fromIo(IOException e, String host, int port) {
         String target = LogSafe.escape(host) + ":" + port;
         return switch (e) {
+            case ResponseTooLongException tooLong -> new NntpException(NntpFailureType.PROTOCOL,
+                    "The server sent more than Wardroom reads: " + tooLong.getMessage(), tooLong);
             case MalformedServerReplyException malformed -> new NntpException(NntpFailureType.PROTOCOL,
                     "The server sent a response that is not valid NNTP", malformed);
             case NNTPConnectionClosedException closed when isServiceDiscontinued(closed) -> new NntpException(

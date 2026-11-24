@@ -81,7 +81,7 @@ class TwoFactorService {
         if (twoFactor.secretEncrypted() == null) {
             throw new TwoFactorStateException("The setup of two-factor authentication was not started.");
         }
-        requireCode(() -> acceptAppCode(username, code));
+        requireCode(username, () -> acceptAppCode(username, code));
         List<String> recoveryCodes = RecoveryCodes.generate(random);
         transactionOperations.executeWithoutResult(status -> {
             accountRepository.enableTwoFactor(username);
@@ -160,7 +160,7 @@ class TwoFactorService {
         if (!accountRepository.twoFactorEnabled(username)) {
             throw new TwoFactorStateException("Two-factor authentication is off.");
         }
-        requireCode(() -> acceptCode(username, code));
+        requireCode(username, () -> acceptCode(username, code));
     }
 
     /**
@@ -169,15 +169,15 @@ class TwoFactorService {
      * @throws LoginThrottledException  if the attempt has to wait; the code is not checked then
      * @throws FieldValidationException if the code is wrong
      */
-    private void requireCode(Supplier<Boolean> codeCheck) {
-        loginThrottle.oneAtATime(() -> {
-            Duration remainingWait = loginThrottle.remainingWait();
+    private void requireCode(String username, Supplier<Boolean> codeCheck) {
+        loginThrottle.oneAtATime(username, () -> {
+            Duration remainingWait = loginThrottle.remainingWait(username);
             if (remainingWait.isPositive()) {
                 throw new LoginThrottledException(remainingWait);
             }
             if (!codeCheck.get()) {
                 log.warn("Wrong code for two-factor authentication in the settings");
-                Duration startedWait = loginThrottle.recordFailure();
+                Duration startedWait = loginThrottle.recordFailure(username);
                 if (startedWait.isPositive()) {
                     long seconds = startedWait.toSeconds();
                     log.warn("Too many failed logins in a row; the next login has to wait {} {}", seconds,
@@ -185,7 +185,7 @@ class TwoFactorService {
                 }
                 throw new FieldValidationException("code", WRONG_CODE);
             }
-            loginThrottle.recordSuccess();
+            loginThrottle.recordSuccess(username);
             return null;
         });
     }
