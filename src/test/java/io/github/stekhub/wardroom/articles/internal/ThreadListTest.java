@@ -3,6 +3,7 @@ package io.github.stekhub.wardroom.articles.internal;
 import static io.github.stekhub.wardroom.TestInstallation.body;
 import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE;
 import static io.github.stekhub.wardroom.jooq.Tables.ARTICLE_LOCATION;
+import static io.github.stekhub.wardroom.jooq.Tables.IGNORE_RULE;
 import static io.github.stekhub.wardroom.jooq.Tables.NEWSGROUP;
 import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
 import static io.github.stekhub.wardroom.jooq.Tables.SUBSCRIPTION;
@@ -12,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.stekhub.wardroom.IntegrationTest;
 import io.github.stekhub.wardroom.TestBrowser;
 import io.github.stekhub.wardroom.TestInstallation;
+import io.github.stekhub.wardroom.ignoring.IgnoreFilters;
 import io.github.stekhub.wardroom.nntp.mock.MockNntpServer;
 import io.github.stekhub.wardroom.nntp.mock.MockReply;
 import java.io.IOException;
@@ -31,7 +33,8 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The thread list, the thread page and "mark thread as read" (spec 008), against the whole application and a real
+ * The thread list, the thread page and "mark thread as read" (spec 008), "next unread" and "mark as unread"
+ * (spec 014), against the whole application and a real
  * SQLite database. The articles are stored as the synchronization does and threaded by the application.
  */
 @IntegrationTest
@@ -325,6 +328,188 @@ class ThreadListTest {
         assertThat(browser.post(markReadPath(groupId, elsewhereId))).hasStatus(HttpStatus.NOT_FOUND);
         assertThat(browser.post(markReadPath(groupId, -1))).hasStatus(HttpStatus.NOT_FOUND);
         assertThat(readArticleIds()).isEmpty();
+    }
+
+    // Next unread (spec 014)
+
+    @Test
+    void nextUnreadFollowsEverySortOrderAndSkipsReadThreads() {
+        fiveThreads();
+        markRead(idOf("<b>"));
+        // In thread A only the reply is unread, in thread E only the root.
+        markRead(idOf("<a>"));
+        markRead(idOf("<e2>"));
+
+        for (String sort : List.of("newest", "activity", "discussed")) {
+            List<Integer> expected = new ArrayList<>();
+            threads(Map.of("sort", sort)).get("items").forEach(item -> {
+                if (item.get("unreadCount").asInt() > 0) {
+                    expected.add(item.get("rootId").asInt());
+                }
+            });
+            assertThat(expected).as(sort).hasSize(4).doesNotContain(idOf("<b>"));
+
+            assertThat(walkNextUnread(Map.of("sort", sort))).as(sort).isEqualTo(expected);
+        }
+        // Without a sort order, the list is sorted by latest activity.
+        assertThat(walkNextUnread(Map.of())).isEqualTo(walkNextUnread(Map.of("sort", "activity")));
+    }
+
+    @Test
+    void nextUnreadInTheMiddleGoesOnAfterTheCurrentThreadAndAtTheEndFindsNothing() {
+        fiveThreads();
+        // By latest activity: C, B, A, E, D.
+        int threadBId = idOf("<b>");
+        int replyOfAId = idOf("<a2>");
+
+        assertThat(nextUnread(Map.of("after", String.valueOf(threadBId)))).isEqualTo(idOf("<a>"));
+        // Any article of the thread stands for it.
+        assertThat(nextUnread(Map.of("after", String.valueOf(replyOfAId)))).isEqualTo(idOf("<e>"));
+        assertThat(browser.get(nextUnreadPath(groupId), Map.of("after", String.valueOf(idOf("<d>")))))
+                .hasStatus(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
+    void nextUnreadInTheDateViewStaysWithinTheView() {
+        article(groupId, 1, "<n1>", "One", null, DAY);
+        article(groupId, 2, "<n2>", "Two", null, 2 * DAY);
+        article(groupId, 3, "<n3>", "Three", null, 4 * DAY);
+        article(groupId, 5, "<n5>", "Five", null, 10 * DAY);
+        long olderRangeId = range(groupId, 1, 3);
+        range(groupId, 5, 5);
+        threadAll();
+        Map<String, String> dateView = Map.of("until", Instant.ofEpochMilli(3 * DAY).toString(),
+                "rangeId", String.valueOf(olderRangeId));
+
+        assertThat(walkNextUnread(dateView)).containsExactly(idOf("<n2>"), idOf("<n1>"));
+        assertThat(walkNextUnread(Map.of())).containsExactly(idOf("<n5>"), idOf("<n3>"), idOf("<n2>"),
+                idOf("<n1>"));
+    }
+
+    @Test
+    void nextUnreadSkipsIgnoredThreadsAndAuthorsAndBeginsAtTheTopAfterAThreadTheListDoesNotShow() {
+        article(groupId, 1, "<a>", "Kept", null, DAY);
+        int ignoredThreadId = article(groupId, 2, "<b>", "Ignored thread", null, 2 * DAY);
+        article(groupId, 3, "<b2>", "Re: Ignored thread", "<b>", 3 * DAY);
+        int byIgnoredAuthorId = article(groupId, 4, "<c>", "By an ignored author", null, 4 * DAY);
+        database.update(ARTICLE)
+                .set(ARTICLE.AUTHOR_KEY, "troll@example.org")
+                .where(ARTICLE.ID.eq(byIgnoredAuthorId))
+                .execute();
+        // Thread A has an unread reply by the ignored author only; it does not count.
+        int keptRootId = idOf("<a>");
+        int ignoredReplyId = article(groupId, 5, "<a2>", "Re: Kept", "<a>", 5 * DAY);
+        database.update(ARTICLE)
+                .set(ARTICLE.AUTHOR_KEY, "troll@example.org")
+                .where(ARTICLE.ID.eq(ignoredReplyId))
+                .execute();
+        int otherId = article(groupId, 6, "<d>", "Other", null, 6 * DAY);
+        threadAll();
+        markRead(keptRootId);
+        ignoreRule(IgnoreFilters.THREAD, "<b2>");
+        ignoreRule(IgnoreFilters.AUTHOR, "troll@example.org");
+
+        assertThat(walkNextUnread(Map.of())).containsExactly(otherId);
+        assertThat(nextUnread(Map.of("after", String.valueOf(ignoredThreadId)))).isEqualTo(otherId);
+    }
+
+    @Test
+    void nextUnreadFindsNothingWhenAllIsReadAndRejectsInvalidParameters() {
+        int readId = article(groupId, 1, "<a>", "Hello", null, DAY);
+        long rangeId = range(groupId, 1, 1);
+        int unsubscribedGroupId = group("example.unsubscribed");
+        threadAll();
+        markRead(readId);
+
+        assertThat(browser.get(nextUnreadPath(groupId))).hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(browser.get(nextUnreadPath(groupId), Map.of("after", String.valueOf(readId))))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertNextUnreadRejected(Map.of("sort", "oldest"), "sort");
+        assertNextUnreadRejected(Map.of("after", "-1"), "after");
+        assertNextUnreadRejected(Map.of("until", Instant.ofEpochMilli(0).toString()), "rangeId");
+        assertNextUnreadRejected(Map.of("rangeId", String.valueOf(rangeId)), "rangeId");
+        assertThat(browser.get(nextUnreadPath(unsubscribedGroupId))).hasStatus(HttpStatus.NOT_FOUND);
+        assertThat(browser.get(nextUnreadPath(-1))).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    // Mark as unread (spec 014)
+
+    @Test
+    void markingAnArticleAsUnreadRemovesItsReadStateInAllGroupsAndChangesTheUnreadCounts() {
+        int rootId = article(groupId, 1, "<a>", "Hello", null, DAY);
+        int crosspostedId = article(groupId, 2, "<b>", "Re: Hello", "<a>", 2 * DAY);
+        locate(crosspostedId, otherGroupId, 1);
+        threadAll();
+        markRead(rootId);
+        markRead(crosspostedId);
+        assertThat(unreadCountOfSubscription(groupId)).isZero();
+
+        assertThat(browser.delete(articleReadPath(crosspostedId))).hasStatus(HttpStatus.NO_CONTENT);
+
+        assertThat(readArticleIds()).containsExactly(rootId);
+        assertThat(threads(Map.of()).get("items").get(0).get("unreadCount").asInt()).isEqualTo(1);
+        assertThat(threads(otherGroupId, Map.of()).get("items").get(0).get("unreadCount").asInt()).isEqualTo(1);
+        assertThat(unreadCountOfSubscription(groupId)).isEqualTo(1);
+        assertThat(unreadCountOfSubscription(otherGroupId)).isEqualTo(1);
+        // An article that is unread stays unread; an unknown article is not found.
+        assertThat(browser.delete(articleReadPath(crosspostedId))).hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(readArticleIds()).containsExactly(rootId);
+        assertThat(browser.delete(articleReadPath(-1))).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    /** Follows "next unread" from the top of the list to its end, as the key N does without reading. */
+    private List<Integer> walkNextUnread(Map<String, String> parameters) {
+        List<Integer> threadRootIds = new ArrayList<>();
+        Integer after = null;
+        while (true) {
+            Map<String, String> withAfter = new LinkedHashMap<>(parameters);
+            if (after != null) {
+                withAfter.put("after", String.valueOf(after));
+            }
+            MvcTestResult result = browser.get(nextUnreadPath(groupId), withAfter);
+            if (result.getResponse().getStatus() == HttpStatus.NO_CONTENT.value()) {
+                return threadRootIds;
+            }
+            after = body(expectOk(result)).get("threadArticleId").asInt();
+            assertThat(threadRootIds).doesNotContain(after);
+            threadRootIds.add(after);
+        }
+    }
+
+    private int nextUnread(Map<String, String> parameters) {
+        return body(expectOk(browser.get(nextUnreadPath(groupId), parameters))).get("threadArticleId").asInt();
+    }
+
+    private void assertNextUnreadRejected(Map<String, String> parameters, String field) {
+        MvcTestResult result = browser.get(nextUnreadPath(groupId), parameters);
+        assertThat(result).as(parameters.toString()).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(body(result).get("errors").get(0).get("field").asString()).isEqualTo(field);
+    }
+
+    private int unreadCountOfSubscription(int ofGroupId) {
+        for (JsonNode subscription : body(expectOk(browser.get("/api/subscriptions")))) {
+            if (subscription.get("groupId").asInt() == ofGroupId) {
+                return subscription.get("unreadCount").asInt();
+            }
+        }
+        throw new AssertionError("No subscription of group " + ofGroupId);
+    }
+
+    private void ignoreRule(String kind, String value) {
+        database.insertInto(IGNORE_RULE)
+                .set(IGNORE_RULE.KIND, kind)
+                .set(IGNORE_RULE.VALUE, value)
+                .set(IGNORE_RULE.LABEL, value)
+                .set(IGNORE_RULE.CREATED_AT, 1L)
+                .execute();
+    }
+
+    private static String nextUnreadPath(int ofGroupId) {
+        return threadsPath(ofGroupId) + "/next-unread";
+    }
+
+    private static String articleReadPath(int articleId) {
+        return "/api/articles/" + articleId + "/read";
     }
 
     /**

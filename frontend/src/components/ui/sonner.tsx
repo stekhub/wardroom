@@ -8,12 +8,14 @@ import {
   OctagonXIcon,
   Loader2Icon,
 } from 'lucide-react'
+import { useTheme } from '@/theme/themeState'
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme } = useTheme()
   return (
     <Sonner
-      // Wardroom has a light theme only (UI concept), so the toasts do not follow the system setting.
-      theme="light"
+      // The toasts follow the theme of Wardroom (spec 013), not the setting of the operating system.
+      theme={theme}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

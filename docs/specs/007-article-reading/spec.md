@@ -26,7 +26,7 @@ Fetching and caching article content, extracting and decoding the plain-text bod
 **Read state**
 
 - An article is marked read when its body has been displayed on the thread page.
-- There is no "mark as unread" in the MVP.
+- "Mark as unread" in the menu of an article removes its read state again ([spec 014](../014-next-unread-and-mark-as-unread/spec.md)).
 
 **Body extraction and decoding**
 

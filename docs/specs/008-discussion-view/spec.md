@@ -62,7 +62,7 @@ The thread list of a group with its cards, sorting and paging; the date view; th
 - Each nesting level is indented and marked with a vertical line. Indentation grows up to 6 levels; deeper replies are shown at the sixth level.
 - Each article shows the author icon, author, time, the "new" marker if unread, and its text (spec 007).
 - Clicking an article's line or its collapse button collapses the article and its replies to one line: author and "N replies hidden". Collapse state is not remembered.
-- The page opens at the top. Back returns to the list at the same scroll position (UI concept).
+- The page opens at the top; with `?article={id}` in the address, at that article, highlighted briefly ([spec 014](../014-next-unread-and-mark-as-unread/spec.md)). Back returns to the list at the same scroll position (UI concept).
 - A stub shows "Not available locally" with a gray author icon; its content is fetched when it scrolls into view (spec 007).
 - A crossposted article located only in other groups is marked with the group it was posted to (spec 006).
 - The thread page header has "Mark thread as read" and "Ignore thread".

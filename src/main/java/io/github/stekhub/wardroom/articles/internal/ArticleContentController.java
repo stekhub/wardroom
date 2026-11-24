@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,7 +20,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** The endpoints for the content of an article and for marking it as read (spec 007). */
+/** The endpoints for the content of an article and for marking it as read (spec 007) or unread (spec 014). */
 @Tag(name = "Articles")
 @RestController
 @RequiredArgsConstructor
@@ -100,5 +101,15 @@ class ArticleContentController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void markRead(@PathVariable long articleId) {
         articleContentService.markRead(articleId);
+    }
+
+    @Operation(summary = "Marks an article as unread again", operationId = "markArticleUnread")
+    @ApiResponse(responseCode = "204", description = "The article is unread, also when it was unread before")
+    @ApiResponse(responseCode = "404", description = "No article has this ID", content = @Content(
+            mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+    @DeleteMapping("/api/articles/{articleId}/read")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void markUnread(@PathVariable long articleId) {
+        articleContentService.markUnread(articleId);
     }
 }

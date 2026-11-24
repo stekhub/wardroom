@@ -7,7 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIgnoring } from '@/ignoring/ignoreState'
 import { cn } from '@/lib/utils'
-import { type ThreadCard, useShownReadState } from '@/threads/threadState'
+import {
+  type ThreadCard,
+  type ThreadListQuery,
+  type ThreadPageState,
+  useShownReadState,
+} from '@/threads/threadState'
 import { Time } from '@/threads/Time'
 import { authorName } from '@/threads/times'
 
@@ -17,7 +22,16 @@ const COUNT = new Intl.NumberFormat('en')
  * The card of a thread in the list of a group (spec 008, "Thread card"). The whole card opens the
  * thread page. Subject, author and excerpt come from an article and are shown as text only.
  */
-export function DiscussionCard({ groupId, card }: { groupId: number; card: ThreadCard }) {
+export function DiscussionCard({
+  groupId,
+  card,
+  listQuery,
+}: {
+  groupId: number
+  card: ThreadCard
+  /** The list the card is in, which "next unread" on the thread page follows (spec 014). */
+  listQuery: ThreadListQuery
+}) {
   const { markThreadRead } = useShownReadState()
   const { ignore } = useIgnoring()
   const unread = card.unreadCount > 0
@@ -34,7 +48,8 @@ export function DiscussionCard({ groupId, card }: { groupId: number; card: Threa
         {/* The link covers the card, so a click anywhere on it opens the thread. */}
         <Link
           to={`/groups/${String(groupId)}/threads/${String(card.rootId)}`}
-          state={{ fromList: true }}
+          state={{ fromList: true, listQuery } satisfies ThreadPageState}
+          data-card-link=""
           className="rounded-sm outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-2 focus-visible:after:ring-ring"
         >
           {card.subject ?? '(no subject)'}

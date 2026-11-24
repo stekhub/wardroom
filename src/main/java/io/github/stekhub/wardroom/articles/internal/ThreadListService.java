@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -95,30 +96,15 @@ class ThreadListService {
         if (cardLimit < 1 || cardLimit > MAX_LIMIT) {
             throw new FieldValidationException("limit", "The limit must be between 1 and " + MAX_LIMIT + ".");
         }
-        if (until != null && sort != null) {
-            throw new FieldValidationException("sort", "A list up to a date has no sort order.");
-        }
-        ThreadOrder order = until != null ? ThreadOrder.UNTIL_DATE : orderOf(sort);
-        Long untilMillis = until == null ? null : millisOf(until);
-        ListedRange range;
-        if (until != null) {
-            if (rangeId == null) {
-                throw new FieldValidationException("rangeId", "A list up to a date needs the range of the jump.");
-            }
-            range = threadListRepository.findRange(groupId, rangeId).orElseThrow(
-                    () -> new FieldValidationException("rangeId", "The group has no such range."));
-        } else {
-            if (rangeId != null) {
-                throw new FieldValidationException("rangeId", "A range can only be given with a date.");
-            }
-            range = threadListRepository.findNewestRange(groupId).orElse(null);
-        }
+        ListQuery listQuery = listQuery(groupId, sort, until, rangeId);
+        ThreadOrder order = listQuery.order();
+        ListedRange range = listQuery.range();
         ThreadCursor threadCursor = cursor == null ? null : ThreadCursor.decode(cursor, order).orElseThrow(
                 () -> new FieldValidationException("cursor", "This is not a cursor of this list."));
 
         // One card more than asked for tells whether another page follows.
-        List<ThreadCard> threadCards = threadListRepository.findCards(groupId, order, untilMillis,
-                until == null ? null : range, threadCursor, cardLimit + 1);
+        List<ThreadCard> threadCards = threadListRepository.findCards(groupId, order, listQuery.untilMillis(),
+                listQuery.rangeFilter(), threadCursor, cardLimit + 1);
         String nextCursor = null;
         if (threadCards.size() > cardLimit) {
             threadCards = threadCards.subList(0, cardLimit);
@@ -134,6 +120,67 @@ class ThreadListService {
                 .toList();
         return new ThreadPage(cards, nextCursor, range == null ? null : range.rangeId(),
                 range != null && range.atLowWatermark(), range != null && range.newest());
+    }
+
+    /**
+     * The next thread of the list with an unread article (spec 014), in the order and with the filters of the list
+     * that {@link #threads} returns for the same parameters.
+     *
+     * @param after an article of the current thread; the search begins after that thread. {@code null} begins at the
+     *              top. When the list does not show the thread, the search begins at the top as well
+     * @return the root of that thread, the ID its page is opened with; empty when no thread after it has an unread
+     *         article
+     * @throws GroupNotFoundException   when the group is unknown or not subscribed
+     * @throws FieldValidationException when a parameter is invalid
+     */
+    Optional<Long> nextUnreadThread(long groupId, String sort, Long after, String until, Long rangeId) {
+        if (subscribedGroups.find(groupId).isEmpty()) {
+            throw new GroupNotFoundException();
+        }
+        ListQuery listQuery = listQuery(groupId, sort, until, rangeId);
+        ThreadCursor threadCursor = null;
+        if (after != null) {
+            long threadRootId = threadRepository.findThreadRootId(after).orElseThrow(
+                    () -> new FieldValidationException("after", "No article has this ID."));
+            threadCursor = threadListRepository.findCardOfThread(groupId, listQuery.order(),
+                            listQuery.untilMillis(), listQuery.rangeFilter(), threadRootId)
+                    .map(card -> new ThreadCursor(listQuery.order(), card.firstKey(), card.secondKey(),
+                            card.threadRootId()))
+                    .orElse(null);
+        }
+        return threadListRepository.findNextUnreadCard(groupId, listQuery.order(), listQuery.untilMillis(),
+                        listQuery.rangeFilter(), threadCursor)
+                .map(ThreadCard::threadRootId);
+    }
+
+    /**
+     * The order and the limits of a thread list.
+     *
+     * @param untilMillis the date of a date view, or {@code null}
+     * @param range       the range the list shows, or {@code null} when the group has none
+     * @param rangeFilter the range the cards must lie in: the range of a date view, otherwise {@code null}
+     */
+    private record ListQuery(ThreadOrder order, Long untilMillis, ListedRange range, ListedRange rangeFilter) {
+    }
+
+    private ListQuery listQuery(long groupId, String sort, String until, Long rangeId) {
+        if (until != null && sort != null) {
+            throw new FieldValidationException("sort", "A list up to a date has no sort order.");
+        }
+        if (until == null) {
+            if (rangeId != null) {
+                throw new FieldValidationException("rangeId", "A range can only be given with a date.");
+            }
+            return new ListQuery(orderOf(sort), null, threadListRepository.findNewestRange(groupId).orElse(null),
+                    null);
+        }
+        long untilMillis = millisOf(until);
+        if (rangeId == null) {
+            throw new FieldValidationException("rangeId", "A list up to a date needs the range of the jump.");
+        }
+        ListedRange range = threadListRepository.findRange(groupId, rangeId).orElseThrow(
+                () -> new FieldValidationException("rangeId", "The group has no such range."));
+        return new ListQuery(ThreadOrder.UNTIL_DATE, untilMillis, range, range);
     }
 
     /**

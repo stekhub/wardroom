@@ -2,9 +2,13 @@ import { type ReactNode, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
+import { UNEXPECTED_ERROR } from '@/api/problem'
 import { useReloadSubscriptions } from '@/groups/subscriptionState'
+import { useNextUnread } from '@/keyboard/nextUnread'
+import { useShortcuts } from '@/keyboard/shortcuts'
 import { DiscussionCard } from '@/threads/DiscussionCard'
-import type { useThreadList } from '@/threads/threadState'
+import { type ThreadListQuery, type useThreadList, useShownReadState } from '@/threads/threadState'
 
 /** Cards of the placeholder that stands in for the list while it loads. */
 const SKELETON_CARDS = 3
@@ -12,6 +16,8 @@ const SKELETON_CARDS = 3
 interface ThreadCardsProps {
   groupId: number
   list: ReturnType<typeof useThreadList>
+  /** What the list was asked for; "next unread" follows the same order and limits (spec 014). */
+  listQuery: ThreadListQuery
   /** Shown instead of the cards when the list has none. */
   empty: ReactNode
   /** Shown below the last card once every page is loaded. */
@@ -21,12 +27,60 @@ interface ThreadCardsProps {
 /**
  * The cards of a thread list (spec 008, "Paging"): the next page is loaded when the end of the
  * loaded cards scrolls into view, or with the button there.
+ *
+ * The keys of spec 014: `N` and `Space` open the next thread with an unread article, `J` and `K`
+ * move the focus from card to card, Enter opens the card with the focus, and `C` marks its thread
+ * as read and goes on as `N`.
  */
-export function ThreadCards({ groupId, list, empty, end }: ThreadCardsProps) {
+export function ThreadCards({ groupId, list, listQuery, empty, end }: ThreadCardsProps) {
   const navigate = useNavigate()
   const reloadSubscriptions = useReloadSubscriptions()
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = list
   const moreButton = useRef<HTMLButtonElement | null>(null)
+  const cardList = useRef<HTMLUListElement | null>(null)
+  const goToNextUnread = useNextUnread()
+  const { markThreadRead } = useShownReadState()
+
+  function nextUnread() {
+    void goToNextUnread(groupId, listQuery)
+  }
+
+  /** Moves the focus to the next or the previous card; without a card with the focus, to the first. */
+  function moveFocus(step: 1 | -1) {
+    const links = Array.from(
+      cardList.current?.querySelectorAll<HTMLAnchorElement>('[data-card-link]') ?? [],
+    )
+    const focused = document.activeElement?.closest('[data-root-id]')
+    const index = links.findIndex((link) => link.closest('[data-root-id]') === focused)
+    const target = index === -1 ? links[0] : links[index + step]
+    target?.focus()
+  }
+
+  async function markFocusedThreadRead() {
+    const rootId = Number(
+      document.activeElement?.closest<HTMLElement>('[data-root-id]')?.dataset.rootId,
+    )
+    if (!Number.isInteger(rootId) || cardList.current?.contains(document.activeElement) !== true) {
+      return
+    }
+    if (!(await markThreadRead(groupId, rootId, rootId))) {
+      toast.error(UNEXPECTED_ERROR)
+      return
+    }
+    nextUnread()
+  }
+
+  useShortcuts({
+    n: nextUnread,
+    ' ': nextUnread,
+    j: () => {
+      moveFocus(1)
+    },
+    k: () => {
+      moveFocus(-1)
+    },
+    c: () => void markFocusedThreadRead(),
+  })
 
   useEffect(() => {
     const button = moreButton.current
@@ -83,10 +137,10 @@ export function ThreadCards({ groupId, list, empty, end }: ThreadCardsProps) {
       {cards.length === 0 ? (
         empty
       ) : (
-        <ul aria-label="Discussions" className="flex flex-col gap-3">
+        <ul ref={cardList} aria-label="Discussions" className="flex flex-col gap-3">
           {cards.map((card) => (
-            <li key={card.rootId}>
-              <DiscussionCard groupId={groupId} card={card} />
+            <li key={card.rootId} data-root-id={card.rootId}>
+              <DiscussionCard groupId={groupId} card={card} listQuery={listQuery} />
             </li>
           ))}
         </ul>

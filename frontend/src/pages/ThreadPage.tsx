@@ -1,27 +1,35 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CheckCheck, EyeOff } from 'lucide-react'
 import { type MouseEvent } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
-import { api } from '@/api/client'
-import { problemMessage, UNEXPECTED_ERROR } from '@/api/problem'
+import { UNEXPECTED_ERROR } from '@/api/problem'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { type Subscription, useSubscriptions } from '@/groups/subscriptionState'
+import {
+  type Subscription,
+  useReloadSubscriptions,
+  useSubscriptions,
+} from '@/groups/subscriptionState'
 import { type IgnoreRule, useIgnoring } from '@/ignoring/ignoreState'
+import { useNextUnread } from '@/keyboard/nextUnread'
 import { ReadingColumn } from '@/pages/ReadingColumn'
 import { ThreadArticles } from '@/threads/ThreadArticles'
 import {
-  RequestFailure,
+  DEFAULT_SORT,
+  fetchThread,
+  type RequestFailure,
   type Thread,
   type ThreadArticle,
+  type ThreadPageState,
   threadKey,
   useShownReadState,
 } from '@/threads/threadState'
 
 /**
  * The thread page (spec 008): one thread with its replies nested, in the place of the thread list
- * of its group. The address can name any article of the thread.
+ * of its group. The address can name any article of the thread; `?article=` scrolls to one of
+ * them (spec 014).
  */
 export function ThreadPage() {
   const parameters = useParams()
@@ -70,7 +78,7 @@ export function ThreadPage() {
 function BackToGroup({ subscription }: { subscription: Subscription }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const cameFromList = (location.state as { fromList?: boolean } | null)?.fromList === true
+  const cameFromList = (location.state as ThreadPageState | null)?.fromList === true
 
   function goBack(event: MouseEvent) {
     if (cameFromList) {
@@ -93,16 +101,6 @@ function BackToGroup({ subscription }: { subscription: Subscription }) {
   )
 }
 
-async function fetchThread(groupId: number, articleId: number): Promise<Thread> {
-  const { data, error, response } = await api.GET('/api/groups/{groupId}/threads/{articleId}', {
-    params: { path: { groupId, articleId } },
-  })
-  if (data === undefined) {
-    throw new RequestFailure(problemMessage(error, UNEXPECTED_ERROR), response.status)
-  }
-  return data
-}
-
 function OpenThread({
   subscription,
   articleId,
@@ -112,7 +110,15 @@ function OpenThread({
 }) {
   const groupId = subscription.groupId
   const queryClient = useQueryClient()
-  const { showArticleRead, markThreadRead } = useShownReadState()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const pageState = location.state as ThreadPageState | null
+  // "Next unread" follows the list the owner came from (spec 014).
+  const listQuery = pageState?.listQuery ?? { sort: DEFAULT_SORT }
+  const initialArticleId = Number(searchParams.get('article') ?? Number.NaN)
+  const goToNextUnread = useNextUnread()
+  const reloadSubscriptions = useReloadSubscriptions()
+  const { showArticleRead, showArticleUnread, markThreadRead } = useShownReadState()
   const { ignore, stopIgnoring } = useIgnoring()
   const key = threadKey(groupId, articleId)
   const thread = useQuery<Thread, RequestFailure>({
@@ -160,10 +166,10 @@ function OpenThread({
     (article) => !article.isStub && !article.read && (article.otherGroup ?? null) === null,
   )
 
-  async function markRead() {
+  async function markRead(): Promise<boolean> {
     if (!(await markThreadRead(groupId, articleId, shownThread.rootId))) {
       toast.error(UNEXPECTED_ERROR)
-      return
+      return false
     }
     queryClient.setQueryData<Thread>(key, (shown) =>
       shown === undefined
@@ -177,6 +183,7 @@ function OpenThread({
             ),
           },
     )
+    return true
   }
 
   /** Shows the thread as ignored by the rule, or as not ignored, without asking for it again. */
@@ -294,7 +301,8 @@ function OpenThread({
       <ThreadArticles
         thread={shownThread}
         onArticleRead={(article) => {
-          if ((article.otherGroup ?? null) === null) {
+          // The unread count of a card leaves out ignored authors (spec 010).
+          if ((article.otherGroup ?? null) === null && !article.ignoredAuthor) {
             showArticleRead(groupId, shownThread.rootId)
           }
         }}
@@ -310,6 +318,19 @@ function OpenThread({
         }}
         onStubFilled={() => void showThreadAgain()}
         onIgnoreAuthor={ignoreAuthorOf}
+        initialArticleId={Number.isInteger(initialArticleId) ? initialArticleId : undefined}
+        onNoUnreadLeft={() =>
+          goToNextUnread(groupId, listQuery, shownThread.rootId, pageState?.fromList === true)
+        }
+        onMarkThreadRead={markRead}
+        onArticleUnread={(article) => {
+          if ((article.otherGroup ?? null) === null && !article.ignoredAuthor) {
+            showArticleUnread(groupId, shownThread.rootId)
+          }
+          // The unread counts in the sidebar change.
+          void reloadSubscriptions()
+        }}
+        onArticleGone={() => void thread.refetch()}
       />
     </>
   )

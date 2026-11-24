@@ -93,6 +93,21 @@ class ArticleContentService {
         });
     }
 
+    /**
+     * Marks the article as unread again (spec 014). The read state belongs to the article, so a crossposted article
+     * is unread in all its groups.
+     *
+     * @throws ArticleNotFoundException when no article has this ID
+     */
+    void markUnread(long articleId) {
+        transactionOperations.executeWithoutResult(status -> {
+            if (articleContentRepository.findState(articleId).isEmpty()) {
+                throw new ArticleNotFoundException();
+            }
+            articleContentRepository.markUnread(articleId);
+        });
+    }
+
     private ArticleContent content(long articleId, boolean askAgain) {
         ArticleState articleState = articleContentRepository.findState(articleId)
                 .orElseThrow(ArticleNotFoundException::new);

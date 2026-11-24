@@ -3,6 +3,7 @@
 This guide covers running Wardroom after the installation. For the installation itself, see the [quick install](../README.md#quick-install) in the README.
 
 - [Light and dark theme](#light-and-dark-theme)
+- [Reading with the keyboard](#reading-with-the-keyboard)
 - [Login and security](#login-and-security)
 - [Backups and updates](#backups-and-updates)
 - [Troubleshooting](#troubleshooting)
@@ -17,6 +18,25 @@ Wardroom has a light and a dark theme. Choose one in the settings, section "Pref
 - **System**, the default, follows the light or dark setting of your device and changes with it.
 
 The choice is stored in the browser, so your phone can use another theme than your computer. A browser that does not keep site data uses System after every reload.
+
+## Reading with the keyboard
+
+In a group and in a discussion, single keys help you read without the mouse:
+
+| Key | What it does |
+|---|---|
+| `N` | Opens the next unread article. At the end of a group, it opens the next group with unread articles. |
+| `Space` | Scrolls down. At the end of the page, it does what `N` does. |
+| `J` and `K` | Go to the next and the previous article. In a group, they move between the discussions; Enter opens one. |
+| `R` | Replies to the current article. |
+| `C` | Marks the discussion as read and goes on as `N`. |
+| `?` | Shows the list of keys. |
+
+An article that a key reaches is marked as read. The keys do nothing while you type in a field.
+
+To read an article again later, choose "Mark as unread" in its menu. It stays unread until you open the discussion again or a key reaches it.
+
+The keys can be turned off in the settings, section "Preferences". The setting is stored in the browser, like the theme.
 
 ## Login and security
 

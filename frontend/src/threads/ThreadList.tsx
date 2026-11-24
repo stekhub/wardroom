@@ -125,6 +125,7 @@ export function ThreadList({ subscription, sort }: { subscription: Subscription;
       <ThreadCards
         groupId={groupId}
         list={list}
+        listQuery={{ sort }}
         empty={
           firstSynchronization ? (
             <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
