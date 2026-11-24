@@ -37,6 +37,15 @@ export interface LoadedThreadPage extends ThreadPage {
   syncedAt: number | null
 }
 
+/**
+ * What the thread page is told by the list it was opened from: whether going back can return to
+ * it, and its order and limits, which "next unread" follows (spec 014).
+ */
+export interface ThreadPageState {
+  fromList?: boolean
+  listQuery?: ThreadListQuery
+}
+
 /** A request the backend refused, with its reason for the owner. */
 export class RequestFailure extends Error {
   readonly status: number
@@ -84,6 +93,24 @@ export async function fetchThreadPage(
     )
   }
   return data
+}
+
+export async function fetchThread(groupId: number, articleId: number): Promise<Thread> {
+  const { data, error, response } = await api.GET('/api/groups/{groupId}/threads/{articleId}', {
+    params: { path: { groupId, articleId } },
+  })
+  if (data === undefined) {
+    throw new RequestFailure(problemMessage(error, UNEXPECTED_ERROR), response.status)
+  }
+  return data
+}
+
+/**
+ * Whether the article counts as unread for "next unread" (spec 014): an article of the group that
+ * is not read, and whose author is not ignored.
+ */
+export function isUnreadInGroup(article: ThreadArticle, read: boolean): boolean {
+  return !article.isStub && !read && (article.otherGroup ?? null) === null && !article.ignoredAuthor
 }
 
 /**
@@ -152,6 +179,16 @@ export function useShownReadState() {
     [queryClient],
   )
 
+  /** One article of the thread was marked as unread (spec 014). */
+  const showArticleUnread = useCallback(
+    (groupId: number, rootId: number) => {
+      changeCards(queryClient, groupId, (card) =>
+        card.rootId === rootId ? { ...card, unreadCount: card.unreadCount + 1 } : card,
+      )
+    },
+    [queryClient],
+  )
+
   /** Every article of the group was marked as read. */
   const showGroupRead = useCallback(
     (groupId: number) => {
@@ -183,5 +220,5 @@ export function useShownReadState() {
     [queryClient, reloadSubscriptions],
   )
 
-  return { showArticleRead, showGroupRead, markThreadRead }
+  return { showArticleRead, showArticleUnread, showGroupRead, markThreadRead }
 }

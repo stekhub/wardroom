@@ -33,8 +33,11 @@ Element.prototype.setPointerCapture = () => undefined
 Element.prototype.releasePointerCapture = () => undefined
 Element.prototype.hasPointerCapture = () => false
 
-// jsdom does not scroll; the application scrolls to the top when a view opens.
+// jsdom does not scroll; the application scrolls to the top when a view opens, and the keys of
+// spec 014 scroll to an article or by a screen.
 window.scrollTo = () => undefined
+window.scrollBy = () => undefined
+Element.prototype.scrollIntoView = () => undefined
 
 // A request no test has mocked is a mistake in the test, so it fails instead of reaching the network.
 beforeAll(() => {

@@ -54,6 +54,7 @@ Wardroom aims for a modern, clean look comparable to current web applications.
 - **Motion:** short transitions (150–200 ms) for collapsing, expanding and page changes; disabled when the browser asks for reduced motion.
 - **Confirmations:** a short toast after actions the owner took, for example "Settings saved". Errors from background work stay status icons (see Feedback).
 - **Accessibility:** WCAG 2.2 AA contrast, every action reachable by keyboard, visible focus rings.
+- **Keyboard shortcuts:** single keys for reading in the group view and on the thread page: `N` next unread, `Space`, `J`, `K`, `R`, `C` and `?` for the list of keys ([spec 014](../specs/014-next-unread-and-mark-as-unread/spec.md)). They do nothing in a field, in an open dialog or menu, or with a modifier key held, and the section "Preferences" turns them off.
 
 ## First-run wizard
 
@@ -77,7 +78,7 @@ Opened with the settings button in the sidebar header. A section navigation on t
 | Synchronization | `refresh-cw` | Intervals, depth, cache size limit with its switch, and current use ([spec 005](../specs/005-article-synchronization/spec.md)) |
 | Posting identity | `id-card` | Display name, email address, signature ([spec 009](../specs/009-article-posting/spec.md)) |
 | Ignored | `eye-off` | Ignored authors and threads ([spec 010](../specs/010-ignoring/spec.md)) |
-| Preferences | `sliders-horizontal` | Theme: Light, Dark or System ([spec 013](../specs/013-dark-theme/spec.md)). Stored in this browser; takes effect at once, without a save button |
+| Preferences | `sliders-horizontal` | Theme: Light, Dark or System ([spec 013](../specs/013-dark-theme/spec.md)); "Keyboard shortcuts", on by default, with the list of keys ([spec 014](../specs/014-next-unread-and-mark-as-unread/spec.md)). Stored in this browser; takes effect at once, without a save button |
 | Account | `key-round` | Password change ([spec 001](../specs/001-user-authentication/spec.md)); below it, two-factor authentication ([spec 012](../specs/012-two-factor-authentication/spec.md)) |
 | About | `info` | Logo and version ("Development build" without version information, from `GET /api/about`); the license with links to `LICENSE` and the additional terms; links to the source code, the user guide and the issues of the repository, each in a new tab ([ADR 0011](../architecture/decisions/0011-licensing.md)) |
 | Log out | `log-out` | An action at the end of the navigation, not a section |

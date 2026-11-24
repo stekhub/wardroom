@@ -148,4 +148,11 @@ class ArticleContentRepository {
                 .doNothing()
                 .execute();
     }
+
+    /** Removes the read state of the article (spec 014). An unread article stays as it is. */
+    void markUnread(long articleId) {
+        database.deleteFrom(READ_STATE)
+                .where(READ_STATE.ARTICLE_ID.eq((int) articleId))
+                .execute();
+    }
 }

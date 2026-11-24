@@ -102,6 +102,35 @@ class ThreadListRepository {
      */
     List<ThreadCard> findCards(long groupId, ThreadOrder order, Long until, ListedRange range, ThreadCursor cursor,
             int limit) {
+        return queryCards(groupId, order, until, range, cursor, false, null, limit);
+    }
+
+    /**
+     * The first thread of the list after the cursor that has an unread article (spec 014). The list and its order are
+     * those of {@link #findCards}, so what the owner ignores is skipped.
+     *
+     * @param cursor the place after which the search begins; {@code null} for the top of the list
+     * @return the card of that thread, or empty when no thread after the cursor has an unread article
+     */
+    Optional<ThreadCard> findNextUnreadCard(long groupId, ThreadOrder order, Long until, ListedRange range,
+            ThreadCursor cursor) {
+        return queryCards(groupId, order, until, range, cursor, true, null, 1).stream().findFirst();
+    }
+
+    /**
+     * @return the card of the thread as the list shows it, with its sort keys; empty when the list does not show it
+     */
+    Optional<ThreadCard> findCardOfThread(long groupId, ThreadOrder order, Long until, ListedRange range,
+            long threadRootId) {
+        return queryCards(groupId, order, until, range, null, false, threadRootId, 1).stream().findFirst();
+    }
+
+    /**
+     * @param onlyUnread   whether only threads with an unread article are returned
+     * @param threadRootId only this thread; {@code null} for all
+     */
+    private List<ThreadCard> queryCards(long groupId, ThreadOrder order, Long until, ListedRange range,
+            ThreadCursor cursor, boolean onlyUnread, Long threadRootId, int limit) {
         // An article without a place yet is a thread of its own until it is threaded.
         Field<Integer> threadRootOfArticle = DSL.coalesce(ARTICLE.THREAD_ROOT_ID, ARTICLE.ID);
         // The card article: the thread root when it is among these articles, otherwise the oldest of them.
@@ -155,6 +184,12 @@ class ThreadListRepository {
         }
         if (range != null) {
             shown = shown.and(cardNumber.between(range.firstNumber(), range.lastNumber()));
+        }
+        if (onlyUnread) {
+            shown = shown.and(unreadCount.gt(0));
+        }
+        if (threadRootId != null) {
+            shown = shown.and(threadRoot.eq(threadRootId.intValue()));
         }
         if (cursor != null) {
             // The keys and the thread root together are unique, so no thread is skipped or shown twice.

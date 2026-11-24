@@ -1,5 +1,11 @@
+import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import {
+  setKeyboardShortcutsEnabled,
+  useKeyboardShortcutsEnabled,
+} from '@/keyboard/shortcutSetting'
+import { ShortcutList } from '@/keyboard/ShortcutList'
 import { SettingsSectionFrame } from '@/settings/SettingsSectionFrame'
 import { chooseTheme, type ThemeChoice, useTheme } from '@/theme/themeState'
 
@@ -10,11 +16,12 @@ const THEME_CHOICES: readonly { value: ThemeChoice; label: string }[] = [
 ]
 
 /**
- * The settings section "Preferences" (spec 013). Its settings are kept in this browser and take
- * effect at once, so it has no save button.
+ * The settings section "Preferences": the theme (spec 013) and the keyboard shortcuts (spec 014).
+ * Its settings are kept in this browser and take effect at once, so it has no save button.
  */
 export function PreferencesSection() {
   const { choice } = useTheme()
+  const shortcutsEnabled = useKeyboardShortcutsEnabled()
 
   return (
     <SettingsSectionFrame title="Preferences">
@@ -43,6 +50,23 @@ export function PreferencesSection() {
         <p className="text-sm text-muted-foreground">
           System follows the light or dark setting of your device.
         </p>
+      </div>
+      <div className="grid gap-3">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="keyboard-shortcuts"
+            checked={shortcutsEnabled}
+            onCheckedChange={(checked) => {
+              setKeyboardShortcutsEnabled(checked === true)
+            }}
+          />
+          <Label htmlFor="keyboard-shortcuts">Keyboard shortcuts</Label>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Single keys for reading in a group and in a discussion. They do nothing while you type in
+          a field. Press ? to see them anywhere.
+        </p>
+        <ShortcutList />
       </div>
     </SettingsSectionFrame>
   )

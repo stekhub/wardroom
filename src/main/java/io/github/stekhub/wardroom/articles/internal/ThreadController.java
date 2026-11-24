@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -156,6 +157,38 @@ class ThreadController {
             @Parameter(description = "How many cards; 50 by default, 100 at most")
             @RequestParam(required = false) Integer limit) {
         return ThreadPageBody.of(threadListService.threads(groupId, sort, until, rangeId, cursor, limit));
+    }
+
+    @Schema(name = "NextUnreadThread", description = "The next thread of a list that has an unread article")
+    record NextUnreadThreadBody(
+            @Schema(description = "The ID the thread page is opened with, as the rootId of its card")
+            @NotNull long threadArticleId) {
+    }
+
+    @Operation(summary = "Returns the next thread of the list of a group that has an unread article",
+            operationId = "getNextUnreadThread")
+    @ApiResponse(responseCode = "200", description = "The next thread with an unread article")
+    @ApiResponse(responseCode = "204", description = "No thread after the current one has an unread article",
+            content = @Content)
+    @ApiResponse(responseCode = "400", description = "A parameter is invalid", content = @Content(
+            mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "404", description = "No group has this ID, or the group is not subscribed",
+            content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+    @GetMapping(path = "/api/groups/{groupId}/threads/next-unread", produces = MediaType.APPLICATION_JSON_VALUE)
+    ResponseEntity<NextUnreadThreadBody> nextUnread(@PathVariable long groupId,
+            @Parameter(description = "As for the thread list: newest, activity (the default) or discussed; not "
+                    + "together with until")
+            @RequestParam(required = false) String sort,
+            @Parameter(description = "An article of the current thread; the search begins after that thread. "
+                    + "Without it, the search begins at the top of the list")
+            @RequestParam(required = false) Long after,
+            @Parameter(description = "As for the thread list: the date of a date view")
+            @RequestParam(required = false) String until,
+            @Parameter(description = "As for the thread list: the range of the jump; required with until")
+            @RequestParam(required = false) Long rangeId) {
+        return threadListService.nextUnreadThread(groupId, sort, after, until, rangeId)
+                .map(threadArticleId -> ResponseEntity.ok(new NextUnreadThreadBody(threadArticleId)))
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @Operation(summary = "Returns the thread that an article belongs to", operationId = "getThread")

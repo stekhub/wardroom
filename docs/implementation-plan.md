@@ -24,8 +24,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Done |
 | 17 | Release pipeline | ADR 0009, 0024 | Done |
 | 18 | Security improvements | Spec 011, 012; ADR 0035 | Done |
-| 19 | Dark theme | Spec 013; UI concept | In review |
-| 20 | Next unread, mark as unread and keyboard shortcuts | Spec 014 | Not started |
+| 19 | Dark theme | Spec 013; UI concept | Done |
+| 20 | Next unread, mark as unread and keyboard shortcuts | Spec 014 | In review |
 | 21 | Accessibility and mobile fixes | Spec 015, 022, 023; UI concept | Not started |
 | 22 | Full-text search | Spec 016 | Not started |
 | 23 | Classic view | Spec 019; spec 008 | Not started |
@@ -342,6 +342,32 @@ Decided by the owner on 2026-11-23: the first step after 1.0, because the owner 
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 20, next unread, mark as unread and keyboard shortcuts (2026-11-24)**
+
+Built:
+
+- Spec 014: the endpoints `GET /api/groups/{id}/threads/next-unread` and `DELETE /api/articles/{id}/read`; the keys `N`, `Space`, `J`, `K`, `R`, `C` and `?` in the group view and on the thread page; the address `?article=`; "Mark as unread" in the menu of an article; the setting "Keyboard shortcuts" in the section "Preferences".
+- `next-unread` uses the order and the filters of the thread list (`ThreadListRepository`), so ignored threads and authors are skipped and the date view stays within its range.
+- Specs 007 and 008, the UI concept and the user guide (new part "Reading with the keyboard") are updated.
+- Two corrections to the dark theme of step 19: the toasts follow the theme, and the overlay behind a dialog is darker in the dark theme.
+
+Decisions of the assistant, open to a veto:
+
+1. **When the current thread is not in the list**, for example because it is ignored or outside the date view, `next-unread` begins at the top of the list.
+2. **At the end of a group**, `N` first goes to the next group with unread articles. Only when no other group has any does it look again from the top of the current group, which can have unread threads above the current one. When only the current thread has unread articles left, above the current article, it goes to the first of them. Otherwise it says "No unread articles".
+3. **Going from thread to thread with `N` replaces the page in the browser history**, so Back still returns to the list.
+4. **`N` within a thread skips collapsed articles** and articles located only in other groups. `J` and `K` move through the articles that are shown.
+5. **An article that a key reaches is marked as read at once**, not only when its text scrolls into view, and it is highlighted briefly, as with `?article=`.
+6. **`Space` scrolls by one screen less 48 pixels**, so the last lines stay in view. On a button or a link, `Space` presses it, as it always does.
+7. **The keys also do nothing while a menu is open, and with Shift**, except `?`, which needs Shift on most keyboards. `?` works on every page. A key that is held counts once, so holding it does not mark many articles as read; held `Space` scrolls as the browser does.
+8. **In the group view, `J` without a card with the focus goes to the first card; `C` without one does nothing.**
+9. **"Mark as unread" is also offered for an article that was read while the page is open.**
+10. **The setting is a checkbox**, and the dialog of `?` has a Close button besides Escape.
+
+Verified:
+
+- `./mvnw verify` passes: 688 backend tests and 296 frontend tests.
 
 **Step 19, dark theme (2026-11-24)**
 

@@ -160,6 +160,8 @@ function DateThreads({ groupId, day, until, range, onRangeGone }: DateThreadsPro
   const [loadingOlder, setLoadingOlder] = useState(false)
   // The list is asked for again with the range as it is after "Load older discussions".
   const rangeId = useRef(range.rangeId)
+  // The same range for the cards, which hand it on to the thread page (spec 014).
+  const [listRangeId, setListRangeId] = useState(range.rangeId)
   const list = useThreadList(groupId, dateListView(day), () => ({
     until: new Date(until).toISOString(),
     rangeId: rangeId.current,
@@ -192,6 +194,7 @@ function DateThreads({ groupId, day, until, range, onRangeGone }: DateThreadsPro
       }
     } else {
       rangeId.current = data.rangeId
+      setListRangeId(data.rangeId)
       // A view opened again from the cache continues with the range as it is now.
       queryClient.setQueryData<JumpResult>(jumpKey(groupId, day), (shown) =>
         shown === undefined ? shown : { ...shown, range: data },
@@ -205,6 +208,7 @@ function DateThreads({ groupId, day, until, range, onRangeGone }: DateThreadsPro
     <ThreadCards
       groupId={groupId}
       list={list}
+      listQuery={{ until: new Date(until).toISOString(), rangeId: listRangeId }}
       empty={<p className="text-sm text-muted-foreground">No discussions up to this day</p>}
       end={
         lastPage?.lowWatermarkReached === false && (

@@ -1,5 +1,6 @@
 import { Outlet, ScrollRestoration } from 'react-router'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { ShortcutsDialog } from '@/keyboard/ShortcutsDialog'
 import { AppSidebar } from '@/shell/AppSidebar'
 import { CredentialsNotice } from '@/shell/CredentialsNotice'
 
@@ -22,6 +23,8 @@ export function AppShell() {
         <Outlet />
         {/* A new view opens at the top; going back returns to where the view was left. */}
         <ScrollRestoration />
+        {/* The list of keys, opened with `?` on every page (spec 014). */}
+        <ShortcutsDialog />
       </SidebarInset>
     </SidebarProvider>
   )
