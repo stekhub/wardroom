@@ -48,9 +48,10 @@ Creating the single Wardroom account at first start, logging in and out, session
 
 **Login throttling**
 
-- After 5 consecutive failed logins, each further attempt must wait: 1 second, doubling with every further failure, up to 60 seconds.
+- After 5 consecutive failed logins to the account, each further attempt must wait: 1 second, doubling with every further failure, up to 60 seconds.
 - Attempts during the waiting time are rejected without checking the password.
-- A successful login resets the counter. The counter is stored with the account and survives a restart; every failed login counts, whatever username was entered ([spec 011](../011-login-throttling-and-session-timeout/spec.md)).
+- A successful login resets the counter. The counter is stored with the account and survives a restart.
+- The counter belongs to the account: only logins with its username count and wait. A login with another username is answered at once and counts nowhere ([spec 011](../011-login-throttling-and-session-timeout/spec.md)).
 - Failed and successful logins are logged with the client address, never with the entered username or password (spec 011).
 - There is no permanent lockout.
 
@@ -114,7 +115,7 @@ All endpoints are under `/api/auth`. Request and response bodies are JSON. Error
 - Passwords and password hashes never appear in logs or API responses.
 - Login always runs a password hash, even for an unknown username, so response times do not reveal whether the username exists.
 - The setup window after first start and after a reset is accepted (ADR 0015). The installation documentation tells users to complete setup immediately.
-- Throttling is per instance, not per client address, because there is one account and client addresses behind a reverse proxy are not reliable.
+- Throttling is per account, not per client address, because client addresses behind a reverse proxy are not reliable. Somebody who knows the username can hold up the login with wrong passwords, and a waiting time shows that the username exists. Both are accepted ([spec 011](../011-login-throttling-and-session-timeout/spec.md)).
 
 ## Testing requirements
 
@@ -125,6 +126,7 @@ Integration tests against a real SQLite database:
 - Setup after the account row was deleted: sessions and NNTP credentials are removed, authentication is `NONE`; connection settings, subscriptions, cache and read state are unchanged.
 - Login succeeds with correct credentials and fails with a generic `401` otherwise.
 - Throttling starts after the fifth failure, doubles up to 60 seconds and resets after a successful login.
+- Logins with another username are not counted and are not held back by a waiting time of the account.
 - A session survives an application restart and ends after the inactivity timeout; an unreadable stored session is treated as logged out.
 - The session cookie has a lifetime only after a login with "Remember me"; after a login without it and after setup it has none.
 - Logout ends the session.

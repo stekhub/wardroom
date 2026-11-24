@@ -8,15 +8,15 @@ import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
 
 /**
- * Slows down repeated failed logins (spec 001, spec 011).
+ * Slows down repeated failed logins to an account (spec 001, spec 011).
  *
  * <p>After 5 failed logins in a row, the next attempt must wait 1 second. Every further failure doubles the waiting
- * time, up to 60 seconds. A successful login resets the counter. There is one counter for the instance, not one per
- * client address or per entered username. Wrong codes of the second factor in the settings count too, so the codes
- * cannot be tried out there.
+ * time, up to 60 seconds. A successful login resets the counter. The counter belongs to the account: only attempts
+ * with its username count and wait. An attempt with a username that no account has can never succeed, so it is
+ * neither counted nor delayed, and nobody can hold up the login of an account without knowing its username. Wrong
+ * codes of the second factor in the settings count too, so the codes cannot be tried out there.
  *
- * <p>The state is stored with the account, so a restart does not reset it. While no account exists there is nothing
- * to log in to, and the state is held in memory.
+ * <p>The state is stored with the account, so a restart does not reset it.
  */
 @Component
 class LoginThrottle {
@@ -27,8 +27,8 @@ class LoginThrottle {
 
     private final InstantSource clock;
     private final LoginThrottleStore store;
-    private LoginThrottleState stateWithoutAccount = LoginThrottleState.NO_FAILURES;
-    private final ReentrantLock attemptLock = new ReentrantLock();
+    private final ReentrantLock accountAttemptLock = new ReentrantLock();
+    private final ReentrantLock unknownUsernameAttemptLock = new ReentrantLock();
 
     LoginThrottle(InstantSource clock, LoginThrottleStore store) {
         this.clock = clock;
@@ -36,10 +36,17 @@ class LoginThrottle {
     }
 
     /**
-     * Runs an attempt, from asking for the waiting time to recording its result, while no other attempt runs.
-     * Parallel attempts then cannot get around the throttling.
+     * Runs an attempt, from asking for the waiting time to recording its result, while no other attempt of its kind
+     * runs. Parallel attempts then cannot get around the throttling.
+     *
+     * <p>Attempts with a username that no account has wait for each other only, never for the account's. They are
+     * not throttled, so this keeps them from computing many password hashes at once and from standing in the way of
+     * the owner's login.
      */
-    <T> T oneAtATime(Supplier<T> attempt) {
+    <T> T oneAtATime(String username, Supplier<T> attempt) {
+        ReentrantLock attemptLock = store.findLoginThrottleState(username).isPresent()
+                ? accountAttemptLock
+                : unknownUsernameAttemptLock;
         attemptLock.lock();
         try {
             return attempt.get();
@@ -48,19 +55,28 @@ class LoginThrottle {
         }
     }
 
-    /** @return how long the next attempt still has to wait; zero when it may run now */
-    synchronized Duration remainingWait() {
-        Instant blockedUntil = state().blockedUntil();
+    /** @return how long the next attempt with this username still has to wait; zero when it may run now */
+    synchronized Duration remainingWait(String username) {
+        Instant blockedUntil = store.findLoginThrottleState(username)
+                .map(LoginThrottleState::blockedUntil)
+                .orElse(null);
         Instant now = clock.instant();
         return blockedUntil != null && now.isBefore(blockedUntil) ? Duration.between(now, blockedUntil)
                 : Duration.ZERO;
     }
 
-    /** @return the waiting time that starts with this failure; zero when the next attempt may run at once */
-    synchronized Duration recordFailure() {
-        int failedLogins = state().failedLogins() + 1;
+    /**
+     * @return the waiting time that starts with this failure; zero when the next attempt may run at once, and
+     *         always for a username that no account has
+     */
+    synchronized Duration recordFailure(String username) {
+        LoginThrottleState state = store.findLoginThrottleState(username).orElse(null);
+        if (state == null) {
+            return Duration.ZERO;
+        }
+        int failedLogins = state.failedLogins() + 1;
         if (failedLogins < FAILURES_WITHOUT_WAITING) {
-            save(new LoginThrottleState(failedLogins, null));
+            store.storeLoginThrottleState(username, new LoginThrottleState(failedLogins, null));
             return Duration.ZERO;
         }
         Duration wait = FIRST_WAIT;
@@ -71,19 +87,11 @@ class LoginThrottle {
                 break;
             }
         }
-        save(new LoginThrottleState(failedLogins, clock.instant().plus(wait)));
+        store.storeLoginThrottleState(username, new LoginThrottleState(failedLogins, clock.instant().plus(wait)));
         return wait;
     }
 
-    synchronized void recordSuccess() {
-        save(LoginThrottleState.NO_FAILURES);
-    }
-
-    private LoginThrottleState state() {
-        return store.findLoginThrottleState().orElse(stateWithoutAccount);
-    }
-
-    private void save(LoginThrottleState state) {
-        stateWithoutAccount = store.storeLoginThrottleState(state) ? LoginThrottleState.NO_FAILURES : state;
+    synchronized void recordSuccess(String username) {
+        store.storeLoginThrottleState(username, LoginThrottleState.NO_FAILURES);
     }
 }

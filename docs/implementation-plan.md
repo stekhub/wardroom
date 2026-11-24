@@ -343,6 +343,26 @@ Decided by the owner on 2026-11-23: the first step after 1.0, because the owner 
 
 Progress notes, deviations and findings, newest first.
 
+**Hardening after a review: login throttling per account, limits for NNTP answers (2026-11-24)**
+
+Built:
+
+- Login throttling per account (specs 001 and 011, changed with the owner's decision of 2026-11-24). Before, every failed login counted, whatever username was entered, so anybody could hold up the login of the owner. Now only logins with the username of the account count and wait.
+- Limits for what an NNTP server sends (spec 002): a line of at most 1 MB and an answer to `CAPABILITIES` of at most 1,000 lines. New protocol anomaly kind `response.too-long`; the connection is closed.
+- `LineLimitInputStream` sits below the readers of the NNTP library, so the limit also holds for the lines the library reads itself, the greeting included.
+
+Decisions of the AI assistant, open to a veto:
+
+1. **No counter before an account exists.** The counter in memory for that time is gone; there is no username to count for.
+2. **Logins with an unknown username are checked one after the other, apart from the logins to the account.** They are not throttled any more, so this keeps them to one password hash at a time and out of the way of the owner's login.
+3. **An answer that is too long is a `PROTOCOL` failure**, like a malformed status line. Such a failure is not tried again and does not count for the circuit breaker.
+4. **The anomaly line has no part of what the server sent.** The line is too long by definition and may be the text of an article. It names the limit instead.
+
+Findings:
+
+- Logins with an unknown username are logged one by one and nothing but the time of a password hash limits them. Before, the throttling limited them too. A flood of such lines is possible; it shows the address it comes from.
+- A third point of the review, the switched-off limits of the MIME parser, was not changed. The parser only gets an article of at most 10 MB that is already in memory, parts and nesting have limits of their own, and the default limits of the library reject lines that real articles have.
+
 **Step 20, next unread, mark as unread and keyboard shortcuts (2026-11-24)**
 
 Built:

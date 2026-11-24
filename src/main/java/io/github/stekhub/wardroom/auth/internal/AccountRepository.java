@@ -63,24 +63,25 @@ class AccountRepository implements LoginThrottleStore {
         database.deleteFrom(SPRING_SESSION).execute();
     }
 
-    // Login throttling: there is one account, and its row holds the state.
+    // Login throttling: the row of an account holds its state.
 
     @Override
-    public Optional<LoginThrottleState> findLoginThrottleState() {
+    public Optional<LoginThrottleState> findLoginThrottleState(String username) {
         return database.select(WARDROOM_USER.FAILED_LOGINS, WARDROOM_USER.LOGIN_BLOCKED_UNTIL)
                 .from(WARDROOM_USER)
-                .limit(1)
+                .where(WARDROOM_USER.USERNAME.eq(username))
                 .fetchOptional(row -> new LoginThrottleState(row.value1(),
                         row.value2() == null ? null : Instant.ofEpochMilli(row.value2())));
     }
 
     @Override
-    public boolean storeLoginThrottleState(LoginThrottleState state) {
-        return database.update(WARDROOM_USER)
+    public void storeLoginThrottleState(String username, LoginThrottleState state) {
+        database.update(WARDROOM_USER)
                 .set(WARDROOM_USER.FAILED_LOGINS, state.failedLogins())
                 .set(WARDROOM_USER.LOGIN_BLOCKED_UNTIL,
                         state.blockedUntil() == null ? null : state.blockedUntil().toEpochMilli())
-                .execute() > 0;
+                .where(WARDROOM_USER.USERNAME.eq(username))
+                .execute();
     }
 
     // Second factor

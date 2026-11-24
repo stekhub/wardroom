@@ -164,6 +164,13 @@ A failed connection test is a result, not an error, and returns `200`.
 - Maps adapter errors to the failure types above. The message names the cause, for example the certificate problem, without echoing credentials.
 - The posting server is tested on a second dedicated connection, after the first one was closed.
 
+**Limits for what a server sends**
+
+- A line from a server is at most 1 MB long, without its line ending. This holds for the greeting, status lines, lists, overviews and articles.
+- The answer to `CAPABILITIES` has at most 1,000 lines. It is the only answer that is kept as a whole; lists and overviews are processed line by line, and an article has its own size limit (spec 007).
+- When a limit is exceeded, the connection is closed and the command fails with the failure type `PROTOCOL`. It is logged as a `PROTOCOL_ANOMALY` with the kind `response.too-long`, without anything of what the server sent.
+- The limits are fixed values, not settings.
+
 **Credential encryption**
 
 - Key: 32 random bytes from `SecureRandom`, stored in `/config/credentials.key` (ADR 0009). The file is created at application start if missing, owned by the application user, with permissions `0600`.
@@ -210,6 +217,7 @@ A failed connection test is a result, not an error, and returns `200`.
 - The password is never returned by the API, never logged, and never included in error messages or connection test results.
 - Only ciphertext is stored in the database. By default the key file and database are both in `/config` and are backed up together (ADR 0009); owners can keep the key outside `/config` (ADR 0025). This protects a database file obtained alone, not a compromised host or running application (brief §5).
 - The connection test lets the logged-in owner make the instance connect to any host and port. This is accepted for a single-owner, self-hosted instance.
+- A server, or somebody in the middle of a connection without TLS, cannot fill the memory with a line that does not end or with an endless answer: what is read is limited.
 
 ## Testing requirements
 
@@ -220,6 +228,7 @@ Integration tests against a real SQLite database and the mock NNTP server (ADR 0
 - An empty password on edit keeps the stored password; switching authentication to `NONE` deletes the stored credentials.
 - Connection test: success, server without `CAPABILITIES`, each failure type including an untrusted certificate and a host name mismatch.
 - Saving with a failing test still saves and returns the failure.
+- Limits: a line that does not end in the greeting, in a status line, in an article and in a list, and an answer to `CAPABILITIES` with too many lines, each fail with `PROTOCOL` and the anomaly `response.too-long`; a line as long as the limit is read.
 - Posting server: saving and returning it with its own login and with the login of the server; the field rules, including the login of the server with a posting TLS mode `NONE`; the password is never in a response; an empty password on edit keeps the stored one; switching to the login of the server or removing the posting server deletes what was stored.
 - Connection test with a posting server: both servers are tested; posting comes from the posting server; a failing posting server gives a successful result with its failure and does not set `credentials_invalid`; a failing server leaves the posting server untested.
 - Saving a new server starts the group list fetch; editing does not.

@@ -73,16 +73,19 @@ class AccountService {
     /**
      * Checks username and password of a login. Without a second factor the login is complete.
      *
+     * <p>The throttling belongs to the account (spec 011): a waiting time holds back only logins with its username,
+     * and only wrong passwords for it count. A login with another username is answered at once.
+     *
      * @throws LoginThrottledException     if the attempt has to wait; the password is not checked then
      * @throws InvalidCredentialsException if username or password is wrong
      */
     CheckedPassword checkPassword(String username, String password, ClientAddress clientAddress) {
+        String normalizedUsername = AccountRules.normalizedUsername(username);
         // Logins are checked one after the other, so parallel attempts cannot get around the throttling.
-        return loginThrottle.oneAtATime(() -> {
-            rejectDuringTheWaitingTime();
-            String normalizedUsername = AccountRules.normalizedUsername(username);
+        return loginThrottle.oneAtATime(normalizedUsername, () -> {
+            rejectDuringTheWaitingTime(normalizedUsername);
             if (!passwordVerifier.matches(normalizedUsername, password)) {
-                recordFailure(clientAddress);
+                recordFailure(normalizedUsername, clientAddress);
                 throw new InvalidCredentialsException();
             }
             if (accountRepository.twoFactorEnabled(normalizedUsername)) {
@@ -90,7 +93,7 @@ class AccountService {
                 // entering the right password between the attempts.
                 return new CheckedPassword(normalizedUsername, true);
             }
-            recordSuccess(clientAddress);
+            recordSuccess(normalizedUsername, clientAddress);
             return new CheckedPassword(normalizedUsername, false);
         });
     }
@@ -103,13 +106,13 @@ class AccountService {
      * @throws SecondFactorFailedException if the code is wrong
      */
     void checkSecondFactor(String username, String code, ClientAddress clientAddress) {
-        loginThrottle.oneAtATime(() -> {
-            rejectDuringTheWaitingTime();
+        loginThrottle.oneAtATime(username, () -> {
+            rejectDuringTheWaitingTime(username);
             if (!accountRepository.twoFactorEnabled(username) || !twoFactorService.acceptCode(username, code)) {
-                recordFailure(clientAddress);
+                recordFailure(username, clientAddress);
                 throw new SecondFactorFailedException("The code is wrong.");
             }
-            recordSuccess(clientAddress);
+            recordSuccess(username, clientAddress);
             return null;
         });
     }
@@ -133,17 +136,17 @@ class AccountService {
     }
 
     /** Attempts during a waiting time are not logged one by one, so an attacker cannot fill the log. */
-    private void rejectDuringTheWaitingTime() {
-        Duration remainingWait = loginThrottle.remainingWait();
+    private void rejectDuringTheWaitingTime(String username) {
+        Duration remainingWait = loginThrottle.remainingWait(username);
         if (remainingWait.isPositive()) {
             throw new LoginThrottledException(remainingWait);
         }
     }
 
     /** The entered username and password are never logged. */
-    private void recordFailure(ClientAddress clientAddress) {
+    private void recordFailure(String username, ClientAddress clientAddress) {
         log.warn("Failed login from {}", clientAddress.forLog());
-        Duration startedWait = loginThrottle.recordFailure();
+        Duration startedWait = loginThrottle.recordFailure(username);
         if (startedWait.isPositive()) {
             long seconds = startedWait.toSeconds();
             log.warn("Too many failed logins in a row; the next login has to wait {} {}", seconds,
@@ -151,8 +154,8 @@ class AccountService {
         }
     }
 
-    private void recordSuccess(ClientAddress clientAddress) {
-        loginThrottle.recordSuccess();
+    private void recordSuccess(String username, ClientAddress clientAddress) {
+        loginThrottle.recordSuccess(username);
         log.info("Login from {}", clientAddress.forLog());
     }
 }

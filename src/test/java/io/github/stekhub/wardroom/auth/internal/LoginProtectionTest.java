@@ -72,7 +72,7 @@ class LoginProtectionTest {
                 .isGreaterThan(System.currentTimeMillis());
         // After a restart there is a new throttle, which knows only what is stored.
         LoginThrottle throttleAfterRestart = new LoginThrottle(InstantSource.system(), accountRepository);
-        assertThat(throttleAfterRestart.remainingWait()).isPositive().isLessThanOrEqualTo(Duration.ofSeconds(2));
+        assertThat(throttleAfterRestart.remainingWait(USERNAME)).isPositive().isLessThanOrEqualTo(Duration.ofSeconds(2));
         assertThat(logIn(stranger, USERNAME, PASSWORD)).hasStatus(HttpStatus.TOO_MANY_REQUESTS).containsHeader(
                 "Retry-After");
     }
@@ -95,18 +95,26 @@ class LoginProtectionTest {
     }
 
     @Test
-    void failedLoginsWithAnUnknownUsernameCount() {
+    void failedLoginsWithAnUnknownUsernameDoNotCountAndDoNotHoldUpTheOwner() {
         TestBrowser stranger = new TestBrowser(mvc);
-        for (int failure = 1; failure <= 5; failure++) {
-            assertThat(logIn(stranger, "somebody-" + failure, OTHER_PASSWORD)).hasStatus(HttpStatus.UNAUTHORIZED);
+        for (int failure = 1; failure <= 12; failure++) {
+            assertThat(logIn(stranger, "somebody-" + failure, OTHER_PASSWORD)).as("failure %d", failure).hasStatus(
+                    HttpStatus.UNAUTHORIZED);
         }
 
+        assertThat(database.select(WARDROOM_USER.FAILED_LOGINS).from(WARDROOM_USER).fetchSingle().value1()).isZero();
+        assertThat(logIn(new TestBrowser(mvc), USERNAME, PASSWORD)).hasStatus(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
+    void waitingTimeOfTheAccountHoldsBackOnlyLoginsWithItsUsername() {
+        TestBrowser stranger = new TestBrowser(mvc);
+        failLogins(stranger, 5);
+
+        assertThat(logIn(stranger, USERNAME, PASSWORD)).hasStatus(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(logIn(stranger, "somebody", PASSWORD)).hasStatus(HttpStatus.UNAUTHORIZED);
         assertThat(database.select(WARDROOM_USER.FAILED_LOGINS).from(WARDROOM_USER).fetchSingle().value1())
                 .isEqualTo(5);
-        assertThat(logIn(stranger, USERNAME, PASSWORD))
-                .as("the waiting time does not depend on the username, so it does not reveal which one exists")
-                .hasStatus(HttpStatus.TOO_MANY_REQUESTS);
-        assertThat(logIn(stranger, "somebody", PASSWORD)).hasStatus(HttpStatus.TOO_MANY_REQUESTS);
     }
 
     // Sessions

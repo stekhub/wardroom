@@ -575,6 +575,16 @@ final class CommonsNetClient implements NntpClient {
                     .raw(malformedLine(e))
                     .build());
         }
+        if (e instanceof ResponseTooLongException) {
+            // Without the line itself: it is too long by definition, and it may be the text of an article.
+            anomalyLog.report(ProtocolAnomaly.builder()
+                    .kind(ProtocolAnomalyKind.RESPONSE_TOO_LONG)
+                    .command(command)
+                    .group(selectedGroup)
+                    .action(ACTION_CONNECTION_CLOSED)
+                    .raw(e.getMessage())
+                    .build());
+        }
         return NntpFailures.fromIo(e, serverSettings.host(), serverSettings.port());
     }
 

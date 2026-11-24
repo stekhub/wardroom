@@ -13,12 +13,17 @@ Where the login throttling keeps its counter, how failed logins are logged, and 
 
 Decided by the owner on 2026-11-23:
 
-1. The throttling counter is stored with the account instead of in memory. Every failed login counts, whatever username was entered, so the `429` does not reveal whether a username exists.
+1. The throttling counter is stored with the account instead of in memory. Every failed login counts, whatever username was entered, so the `429` does not reveal whether a username exists. Changed on 2026-11-24, see below.
 2. A session without "Remember me", and the session after setup, ends after 30 minutes without requests. With "Remember me" it keeps the 7 days.
 3. Every request counts, including the ones the page sends on its own. The subscription list asks every 30 seconds, so an open page keeps its session alive. The timeout protects a browser that was closed, not an open page that was left alone.
 4. No warning before a session ends.
 5. The subscription list also asks while the tab is hidden, so only a closed browser or a computer in sleep mode ends the session. Browsers slow such requests down to about one per minute, which is enough.
 6. Failed logins are logged, so the owner notices attacks and can block addresses with a tool of their choice.
+
+Decided by the owner on 2026-11-24, after a review showed that anybody could hold up the login of the owner with wrong passwords for any username:
+
+7. The throttling belongs to the account. Only a failed login with the username of the account counts, and a waiting time holds back only logins with that username. A login with another username can never succeed; it is answered with `401` at once.
+8. Accepted limits: somebody who knows the username can still hold up the login, and a `429` shows that the username exists. A username that is hard to guess protects against both.
 
 ## Details added by the AI assistant
 
@@ -28,6 +33,12 @@ Accepted by the owner with the spec on 2026-11-23:
 2. Attempts rejected during the waiting time are not logged one by one, so an attacker cannot fill the log. One line says when a waiting time starts and how long it is.
 3. A successful login is logged as `INFO` with the client address, so the owner can see when and from where the account was used.
 4. Sessions that exist when the update is installed keep the 7 days; only new logins get the 30 minutes.
+
+Added on 2026-11-24 with decision 7, open to a veto:
+
+5. No counter is kept before an account exists. There is no username to count for then, and nothing to log in to.
+6. Logins with a username that no account has are checked one after the other, and apart from the logins to the account. They cannot compute many password hashes at once, and they do not stand in the way of the owner's login.
+7. Such logins are logged like other failed logins. Nothing limits their number in the log except the time one check takes.
 
 ## User stories
 
@@ -42,7 +53,8 @@ Accepted by the owner with the spec on 2026-11-23:
 
 - The rules of spec 001 stay: after 5 consecutive failed logins, each further attempt waits 1 second, doubling up to 60 seconds; no permanent lockout; a successful login resets the counter.
 - The counter and the end of the waiting time are stored with the account and survive a restart. A password reset (ADR 0017) removes them with the account row.
-- Every failed login counts, whatever username was entered.
+- Only a failed login with the username of the account counts. A waiting time holds back only logins with that username.
+- A login with another username is never held back and counts nowhere. It still computes one password hash (spec 001).
 - A wrong second factor (spec 012) counts like a wrong password.
 
 **Logging**
@@ -81,18 +93,22 @@ No new endpoints. The responses of spec 001 are unchanged.
 |---|---|
 | Session ended after 30 minutes or 7 days | `401`; the frontend shows the login page |
 | Throttled login after a restart | `429` with the remaining `Retry-After`, as before the restart |
-| Throttled login before an account exists | The counter is kept in memory until the account exists; there is nothing to log in to yet |
+| Failed login before an account exists | `401`; nothing is counted, because there is nothing to log in to yet |
+| Login with another username during a waiting time of the account | `401` at once |
 
 ## Security considerations
 
-- The counter does not reveal whether a username exists.
+- A waiting time shows that the username exists: only the username of the account ever answers `429`. This is accepted; the password, and the second factor if it is on, protect the account.
+- Somebody who knows the username can hold up the login of the owner with wrong passwords. Open sessions keep working. Without the username nobody can.
+- Logins with other usernames are not throttled. Each one costs a password hash, one at a time.
 - A restart no longer resets the throttling.
 - `X-Forwarded-For` can be forged by anyone who reaches Wardroom directly. It is logged as what the request claims, next to the address the connection came from.
 
 ## Testing requirements
 
 - The throttling state survives a restart and is removed with the account.
-- Failed logins with an unknown username count.
+- Failed logins with an unknown username do not count and do not hold up a login to the account.
+- A waiting time of the account holds back only logins with its username.
 - With a controlled clock: a session without "Remember me" ends after 30 minutes without requests, one with it after 7 days; a request within the limit starts it again.
 - The session after setup has the 30-minute limit.
 - Failed and successful logins are logged with the client address and `X-Forwarded-For`, never with username or password; attempts during a waiting time are not logged.
