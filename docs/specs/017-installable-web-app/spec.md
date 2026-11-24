@@ -6,7 +6,7 @@
 
 ## Scope
 
-Wardroom can be added to the home screen of a phone or installed on a computer, and then opens like an app, with its own name and icon. Step 25 of the [implementation plan](../../implementation-plan.md), after 1.0.
+Wardroom can be added to the home screen of a phone or installed on a computer, and then opens like an app, with its own name and icon. Step 27 of the [implementation plan](../../implementation-plan.md), after 1.0.
 
 ## Decisions
 

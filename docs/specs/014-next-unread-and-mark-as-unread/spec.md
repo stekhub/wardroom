@@ -1,23 +1,31 @@
-# 014. Next unread and mark as unread
+# 014. Next unread, mark as unread and keyboard shortcuts
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-23
 - Related: [spec 007](../007-article-reading/spec.md), [spec 008](../008-discussion-view/spec.md), [spec 010](../010-ignoring/spec.md), [spec 013](../013-dark-theme/spec.md)
 - Changes when accepted: "Read state" in spec 007 ("There is no mark as unread in the MVP"); "The page opens at the top" in spec 008
 
 ## Scope
 
-The key `N` for the next unread article, and marking an article as unread again. Step 20 of the [implementation plan](../../implementation-plan.md).
+The key `N` for the next unread article, a few more keys for reading without the mouse, and marking an article as unread again. Step 20 of the [implementation plan](../../implementation-plan.md).
 
 ## Decisions
 
 Decided by the owner on 2026-11-23:
 
-1. `N` opens the next unread article, across threads in the current sort order. At the end of a group, it goes to the next group with unread articles. No other keys for now.
+1. `N` opens the next unread article, across threads in the current sort order. At the end of a group, it goes to the next group with unread articles.
 2. An article opened with `N` is marked as read at once.
 3. Mark as unread is part of this step.
 4. `N` does nothing while the owner types in a field.
-5. A setting "Keyboard shortcuts", on by default and stored in the browser, turns `N` off (WCAG 2.2 criterion 2.1.4).
+5. A setting "Keyboard shortcuts", on by default and stored in the browser, turns all keys off (WCAG 2.2 criterion 2.1.4).
+
+Added by the owner on 2026-11-24, with the letters proposed by the AI assistant:
+
+6. `Space` scrolls the article and, at its end, does what `N` does.
+7. `J` and `K` go to the next and the previous article.
+8. `R` replies to the current article.
+9. `C` marks the current thread as read.
+10. `?` shows the list of keys.
 
 ## Details added by the AI assistant
 
@@ -32,6 +40,7 @@ Open to a veto by the owner:
 ## User stories
 
 - As the owner, I press `N` and read all new articles of my groups one after the other, without the mouse.
+- As the owner, I read, reply and catch up with a few keys, as in the newsreaders I know.
 - As the owner, I mark an article as unread, so I come back to it later.
 
 ## Functional requirements
@@ -47,6 +56,16 @@ Open to a veto by the owner:
 - The article `N` reaches is marked read at once.
 - `N` does nothing while focus is in a text field, a text area or an open dialog, or when a modifier key is held.
 
+**Other keys**
+
+- The current article is the one `N`, `J` or `K` reached last; before that, the first article at the top of the screen.
+- `Space` on the thread page scrolls down by one screen. When the end of the page is visible, it does what `N` does. In the group view, it does what `N` does.
+- `J` and `K` on the thread page move to the next and the previous article in the order of the page and scroll to it; it is marked read, as with `N`. In the group view, they move the focus to the next and the previous card, and Enter opens it.
+- `R` opens the reply editor below the current article, where replying is possible ([spec 009](../009-article-posting/spec.md)). Otherwise it does nothing.
+- `C` marks the current thread as read, as "Mark thread as read" does ([spec 008](../008-discussion-view/spec.md)), and does what `N` does. In the group view, it applies to the card with the focus.
+- `?` opens a dialog with the list of keys. Escape closes it.
+- All keys follow the rules of `N`: nothing happens in a field, in an open dialog or with a modifier key held, and the setting turns them off.
+
 **Mark as unread**
 
 - "Mark as unread" removes the read state of the article. The unread counts of the sidebar and the thread list show it again.
@@ -54,7 +73,7 @@ Open to a veto by the owner:
 
 **Setting**
 
-- "Keyboard shortcuts" in the settings section "Preferences" ([spec 013](../013-dark-theme/spec.md)), on by default. The section lists the keys: for now only `N`.
+- "Keyboard shortcuts" in the settings section "Preferences" ([spec 013](../013-dark-theme/spec.md)), on by default. The section lists the keys, as the dialog of `?` does.
 
 ## API contracts
 
@@ -92,12 +111,12 @@ None.
 
 - `next-unread`: all three sort orders, `after` in the middle and at the end, the date view, ignored threads and authors skipped, `204` when nothing is unread.
 - `DELETE /api/articles/{id}/read` removes the read state, changes the unread counts and answers `204` for an unread article.
-- Frontend: `N` in the group view and on the thread page; to the next thread; to the next group; the toast when nothing is unread; nothing happens in a field or with the setting off; an article marked as unread is not marked read again while the page is open; `?article=` scrolls to the article.
+- Frontend: `N` in the group view and on the thread page; `Space` scrolling and then going on as `N`; `J` and `K` on the thread page and in the group view; `R` opening the editor, and doing nothing where replying is not possible; `C` marking the thread read; `?` and Escape; to the next thread; to the next group; the toast when nothing is unread; nothing happens in a field or with the setting off; an article marked as unread is not marked read again while the page is open; `?article=` scrolls to the article.
 
 ## Implementation tasks
 
 1. `next-unread` endpoint and `DELETE` of the read state.
 2. Thread page address `?article=`.
-3. Key handler and the setting in "Preferences".
+3. Key handler with all keys, the dialog of `?`, and the setting in "Preferences".
 4. "Mark as unread" in the article menu.
 5. Update specs 007 and 008 and the user guide.

@@ -204,3 +204,93 @@ test('the login form asks for both fields before it sends anything', async () =>
   expect(await screen.findByText('Enter your username.')).toBeVisible()
   expect(screen.getByText('Enter your password.')).toBeVisible()
 })
+
+// Login with two-factor authentication (spec 012)
+
+/** A backend whose login asks for a code after the password. */
+function backendWithSecondStep() {
+  backendLoggedOut()
+  server.use(http.post('/api/auth/login', () => HttpResponse.json({ secondFactorRequired: true })))
+}
+
+async function enterPassword() {
+  await userEvent.type(await screen.findByLabelText('Username'), 'owner')
+  await userEvent.type(screen.getByLabelText('Password'), PASSWORD)
+  await userEvent.click(screen.getByRole('button', { name: 'Log in' }))
+}
+
+test('with two-factor authentication, the login asks for the code and then shows the application', async () => {
+  backendWithSecondStep()
+  let sentBody: unknown
+  server.use(
+    http.post('/api/auth/login/second-factor', async ({ request }) => {
+      sentBody = await request.json()
+      backendLoggedIn()
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  window.history.replaceState(null, '', '/settings/account')
+  render(<App />)
+
+  await enterPassword()
+
+  expect(await screen.findByRole('heading', { name: 'Enter your code' })).toBeVisible()
+  expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+  const code = screen.getByLabelText('Code')
+  expect(code).toHaveAccessibleDescription(
+    'The 6-digit code from your authenticator app, or a recovery code.',
+  )
+  await userEvent.type(code, '123456')
+  await userEvent.click(screen.getByRole('button', { name: 'Log in' }))
+
+  expect(await screen.findByRole('heading', { name: 'Account' })).toBeVisible()
+  expect(sentBody).toEqual({ code: '123456' })
+})
+
+test('a wrong code shows the message of the backend and the code can be entered again', async () => {
+  backendWithSecondStep()
+  server.use(http.post('/api/auth/login/second-factor', () => problem(401, 'The code is wrong.')))
+  render(<App />)
+  await enterPassword()
+
+  await userEvent.type(await screen.findByLabelText('Code'), '000000')
+  await userEvent.click(screen.getByRole('button', { name: 'Log in' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('The code is wrong.')
+  expect(screen.getByRole('heading', { name: 'Enter your code' })).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Log in' })).toBeEnabled()
+})
+
+test('a throttled code shows the waiting time', async () => {
+  backendWithSecondStep()
+  server.use(
+    http.post('/api/auth/login/second-factor', () =>
+      problem(429, 'Too many failed logins. Try again in 2 seconds.', { 'Retry-After': '2' }),
+    ),
+  )
+  render(<App />)
+  await enterPassword()
+
+  await userEvent.type(await screen.findByLabelText('Code'), '000000')
+  await userEvent.click(screen.getByRole('button', { name: 'Log in' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Too many failed logins. Try again in 2 seconds.',
+  )
+  expect(screen.getByRole('button', { name: 'Log in' })).toBeDisabled()
+})
+
+test('the code step leads back to the password, and no code is sent when none was entered', async () => {
+  backendWithSecondStep()
+  render(<App />)
+  await enterPassword()
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Log in' }))
+  expect(await screen.findByText('Enter the code.')).toBeVisible()
+
+  await userEvent.click(screen.getByRole('button', { name: 'Back to the password' }))
+
+  expect(await screen.findByRole('heading', { name: 'Log in' })).toBeVisible()
+  expect(screen.getByLabelText('Username')).toHaveValue('')
+  expect(screen.getByLabelText('Password')).toHaveValue('')
+})

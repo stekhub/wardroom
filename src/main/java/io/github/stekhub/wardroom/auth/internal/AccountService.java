@@ -3,44 +3,38 @@ package io.github.stekhub.wardroom.auth.internal;
 import io.github.stekhub.wardroom.auth.AccountCreationCleanup;
 import io.github.stekhub.wardroom.auth.internal.AuthFailures.InvalidCredentialsException;
 import io.github.stekhub.wardroom.auth.internal.AuthFailures.LoginThrottledException;
+import io.github.stekhub.wardroom.auth.internal.AuthFailures.SecondFactorFailedException;
 import io.github.stekhub.wardroom.auth.internal.AuthFailures.SetupUnavailableException;
 import io.github.stekhub.wardroom.platform.FieldValidationException;
 import java.time.Duration;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.locks.ReentrantLock;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
 
-/** Creating the account, checking a login and changing the password (spec 001). */
+/** Creating the account, checking a login and changing the password (spec 001, spec 011, spec 012). */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 class AccountService {
 
     private final AccountRepository accountRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordVerifier passwordVerifier;
     private final LoginThrottle loginThrottle;
+    private final TwoFactorService twoFactorService;
     private final ObjectProvider<AccountCreationCleanup> accountCreationCleanups;
     private final TransactionOperations transactionOperations;
 
-    /** A hash no password matches. It is checked when the username is unknown, so that login always takes as long. */
-    private final String unusedPasswordHash;
-
-    /** Logins are checked one after the other, so parallel attempts cannot get around the throttling. */
-    private final ReentrantLock loginLock = new ReentrantLock();
-
-    AccountService(AccountRepository accountRepository, PasswordEncoder passwordEncoder, LoginThrottle loginThrottle,
-            ObjectProvider<AccountCreationCleanup> accountCreationCleanups,
-            TransactionOperations transactionOperations) {
-        this.accountRepository = accountRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.loginThrottle = loginThrottle;
-        this.accountCreationCleanups = accountCreationCleanups;
-        this.transactionOperations = transactionOperations;
-        this.unusedPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+    /**
+     * The result of a correct password.
+     *
+     * @param username             the username of the account
+     * @param secondFactorRequired whether the login is complete only after a code (spec 012)
+     */
+    record CheckedPassword(String username, boolean secondFactorRequired) {
     }
 
     boolean setupAvailable() {
@@ -65,6 +59,7 @@ class AccountService {
             // The transaction starts with a write. SQLite then locks the database for other writers, so two
             // simultaneous setup requests run one after the other and the second one finds the account.
             accountRepository.deleteAllSessions();
+            accountRepository.deleteRecoveryCodes();
             accountCreationCleanups.orderedStream().forEach(AccountCreationCleanup::removeSensitiveData);
             if (accountRepository.accountExists()) {
                 throw new SetupUnavailableException();
@@ -76,29 +71,47 @@ class AccountService {
     }
 
     /**
-     * Checks a login.
+     * Checks username and password of a login. Without a second factor the login is complete.
      *
-     * @return the username of the account
      * @throws LoginThrottledException     if the attempt has to wait; the password is not checked then
      * @throws InvalidCredentialsException if username or password is wrong
      */
-    String login(String username, String password) {
-        loginLock.lock();
-        try {
-            Duration remainingWait = loginThrottle.remainingWait();
-            if (remainingWait.isPositive()) {
-                throw new LoginThrottledException(remainingWait);
-            }
+    CheckedPassword checkPassword(String username, String password, ClientAddress clientAddress) {
+        // Logins are checked one after the other, so parallel attempts cannot get around the throttling.
+        return loginThrottle.oneAtATime(() -> {
+            rejectDuringTheWaitingTime();
             String normalizedUsername = AccountRules.normalizedUsername(username);
-            if (!credentialsMatch(normalizedUsername, password)) {
-                loginThrottle.recordFailure();
+            if (!passwordVerifier.matches(normalizedUsername, password)) {
+                recordFailure(clientAddress);
                 throw new InvalidCredentialsException();
             }
-            loginThrottle.recordSuccess();
-            return normalizedUsername;
-        } finally {
-            loginLock.unlock();
-        }
+            if (accountRepository.twoFactorEnabled(normalizedUsername)) {
+                // The counter stays: only a correct code resets it. Otherwise the codes could be tried out by
+                // entering the right password between the attempts.
+                return new CheckedPassword(normalizedUsername, true);
+            }
+            recordSuccess(clientAddress);
+            return new CheckedPassword(normalizedUsername, false);
+        });
+    }
+
+    /**
+     * Checks the code of the second step of a login.
+     *
+     * @param username the account whose password was checked before
+     * @throws LoginThrottledException     if the attempt has to wait; the code is not checked then
+     * @throws SecondFactorFailedException if the code is wrong
+     */
+    void checkSecondFactor(String username, String code, ClientAddress clientAddress) {
+        loginThrottle.oneAtATime(() -> {
+            rejectDuringTheWaitingTime();
+            if (!accountRepository.twoFactorEnabled(username) || !twoFactorService.acceptCode(username, code)) {
+                recordFailure(clientAddress);
+                throw new SecondFactorFailedException("The code is wrong.");
+            }
+            recordSuccess(clientAddress);
+            return null;
+        });
     }
 
     /**
@@ -106,7 +119,7 @@ class AccountService {
      * somebody else holds is worthless afterwards.
      */
     void changePassword(String username, String currentPassword, String newPassword) {
-        if (!credentialsMatch(username, currentPassword)) {
+        if (!passwordVerifier.matches(username, currentPassword)) {
             throw new FieldValidationException("currentPassword", "The current password is wrong.");
         }
         AccountRules.requireValidPassword("newPassword", newPassword);
@@ -119,12 +132,27 @@ class AccountService {
         log.info("The password was changed; all sessions were ended");
     }
 
-    /** Always computes one password hash, also for an unknown username or a password that is too long to be valid. */
-    private boolean credentialsMatch(String username, String password) {
-        Optional<String> storedPasswordHash = accountRepository.findPasswordHash(username);
-        boolean passwordCanBeValid = AccountRules.hasValidPasswordLength(password);
-        boolean matches = passwordEncoder.matches(passwordCanBeValid ? password : "",
-                storedPasswordHash.orElse(unusedPasswordHash));
-        return storedPasswordHash.isPresent() && passwordCanBeValid && matches;
+    /** Attempts during a waiting time are not logged one by one, so an attacker cannot fill the log. */
+    private void rejectDuringTheWaitingTime() {
+        Duration remainingWait = loginThrottle.remainingWait();
+        if (remainingWait.isPositive()) {
+            throw new LoginThrottledException(remainingWait);
+        }
+    }
+
+    /** The entered username and password are never logged. */
+    private void recordFailure(ClientAddress clientAddress) {
+        log.warn("Failed login from {}", clientAddress.forLog());
+        Duration startedWait = loginThrottle.recordFailure();
+        if (startedWait.isPositive()) {
+            long seconds = startedWait.toSeconds();
+            log.warn("Too many failed logins in a row; the next login has to wait {} {}", seconds,
+                    seconds == 1 ? "second" : "seconds");
+        }
+    }
+
+    private void recordSuccess(ClientAddress clientAddress) {
+        loginThrottle.recordSuccess();
+        log.info("Login from {}", clientAddress.forLog());
     }
 }

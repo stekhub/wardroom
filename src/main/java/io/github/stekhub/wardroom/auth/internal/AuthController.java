@@ -1,9 +1,13 @@
 package io.github.stekhub.wardroom.auth.internal;
 
+import io.github.stekhub.wardroom.auth.internal.AccountService.CheckedPassword;
+import io.github.stekhub.wardroom.auth.internal.AuthFailures.SecondFactorFailedException;
 import io.github.stekhub.wardroom.auth.internal.AuthFailures.SetupUnavailableException;
 import io.github.stekhub.wardroom.auth.internal.AuthRequests.CurrentAccount;
 import io.github.stekhub.wardroom.auth.internal.AuthRequests.LoginRequest;
+import io.github.stekhub.wardroom.auth.internal.AuthRequests.LoginResponse;
 import io.github.stekhub.wardroom.auth.internal.AuthRequests.PasswordChangeRequest;
+import io.github.stekhub.wardroom.auth.internal.AuthRequests.SecondFactorRequest;
 import io.github.stekhub.wardroom.auth.internal.AuthRequests.SetupRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,11 +18,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.InstantSource;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -32,12 +40,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** The authentication endpoints of spec 001. */
+/** The authentication endpoints of spec 001, with the session limits of spec 011 and the second step of spec 012. */
 @Tag(name = "Authentication")
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 class AuthController {
+
+    /** A session without "Remember me" ends after this time without requests (spec 011). */
+    static final Duration SESSION_LIMIT = Duration.ofMinutes(30);
+
+    /** A session with "Remember me" ends after this time without requests (spec 001). */
+    static final Duration REMEMBERED_SESSION_LIMIT = Duration.ofDays(7);
+
+    /** The second step of a login must be completed within this time (spec 012). */
+    static final Duration SECOND_STEP_LIMIT = Duration.ofMinutes(5);
 
     private static final String PROBLEM_JSON = MediaType.APPLICATION_PROBLEM_JSON_VALUE;
 
@@ -51,8 +68,17 @@ class AuthController {
      */
     private static final String REMEMBER_ME_REQUEST_ATTRIBUTE = SpringSessionRememberMeServices.REMEMBER_ME_LOGIN_ATTR;
 
+    /**
+     * What a session holds between the two steps of a login with a second factor: whose password was checked, when,
+     * and whether "Remember me" was chosen. Such a session has no login and gives no access to anything else.
+     */
+    private static final String PENDING_USERNAME = "wardroom.login.pendingUsername";
+    private static final String PENDING_SINCE = "wardroom.login.pendingSince";
+    private static final String PENDING_REMEMBER_ME = "wardroom.login.pendingRememberMe";
+
     private final AccountService accountService;
     private final SessionSecurityContextRepository securityContextRepository;
+    private final InstantSource clock;
 
     @Operation(summary = "Tells whether setup is available", operationId = "getSetup")
     @ApiResponse(responseCode = "200", description = "No account exists yet; setup is available")
@@ -79,19 +105,54 @@ class AuthController {
         startSession(username, false, request, response);
     }
 
-    @Operation(summary = "Logs in", operationId = "login")
-    @ApiResponse(responseCode = "204", description = "Logged in")
+    @Operation(summary = "Logs in, or starts the second step when two-factor authentication is on",
+            operationId = "login")
+    @ApiResponse(responseCode = "204", description = "Logged in", content = @Content)
+    @ApiResponse(responseCode = "200", description = "The password is right; a code is needed to log in",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = LoginResponse.class)))
     @ApiResponse(responseCode = "401", description = "Username or password is wrong", content = @Content(
             mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "429",
             description = "Too many failed logins; the Retry-After header has the waiting time in seconds",
             content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
     @PostMapping("/login")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    void login(@Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request,
+    ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request,
             HttpServletResponse response) {
-        String username = accountService.login(loginRequest.username(), loginRequest.password());
-        startSession(username, loginRequest.remembersBrowser(), request, response);
+        CheckedPassword checkedPassword = accountService.checkPassword(loginRequest.username(),
+                loginRequest.password(), ClientAddress.of(request));
+        if (checkedPassword.secondFactorRequired()) {
+            startSecondStep(checkedPassword.username(), loginRequest.remembersBrowser(), request);
+            return ResponseEntity.ok(new LoginResponse(true));
+        }
+        startSession(checkedPassword.username(), loginRequest.remembersBrowser(), request, response);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Completes a login with a code from the authenticator app or a recovery code",
+            operationId = "loginWithSecondFactor")
+    @ApiResponse(responseCode = "204", description = "Logged in")
+    @ApiResponse(responseCode = "401",
+            description = "The code is wrong, or the step was not started or took longer than 5 minutes",
+            content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "429",
+            description = "Too many failed logins; the Retry-After header has the waiting time in seconds",
+            content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+    @PostMapping("/login/second-factor")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void loginWithSecondFactor(@Valid @RequestBody SecondFactorRequest secondFactorRequest,
+            HttpServletRequest request, HttpServletResponse response) {
+        HttpSession session = request.getSession(false);
+        String username = session == null ? null : (String) session.getAttribute(PENDING_USERNAME);
+        Long pendingSince = session == null ? null : (Long) session.getAttribute(PENDING_SINCE);
+        if (username == null || pendingSince == null
+                || clock.instant().isAfter(Instant.ofEpochMilli(pendingSince).plus(SECOND_STEP_LIMIT))) {
+            endSession(request);
+            throw new SecondFactorFailedException("The login took too long. Enter your password again.");
+        }
+        boolean rememberMe = Boolean.TRUE.equals(session.getAttribute(PENDING_REMEMBER_ME));
+        accountService.checkSecondFactor(username, secondFactorRequest.code(), ClientAddress.of(request));
+        startSession(username, rememberMe, request, response);
     }
 
     @Operation(summary = "Logs out", operationId = "logout")
@@ -129,9 +190,10 @@ class AuthController {
 
     /**
      * Logs the request in. A session the browser already had is ended first, so the login always gets a new session
-     * ID (protection against session fixation).
+     * ID (protection against session fixation). The same happens after the second step of a login.
      *
-     * @param rememberMe whether the browser keeps the session cookie after it is closed
+     * @param rememberMe whether the browser keeps the session cookie after it is closed; the session then also
+     *                   lasts longer without requests
      */
     private void startSession(String username, boolean rememberMe, HttpServletRequest request,
             HttpServletResponse response) {
@@ -143,6 +205,18 @@ class AuthController {
         context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(username, null, List.of()));
         SecurityContextHolder.setContext(context);
         securityContextRepository.saveContext(context, request, response);
+        Duration limit = rememberMe ? REMEMBERED_SESSION_LIMIT : SESSION_LIMIT;
+        request.getSession().setMaxInactiveInterval((int) limit.toSeconds());
+    }
+
+    /** Remembers that the password was right. The session gets a new ID and no login. */
+    private void startSecondStep(String username, boolean rememberMe, HttpServletRequest request) {
+        endSession(request);
+        HttpSession session = request.getSession();
+        session.setAttribute(PENDING_USERNAME, username);
+        session.setAttribute(PENDING_SINCE, clock.instant().toEpochMilli());
+        session.setAttribute(PENDING_REMEMBER_ME, rememberMe);
+        session.setMaxInactiveInterval((int) SECOND_STEP_LIMIT.toSeconds());
     }
 
     private static void endSession(HttpServletRequest request) {

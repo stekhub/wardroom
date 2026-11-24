@@ -6,7 +6,7 @@
 
 ## Scope
 
-Notifications on a phone or elsewhere, sent to notification URLs: right away for new replies in chosen threads, and once a day as a summary of chosen groups. Step 26 of the [implementation plan](../../implementation-plan.md), after 1.0.
+Notifications on a phone or elsewhere, sent to notification URLs: right away for new replies in chosen threads, and once a day as a summary of chosen groups. Step 28 of the [implementation plan](../../implementation-plan.md), after 1.0.
 
 ## Decisions
 

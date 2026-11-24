@@ -324,6 +324,16 @@
         "required" : [ "password", "username" ],
         "type" : "object"
       },
+      "LoginResponse" : {
+        "description" : "Sent when the password was right and a code is needed",
+        "properties" : {
+          "secondFactorRequired" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "secondFactorRequired" ],
+        "type" : "object"
+      },
       "OmittedPart" : {
         "description" : "A part of an article that is not displayed and not stored",
         "properties" : {
@@ -515,6 +525,19 @@
         "required" : [ "atNewest", "atOldest", "firstNumber", "lastNumber", "rangeId" ],
         "type" : "object"
       },
+      "RecoveryCodes" : {
+        "properties" : {
+          "recoveryCodes" : {
+            "description" : "10 one-time codes; they are shown once and stored only as hashes",
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "recoveryCodes" ],
+        "type" : "object"
+      },
       "SavedServer" : {
         "properties" : {
           "connectionTest" : {
@@ -526,6 +549,16 @@
           }
         },
         "required" : [ "connectionTest", "server" ],
+        "type" : "object"
+      },
+      "SecondFactorRequest" : {
+        "properties" : {
+          "code" : {
+            "description" : "A 6-digit code from the authenticator app, or a recovery code",
+            "type" : "string"
+          }
+        },
+        "required" : [ "code" ],
         "type" : "object"
       },
       "Server" : {
@@ -897,6 +930,66 @@
         },
         "required" : [ "highWatermarkReached", "items", "lowWatermarkReached" ],
         "type" : "object"
+      },
+      "TwoFactorConfirmation" : {
+        "properties" : {
+          "code" : {
+            "description" : "A 6-digit code from the authenticator app, or a recovery code",
+            "type" : "string"
+          },
+          "currentPassword" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "currentPassword" ],
+        "type" : "object"
+      },
+      "TwoFactorEnableRequest" : {
+        "properties" : {
+          "code" : {
+            "description" : "A 6-digit code from the authenticator app",
+            "type" : "string"
+          }
+        },
+        "required" : [ "code" ],
+        "type" : "object"
+      },
+      "TwoFactorSetup" : {
+        "properties" : {
+          "otpauthUri" : {
+            "description" : "The otpauth address for the QR code",
+            "type" : "string"
+          },
+          "secret" : {
+            "description" : "The secret in Base32, to type it into the app",
+            "type" : "string"
+          }
+        },
+        "required" : [ "otpauthUri", "secret" ],
+        "type" : "object"
+      },
+      "TwoFactorSetupRequest" : {
+        "properties" : {
+          "currentPassword" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "currentPassword" ],
+        "type" : "object"
+      },
+      "TwoFactorStatus" : {
+        "properties" : {
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "recoveryCodesLeft" : {
+            "description" : "How many recovery codes were not used yet; 0 while it is off",
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "enabled", "recoveryCodesLeft" ],
+        "type" : "object"
       }
     }
   },
@@ -1086,6 +1179,16 @@
           "required" : true
         },
         "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description" : "The password is right; a code is needed to log in"
+          },
           "204" : {
             "description" : "Logged in"
           },
@@ -1110,7 +1213,49 @@
             "description" : "Too many failed logins; the Retry-After header has the waiting time in seconds"
           }
         },
-        "summary" : "Logs in",
+        "summary" : "Logs in, or starts the second step when two-factor authentication is on",
+        "tags" : [ "Authentication" ]
+      }
+    },
+    "/api/auth/login/second-factor" : {
+      "post" : {
+        "operationId" : "loginWithSecondFactor",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SecondFactorRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Logged in"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The code is wrong, or the step was not started or took longer than 5 minutes"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Too many failed logins; the Retry-After header has the waiting time in seconds"
+          }
+        },
+        "summary" : "Completes a login with a code from the authenticator app or a recovery code",
         "tags" : [ "Authentication" ]
       }
     },
@@ -1246,6 +1391,202 @@
           }
         },
         "summary" : "Creates the account and logs in",
+        "tags" : [ "Authentication" ]
+      }
+    },
+    "/api/auth/two-factor" : {
+      "delete" : {
+        "operationId" : "disableTwoFactor",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TwoFactorConfirmation"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Turned off; the secret and the recovery codes are deleted"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The current password or the code is wrong, or two-factor authentication is off"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Too many wrong codes or failed logins; the Retry-After header has the waiting time"
+          }
+        },
+        "summary" : "Turns two-factor authentication off",
+        "tags" : [ "Authentication" ]
+      },
+      "get" : {
+        "operationId" : "getTwoFactor",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TwoFactorStatus"
+                }
+              }
+            },
+            "description" : "The state of two-factor authentication"
+          }
+        },
+        "summary" : "Tells whether two-factor authentication is on",
+        "tags" : [ "Authentication" ]
+      }
+    },
+    "/api/auth/two-factor/enable" : {
+      "post" : {
+        "operationId" : "enableTwoFactor",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TwoFactorEnableRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RecoveryCodes"
+                }
+              }
+            },
+            "description" : "Turned on; the recovery codes are shown only here"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The code is wrong, or no setup was started"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Too many wrong codes or failed logins; the Retry-After header has the waiting time"
+          }
+        },
+        "summary" : "Turns two-factor authentication on with a code from the authenticator app",
+        "tags" : [ "Authentication" ]
+      }
+    },
+    "/api/auth/two-factor/recovery-codes" : {
+      "post" : {
+        "operationId" : "createRecoveryCodes",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TwoFactorConfirmation"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RecoveryCodes"
+                }
+              }
+            },
+            "description" : "The new recovery codes; they are shown only here"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The current password or the code is wrong, or two-factor authentication is off"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Too many wrong codes or failed logins; the Retry-After header has the waiting time"
+          }
+        },
+        "summary" : "Creates new recovery codes; the old ones stop working",
+        "tags" : [ "Authentication" ]
+      }
+    },
+    "/api/auth/two-factor/setup" : {
+      "post" : {
+        "operationId" : "setUpTwoFactor",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TwoFactorSetupRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TwoFactorSetup"
+                }
+              }
+            },
+            "description" : "The secret for the authenticator app; nothing is on yet"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The current password is wrong, or two-factor authentication is already on"
+          }
+        },
+        "summary" : "Starts turning two-factor authentication on: creates a new secret",
         "tags" : [ "Authentication" ]
       }
     },

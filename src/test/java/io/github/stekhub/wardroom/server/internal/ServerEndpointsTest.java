@@ -54,7 +54,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The testing requirements of spec 002, against the whole application, a real SQLite database and the mock NNTP
- * server. The key file rules are in {@link CredentialKeyLoaderTest} and {@link ServerStartupTest}.
+ * server. The key file rules are in {@code SecretKeyLoaderTest} and {@link ServerStartupTest}.
  */
 @IntegrationTest
 @Import({ServerEndpointsTest.SwitchableConnector.class, ServerEndpointsTest.CreatedServers.class})
@@ -320,7 +320,7 @@ class ServerEndpointsTest {
         assertThat(output.getAll()).contains("AUTHINFO PASS ****").doesNotContain(NNTP_PASSWORD)
                 .doesNotContain("p".repeat(20));
         byte[] stored = database.select(NNTP_SERVER.PASSWORD_ENCRYPTED).from(NNTP_SERVER).fetchSingle().value1();
-        assertThat(stored[0]).as("the version byte").isEqualTo((byte) 1);
+        assertThat(stored[0]).as("the version byte").isEqualTo((byte) 2);
         assertThat(new String(stored, StandardCharsets.ISO_8859_1)).doesNotContain(NNTP_PASSWORD);
     }
 

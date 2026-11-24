@@ -14,7 +14,7 @@ Proposed by the AI assistant and approved by the owner on 2026-11-23:
 
 1. Spring Security does not create or check TOTP codes, and Wardroom's login is its own JSON endpoint. The second step is built into the existing login of the `auth` module, and the codes are checked by a small class of Wardroom's own after RFC 6238, tested with the test values of the RFC.
 2. 10 one-time recovery codes, shown once when 2FA is turned on, stored only as hashes. Creating new ones makes the old ones invalid.
-3. The secret is encrypted with the key of ADR 0025, like the NNTP password. A lost key file then also means a password reset (ADR 0017). This changes a consequence of ADR 0025 and gets a new ADR.
+3. The secret is encrypted with the key of ADR 0025, like the NNTP password. With a lost key file, codes from the app are no longer accepted; a recovery code still logs in, and without one the password reset helps (ADR 0017). This changes a consequence of ADR 0025 and gets a new ADR.
 4. The backend sends the `otpauth://` address; the frontend draws the QR code with the highest error correction, with the Wardroom logo in the middle. The secret is also shown as text. The backend draws no image.
 5. The setting is in the settings section "Account", below the password change.
 6. A lost phone together with lost recovery codes is solved by the password reset of ADR 0017, which also removes 2FA. There is no other way back.
@@ -85,15 +85,16 @@ Proposed by the AI assistant and approved by the owner on 2026-11-23:
 | Situation | Behavior |
 |---|---|
 | Wrong code or recovery code at login | `401`, generic message; counts in the throttling |
+| Wrong code or recovery code in the settings | `400` at the field; counts in the throttling like a failed login. During a waiting time the answer is `429` and the code is not checked |
 | Second step after more than 5 minutes | `401`; the login starts again with the password |
 | Wrong code when turning on | `400`; the QR code stays, the owner tries again |
-| Secret cannot be decrypted (key file lost) | Login with 2FA is not possible; the log says so and points to the password reset |
+| Secret cannot be decrypted (key file lost) | Codes from the app are not accepted; a recovery code still logs in. The log says so and points to the recovery codes and the password reset ([ADR 0035](../../architecture/decisions/0035-two-factor-authentication.md)) |
 
 ## Security considerations
 
 - The secret, the codes and the recovery codes are never logged or sent in errors. The secret leaves the backend only during setup.
 - The login reveals that the password was right only by asking for the code.
-- Throttling covers both steps, so the 6 digits cannot be tried out.
+- Throttling covers both steps of the login and the codes entered in the settings, so the 6 digits cannot be tried out. Without it in the settings, somebody with a session and the password could try out all codes and turn 2FA off.
 - A password reset (ADR 0017) removes the secret and the recovery codes with the account row.
 
 ## Testing requirements
@@ -102,7 +103,7 @@ Proposed by the AI assistant and approved by the owner on 2026-11-23:
 - Turning on needs the password and a correct code; nothing is stored before.
 - Login with 2FA: the second step is required, a session in the second step has no access, and the step ends after 5 minutes.
 - A code is accepted in the window of one period before and after, and not twice; a recovery code works once.
-- Wrong codes are throttled like wrong passwords.
+- Wrong codes are throttled like wrong passwords, at the login and in the settings.
 - Turning off and creating new recovery codes need password and code.
 - The password reset removes 2FA.
 - Frontend: the QR code shows the logo and can be read (decoded in the test); the recovery codes are shown once.

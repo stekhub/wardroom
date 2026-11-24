@@ -4,6 +4,8 @@ import io.github.stekhub.wardroom.nntp.NntpConnections;
 import io.github.stekhub.wardroom.nntp.NntpException;
 import io.github.stekhub.wardroom.nntp.NntpFailureType;
 import io.github.stekhub.wardroom.nntp.NntpServerSettings;
+import io.github.stekhub.wardroom.platform.SecretCipher;
+import io.github.stekhub.wardroom.platform.SecretDecryptionException;
 import io.github.stekhub.wardroom.server.NntpServers;
 import io.github.stekhub.wardroom.server.ServerCreated;
 import io.github.stekhub.wardroom.server.ServerRemovalCleanup;
@@ -34,13 +36,16 @@ import org.springframework.transaction.support.TransactionOperations;
 @RequiredArgsConstructor
 class ServerService implements NntpServers {
 
+    /** The purpose of the stored NNTP passwords in {@link SecretCipher}. */
+    private static final String PASSWORD_PURPOSE = SecretCipher.PURPOSE_OF_VERSION_1;
+
     private static final String PASSWORD_UNREADABLE =
             "The stored password can no longer be read. Enter the password again.";
     private static final String POSTING_PASSWORD_UNREADABLE =
             "The stored password of the posting server can no longer be read. Enter the password again.";
 
     private final ServerRepository serverRepository;
-    private final CredentialCipher credentialCipher;
+    private final SecretCipher secretCipher;
     private final ConnectionTester connectionTester;
     private final NntpConnections connections;
     private final TransactionOperations transactionOperations;
@@ -139,7 +144,7 @@ class ServerService implements NntpServers {
                     : decryptedPassword(stored);
             serverSettings = new NntpServerSettings(serverId, validServer.host(), validServer.port(),
                     validServer.tlsMode(), validServer.username(), password, validServer.maxConnections());
-        } catch (CredentialDecryptionException e) {
+        } catch (SecretDecryptionException e) {
             return ConnectionTestResult.failed(ConnectionFailureType.AUTH_FAILED, PASSWORD_UNREADABLE);
         }
         ValidPostingServer validPostingServer = validServer.postingServer();
@@ -162,7 +167,7 @@ class ServerService implements NntpServers {
         }
         try {
             return Optional.of(connectionSettings(stored.get(), null));
-        } catch (CredentialDecryptionException e) {
+        } catch (SecretDecryptionException e) {
             throw new NntpException(NntpFailureType.AUTH_FAILED, PASSWORD_UNREADABLE);
         }
     }
@@ -176,12 +181,12 @@ class ServerService implements NntpServers {
         NntpServerSettings serverSettings;
         try {
             serverSettings = connectionSettings(stored.get(), null);
-        } catch (CredentialDecryptionException e) {
+        } catch (SecretDecryptionException e) {
             throw new NntpException(NntpFailureType.AUTH_FAILED, PASSWORD_UNREADABLE);
         }
         try {
             return Optional.of(postingServerSettings(serverSettings, stored.get().postingServer(), null));
-        } catch (CredentialDecryptionException e) {
+        } catch (SecretDecryptionException e) {
             log.warn("The stored password of the posting server of the server {} cannot be decrypted: {}. Enter "
                     + "the password again in the server settings.", serverId, e.getMessage());
             throw new NntpException(NntpFailureType.AUTH_FAILED, POSTING_PASSWORD_UNREADABLE);
@@ -214,7 +219,7 @@ class ServerService implements NntpServers {
         try {
             connectionTest = test(connectionSettings(saved, validServer.newPassword()), saved.postingServer(),
                     validServer.postingServer() == null ? null : validServer.postingServer().newPassword());
-        } catch (CredentialDecryptionException e) {
+        } catch (SecretDecryptionException e) {
             connectionTest = ConnectionTestResult.failed(ConnectionFailureType.AUTH_FAILED, PASSWORD_UNREADABLE);
         }
         if (saved.authMethod() == AuthMethod.USER_PASS) {
@@ -245,7 +250,7 @@ class ServerService implements NntpServers {
         try {
             return connectionTester.testPostingServer(
                     postingServerSettings(serverSettings, postingServer, knownPostingPassword));
-        } catch (CredentialDecryptionException e) {
+        } catch (SecretDecryptionException e) {
             return ConnectionTestResult.postingServerFailed(ConnectionFailureType.AUTH_FAILED,
                     POSTING_PASSWORD_UNREADABLE);
         }
@@ -256,7 +261,7 @@ class ServerService implements NntpServers {
      * the server or its own. One connection is enough for a post.
      */
     private NntpServerSettings postingServerSettings(NntpServerSettings serverSettings,
-            StoredPostingServer postingServer, String knownPassword) throws CredentialDecryptionException {
+            StoredPostingServer postingServer, String knownPassword) throws SecretDecryptionException {
         String username = serverSettings.username();
         String password = serverSettings.password();
         if (!postingServer.sameLogin()) {
@@ -266,7 +271,7 @@ class ServerService implements NntpServers {
                 username = postingServer.username();
                 password = knownPassword != null
                         ? knownPassword
-                        : credentialCipher.decrypt(postingServer.passwordEncrypted());
+                        : secretCipher.decrypt(PASSWORD_PURPOSE, postingServer.passwordEncrypted());
             }
         }
         return new NntpServerSettings(serverSettings.serverId(), postingServer.host(), postingServer.port(),
@@ -275,7 +280,7 @@ class ServerService implements NntpServers {
 
     /** @param knownPassword the password in clear text when the caller has it, otherwise the stored one is used */
     private NntpServerSettings connectionSettings(StoredServer server, String knownPassword)
-            throws CredentialDecryptionException {
+            throws SecretDecryptionException {
         String password = null;
         if (server.authMethod() == AuthMethod.USER_PASS) {
             password = knownPassword != null ? knownPassword : decryptedPassword(server);
@@ -285,10 +290,10 @@ class ServerService implements NntpServers {
     }
 
     /** A password that cannot be decrypted marks the credentials as invalid; trying again would not help. */
-    private String decryptedPassword(StoredServer server) throws CredentialDecryptionException {
+    private String decryptedPassword(StoredServer server) throws SecretDecryptionException {
         try {
-            return credentialCipher.decrypt(server.passwordEncrypted());
-        } catch (CredentialDecryptionException e) {
+            return secretCipher.decrypt(PASSWORD_PURPOSE, server.passwordEncrypted());
+        } catch (SecretDecryptionException e) {
             serverRepository.setCredentialsInvalid(server.id(), true);
             log.warn("The stored password of the server {} cannot be decrypted: {}. Enter the password again in "
                     + "the server settings.", server.id(), e.getMessage());
@@ -344,7 +349,7 @@ class ServerService implements NntpServers {
     }
 
     private byte[] encrypted(String password) {
-        return password == null ? null : credentialCipher.encrypt(password);
+        return password == null ? null : secretCipher.encrypt(PASSWORD_PURPOSE, password);
     }
 
     private static StoredServer toStoredServer(long serverId, ValidServer validServer, byte[] passwordEncrypted,

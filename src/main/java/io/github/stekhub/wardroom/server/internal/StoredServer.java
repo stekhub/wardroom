@@ -7,7 +7,7 @@ import io.github.stekhub.wardroom.nntp.NntpTlsMode;
  *
  * @param id                 the ID; {@code 0} for a server that is not stored yet
  * @param username           {@code null} unless the authentication is {@link AuthMethod#USER_PASS}
- * @param passwordEncrypted  the encrypted password in the format of {@link CredentialCipher}, or {@code null}
+ * @param passwordEncrypted  the encrypted password in the format of {@link io.github.stekhub.wardroom.platform.SecretCipher}, or {@code null}
  * @param credentialsInvalid whether the server rejected the credentials or the password can no longer be read
  * @param postingServer      the separate server for posting, or {@code null} when posts go to this server
  */

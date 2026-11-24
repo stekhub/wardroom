@@ -1,6 +1,6 @@
 # 013. Dark theme
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-23
 - Related: [UI concept](../../product/ui-concept.md), [ADR 0007](../../architecture/decisions/0007-frontend-stack.md)
 - Changes when accepted: "Visual design" and "Not in the MVP" in the UI concept; the rule "Light theme only in the MVP" in `CLAUDE.md`

@@ -1,5 +1,6 @@
 package io.github.stekhub.wardroom.auth.internal;
 
+import java.time.InstantSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -16,8 +17,8 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
  * Access rules and session handling (spec 001).
  *
  * <ul>
- * <li>Setup and login are public. Every other path below {@code /api} needs a session and answers {@code 401}
- * without one; nothing redirects.</li>
+ * <li>Setup and both steps of the login are public. Every other path below {@code /api} needs a session and
+ * answers {@code 401} without one; nothing redirects.</li>
  * <li>Everything outside {@code /api} is public: the frontend's files and the health endpoint.</li>
  * <li>Every response carries the Content Security Policy, {@code X-Content-Type-Options: nosniff} and
  * {@code Referrer-Policy: no-referrer} (spec 007).</li>
@@ -45,7 +46,7 @@ class SecurityConfiguration {
             throws Exception {
         httpSecurity.authorizeHttpRequests(requests -> requests
                 .requestMatchers("/api/auth/setup").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/login/second-factor").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll());
         httpSecurity.securityContext(
@@ -64,6 +65,12 @@ class SecurityConfiguration {
         httpSecurity.logout(AbstractHttpConfigurer::disable);
         httpSecurity.requestCache(AbstractHttpConfigurer::disable);
         return httpSecurity.build();
+    }
+
+    /** The time for the login throttling and the second factor. Tests put a clock they control in its place. */
+    @Bean
+    InstantSource loginClock() {
+        return InstantSource.system();
     }
 
     /** Argon2id with Spring Security's default parameters. */

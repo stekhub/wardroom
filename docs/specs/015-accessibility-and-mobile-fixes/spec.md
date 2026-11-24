@@ -1,6 +1,6 @@
 # 015. Accessibility and mobile fixes
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-23
 - Related: [UI concept](../../product/ui-concept.md), [spec 013](../013-dark-theme/spec.md), [spec 014](../014-next-unread-and-mark-as-unread/spec.md)
 - Changes when accepted: "Not in the MVP" in the UI concept (mobile layout)

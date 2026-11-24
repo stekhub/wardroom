@@ -6,7 +6,7 @@ const CSRF_HEADER = 'X-XSRF-TOKEN'
 const READ_ONLY_METHODS = ['GET', 'HEAD', 'OPTIONS']
 
 /** Paths whose 401 is an expected answer and not a session that ended. */
-const PATHS_WITH_EXPECTED_401 = ['/api/auth/me', '/api/auth/login']
+const PATHS_WITH_EXPECTED_401 = ['/api/auth/me', '/api/auth/login', '/api/auth/login/second-factor']
 
 let onSessionEnded: () => void = () => undefined
 

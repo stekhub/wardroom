@@ -7,7 +7,7 @@
 
 ## Scope
 
-Bookmarking articles, a page that lists them, and keeping bookmarked articles when the cache is cleaned. Step 28 of the [implementation plan](../../implementation-plan.md), after 1.0.
+Bookmarking articles, a page that lists them, and keeping bookmarked articles when the cache is cleaned. Step 29 of the [implementation plan](../../implementation-plan.md), after 1.0.
 
 ## Decisions
 

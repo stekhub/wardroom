@@ -7,6 +7,7 @@ import static io.github.stekhub.wardroom.jooq.Tables.IGNORE_RULE;
 import static io.github.stekhub.wardroom.jooq.Tables.NEWSGROUP;
 import static io.github.stekhub.wardroom.jooq.Tables.NNTP_SERVER;
 import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
+import static io.github.stekhub.wardroom.jooq.Tables.RECOVERY_CODE;
 import static io.github.stekhub.wardroom.jooq.Tables.SPRING_SESSION;
 import static io.github.stekhub.wardroom.jooq.Tables.SUBSCRIPTION;
 import static io.github.stekhub.wardroom.jooq.Tables.SYNCED_RANGE;
@@ -47,6 +48,7 @@ public final class TestInstallation {
         database.deleteFrom(NNTP_SERVER).execute();
         database.deleteFrom(APP_SETTING).execute();
         database.deleteFrom(SPRING_SESSION).execute();
+        database.deleteFrom(RECOVERY_CODE).execute();
         database.deleteFrom(WARDROOM_USER).execute();
         TestBrowser browser = new TestBrowser(mvc);
         assertThat(browser.post("/api/auth/setup",

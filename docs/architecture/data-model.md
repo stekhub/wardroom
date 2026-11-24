@@ -27,8 +27,21 @@ The local Wardroom account (authentication only). The MVP has exactly one row.
 |---|---|
 | `username` | Unique |
 | `password_hash` | Argon2id |
+| `failed_logins` | Consecutive failed logins, for the login throttling ([spec 011](../specs/011-login-throttling-and-session-timeout/spec.md)) |
+| `login_blocked_until` | End of the waiting time of the throttling; nullable |
+| `totp_secret` | Secret of two-factor authentication, encrypted with the key file ([spec 012](../specs/012-two-factor-authentication/spec.md), [ADR 0035](decisions/0035-two-factor-authentication.md)); nullable |
+| `totp_enabled` | Whether a login needs a code |
+| `totp_last_used_period` | The 30-second period of the last accepted code, so a code works once; nullable |
 
 Sessions are stored in the Spring Session JDBC tables ([spec 001](../specs/001-user-authentication/spec.md)).
+
+### `recovery_code`
+
+The one-time recovery codes of the account ([spec 012](../specs/012-two-factor-authentication/spec.md)). The table is emptied when two-factor authentication is turned off and when an account is created.
+
+| Column | Notes |
+|---|---|
+| `code_hash` | SHA-256 of the code; unique |
 
 ### `nntp_server`
 

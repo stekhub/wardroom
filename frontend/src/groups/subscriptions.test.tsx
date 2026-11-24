@@ -1,3 +1,4 @@
+import { focusManager } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
@@ -313,4 +314,34 @@ test('a group that is not subscribed has no group view', async () => {
   expect(
     within(screen.getByRole('main')).getByRole('link', { name: 'Discover groups' }),
   ).toHaveAttribute('href', '/discover')
+})
+
+// Keeping the session alive (spec 011)
+
+test('the subscription list is asked for again while the tab is hidden', async () => {
+  backendLoggedIn()
+  let requests = 0
+  server.use(
+    http.get('/api/subscriptions', () => {
+      requests++
+      // A running synchronization makes the list ask every 2 seconds, so the test need not wait 30.
+      return HttpResponse.json([testSubscription(7, 'example.talk', { sync: { running: true } })])
+    }),
+  )
+  focusManager.setFocused(false)
+  try {
+    openAt('/discover')
+    await waitFor(() => {
+      expect(requests).toBe(1)
+    })
+
+    await waitFor(
+      () => {
+        expect(requests).toBeGreaterThanOrEqual(2)
+      },
+      { timeout: 4000 },
+    )
+  } finally {
+    focusManager.setFocused(undefined)
+  }
 })

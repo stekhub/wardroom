@@ -1,4 +1,4 @@
-package io.github.stekhub.wardroom.server.internal;
+package io.github.stekhub.wardroom.platform;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -13,7 +13,7 @@ import javax.crypto.spec.SecretKeySpec;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Finds the key for the stored NNTP password when the application starts (spec 002, ADR 0025).
+ * Finds the key for stored secrets when the application starts (spec 002, spec 012, ADR 0025).
  *
  * <ul>
  * <li>Normally the key is the file {@code credentials.key} in the data directory. It is created when missing.</li>
@@ -23,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
  * </ul>
  */
 @Slf4j
-final class CredentialKeyLoader {
+final class SecretKeyLoader {
 
     static final String KEY_FILE_NAME = "credentials.key";
     static final int KEY_LENGTH_BYTES = 32;
@@ -31,12 +31,12 @@ final class CredentialKeyLoader {
     private static final String KEY_ALGORITHM = "AES";
     private static final String OWNER_ONLY = "rw-------";
 
-    private CredentialKeyLoader() {
+    private SecretKeyLoader() {
     }
 
     /**
      * @param key       the key
-     * @param generated whether the key was created by this start; passwords stored earlier cannot be read with it
+     * @param generated whether the key was created by this start; secrets stored earlier cannot be read with it
      */
     record LoadedKey(SecretKey key, boolean generated) {
     }
@@ -44,13 +44,13 @@ final class CredentialKeyLoader {
     /**
      * @param dataDirectory   the data directory of the instance
      * @param externalKeyFile the key file outside the data directory, or {@code null} when none is configured
-     * @throws CredentialKeyException when a key file exists but cannot be used, or the external one is missing
+     * @throws SecretKeyException when a key file exists but cannot be used, or the external one is missing
      */
     static LoadedKey load(Path dataDirectory, Path externalKeyFile) {
         Path internalKeyFile = dataDirectory.resolve(KEY_FILE_NAME);
         if (externalKeyFile != null) {
             if (!Files.exists(externalKeyFile)) {
-                throw new CredentialKeyException("The key file " + externalKeyFile + " named by "
+                throw new SecretKeyException("The key file " + externalKeyFile + " named by "
                         + "WARDROOM_ENCRYPTION_KEY_FILE does not exist. Wardroom does not create a key there.");
             }
             SecretKey key = read(externalKeyFile);
@@ -71,11 +71,11 @@ final class CredentialKeyLoader {
         try {
             keyBytes = Files.readAllBytes(keyFile);
         } catch (IOException e) {
-            throw new CredentialKeyException("The key file " + keyFile + " cannot be read: " + e + ". The file was "
+            throw new SecretKeyException("The key file " + keyFile + " cannot be read: " + e + ". The file was "
                     + "not changed.", e);
         }
         if (keyBytes.length != KEY_LENGTH_BYTES) {
-            throw new CredentialKeyException("The key file " + keyFile + " has " + keyBytes.length + " bytes; a key "
+            throw new SecretKeyException("The key file " + keyFile + " has " + keyBytes.length + " bytes; a key "
                     + "has exactly " + KEY_LENGTH_BYTES + ". The file was not changed.");
         }
         return new SecretKeySpec(keyBytes, KEY_ALGORITHM);
@@ -95,12 +95,12 @@ final class CredentialKeyLoader {
             }
             Files.write(keyFile, keyBytes, StandardOpenOption.WRITE);
         } catch (FileAlreadyExistsException e) {
-            throw new CredentialKeyException("The key file " + keyFile + " appeared while Wardroom was starting. "
+            throw new SecretKeyException("The key file " + keyFile + " appeared while Wardroom was starting. "
                     + "The file was not changed.", e);
         } catch (IOException e) {
-            throw new CredentialKeyException("The key file " + keyFile + " cannot be created: " + e, e);
+            throw new SecretKeyException("The key file " + keyFile + " cannot be created: " + e, e);
         }
-        log.info("Created the key for the stored NNTP password in {}", keyFile);
+        log.info("Created the key for stored secrets in {}", keyFile);
         return new SecretKeySpec(keyBytes, KEY_ALGORITHM);
     }
 }
