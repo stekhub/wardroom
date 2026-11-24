@@ -210,7 +210,7 @@ function CacheUse({ settings }: { settings: Settings }) {
           : `${used} used`}
       </p>
       {settings.cacheLimitUnreachable === true && (
-        <p role="status" className="text-amber-700">
+        <p role="status" className="text-warning">
           The cache is larger than its limit although no article text is left to remove. The stored
           headers alone are larger than the limit. Unsubscribe from large groups to free space, or
           raise the limit.

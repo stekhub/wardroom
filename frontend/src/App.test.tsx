@@ -90,6 +90,7 @@ test('the settings page lists the sections with the selected one in the URL, and
     'Synchronization',
     'Posting identity',
     'Ignored',
+    'Preferences',
     'Account',
     'About',
     'Log out',

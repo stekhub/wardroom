@@ -52,7 +52,7 @@ Wardroom is a free, open-source (AGPL), self-hosted NNTP Usenet client with a mo
 
 - React 19, TypeScript strict, Vite, React Router 7, TanStack Query, shadcn/ui with Tailwind v4, Lucide icons, React Hook Form with Zod, pnpm.
 - The API client is generated from the committed `openapi.json` (ADR 0027); never hand-write API types.
-- Follow the visual design rules in the UI concept: design tokens, Inter bundled, skeletons, tooltips on icon buttons, WCAG 2.2 AA. Light theme only in the MVP.
+- Follow the visual design rules in the UI concept: design tokens, Inter bundled, skeletons, tooltips on icon buttons, WCAG 2.2 AA, in the light and the dark theme (spec 013). Colors come only from the tokens in `src/index.css`, never from the Tailwind palette.
 
 **Tests** (ADR 0008, 0030)
 
@@ -120,5 +120,6 @@ Run from the repository root with JDK 25. Maven, Node.js and pnpm are downloaded
 - To try the built jar by hand without touching real data: `java -jar target/wardroom-*.jar --server.port=8129 --wardroom.data-dir=<scratch directory>`. With another property name the application uses `/config`.
 - The build writes the license notices of all frontend packages into `licenses/third-party-licenses.txt` (`frontend/licenseNotices.ts`). A package that only reaches the stylesheet through `@import` in `src/index.css` is added to the list in `vite.config.ts`.
 - A release is made by pushing a tag `vX.Y.Z` whose version matches `pom.xml`; the workflow `release.yml` publishes the image for amd64 and arm64. The steps are in `CONTRIBUTING.md`.
+- The theme is the class `dark` on the root element. `public/theme.js` sets it before the page is drawn; `src/theme/themeState.ts` keeps it in sync and stores the choice of the section "Preferences" in `localStorage`. The logo is drawn with `HeaderLogo` and `LogoMark` from `src/theme/WardroomLogo.tsx`, which pick the variant of the theme.
 - shadcn/ui components are added with `pnpm dlx shadcn@latest add <name>` in `frontend/`.
 - Without a pnpm of your own, use the one the build downloaded: `target/node/pnpm.cmd` on Windows, `target/node/pnpm` elsewhere.

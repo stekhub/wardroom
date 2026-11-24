@@ -1,8 +1,23 @@
-import { EyeOff, IdCard, Info, KeyRound, type LucideIcon, RefreshCw, Server } from 'lucide-react'
+import {
+  EyeOff,
+  IdCard,
+  Info,
+  KeyRound,
+  type LucideIcon,
+  RefreshCw,
+  Server,
+  SlidersHorizontal,
+} from 'lucide-react'
 
 /** The last part of a section's URL, `/settings/{path}`. */
 export type SettingsSectionPath =
-  'server' | 'synchronization' | 'posting-identity' | 'ignored' | 'account' | 'about'
+  | 'server'
+  | 'synchronization'
+  | 'posting-identity'
+  | 'ignored'
+  | 'preferences'
+  | 'account'
+  | 'about'
 
 export type SettingsSection = {
   path: SettingsSectionPath
@@ -16,6 +31,7 @@ export const SETTINGS_SECTIONS: readonly [SettingsSection, ...SettingsSection[]]
   { path: 'synchronization', title: 'Synchronization', icon: RefreshCw },
   { path: 'posting-identity', title: 'Posting identity', icon: IdCard },
   { path: 'ignored', title: 'Ignored', icon: EyeOff },
+  { path: 'preferences', title: 'Preferences', icon: SlidersHorizontal },
   { path: 'account', title: 'Account', icon: KeyRound },
   { path: 'about', title: 'About', icon: Info },
 ]

@@ -12,6 +12,7 @@ import { AboutSection } from '@/settings/AboutSection'
 import { AccountSection } from '@/settings/AccountSection'
 import { IgnoredSection } from '@/settings/IgnoredSection'
 import { PostingIdentitySection } from '@/settings/PostingIdentitySection'
+import { PreferencesSection } from '@/settings/PreferencesSection'
 import { SETTINGS_SECTIONS, type SettingsSectionPath } from '@/settings/sections'
 import { ServerSection } from '@/settings/ServerSection'
 import { SettingsPage } from '@/settings/SettingsPage'
@@ -24,6 +25,7 @@ const SECTION_CONTENT: Record<SettingsSectionPath, ReactNode> = {
   synchronization: <SynchronizationSection />,
   'posting-identity': <PostingIdentitySection />,
   ignored: <IgnoredSection />,
+  preferences: <PreferencesSection />,
   account: <AccountSection />,
   about: <AboutSection />,
 }

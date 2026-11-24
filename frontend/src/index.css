@@ -4,9 +4,9 @@
 @import '@fontsource-variable/inter';
 
 /*
- * The design tokens of the UI concept: one accent color, everything else neutral.
- * The MVP has a light theme only. shadcn/ui components carry `dark:` classes; this variant
- * ties them to a `.dark` class that nothing sets, so they never follow the system setting.
+ * The design tokens of the UI concept: one accent color, everything else neutral, defined once
+ * for each theme (spec 013). The dark theme is a class `dark` on the root element, which
+ * `public/theme.js` and `src/theme/themeState.ts` set; shadcn/ui's `dark:` classes follow it.
  */
 @custom-variant dark (&:is(.dark *));
 
@@ -28,6 +28,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -72,6 +73,8 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Text of hints that need attention; amber, 5:1 on the background. */
+  --warning: #b45309;
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --chart-1: oklch(0.87 0 0);
@@ -88,6 +91,46 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: var(--ring);
+  color-scheme: light;
+}
+
+.dark {
+  /* The accent color is the light blue of the dark logo. Dark text on it has a contrast above 7:1. */
+  --primary: #4db5fb;
+  --primary-foreground: oklch(0.145 0 0);
+  --ring: #4db5fb;
+
+  /* Soft dark gray instead of near black: the background is #121212, cards #1c1c1c, controls #2b2b2b. */
+  --background: oklch(0.18 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.225 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.225 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.29 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.29 0 0);
+  --muted-foreground: oklch(0.72 0 0);
+  --accent: oklch(0.29 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --warning: #fbbf24;
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 18%);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.29 0 0);
+  --sidebar: oklch(0.225 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: oklch(0.29 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: var(--ring);
+  color-scheme: dark;
 }
 
 @layer base {

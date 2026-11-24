@@ -2,11 +2,21 @@
 
 This guide covers running Wardroom after the installation. For the installation itself, see the [quick install](../README.md#quick-install) in the README.
 
+- [Light and dark theme](#light-and-dark-theme)
 - [Login and security](#login-and-security)
 - [Backups and updates](#backups-and-updates)
 - [Troubleshooting](#troubleshooting)
 - [Advanced: keeping the encryption key outside the data directory](#advanced-keeping-the-encryption-key-outside-the-data-directory)
 - [Building from source](#building-from-source)
+
+## Light and dark theme
+
+Wardroom has a light and a dark theme. Choose one in the settings, section "Preferences":
+
+- **Light** or **Dark** keeps that theme.
+- **System**, the default, follows the light or dark setting of your device and changes with it.
+
+The choice is stored in the browser, so your phone can use another theme than your computer. A browser that does not keep site data uses System after every reload.
 
 ## Login and security
 
