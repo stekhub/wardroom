@@ -1,6 +1,5 @@
 import { Search, Settings } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
-import logo from '@/assets/wardroom-logo.svg'
 import { Button } from '@/components/ui/button'
 import {
   Sidebar,
@@ -16,6 +15,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { SubscriptionList } from '@/shell/SubscriptionList'
+import { LogoMark } from '@/theme/WardroomLogo'
 
 /**
  * The sidebar of the UI concept: logo, name and settings button, the "Discover groups" button and
@@ -32,11 +32,7 @@ export function AppSidebar() {
             to="/"
             className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
-            <img
-              src={logo}
-              alt=""
-              className="h-auto w-12 shrink-0 group-data-[collapsible=icon]:w-6"
-            />
+            <LogoMark alt="" className="h-auto w-12 shrink-0 group-data-[collapsible=icon]:w-6" />
             <span className="truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
               Wardroom
             </span>

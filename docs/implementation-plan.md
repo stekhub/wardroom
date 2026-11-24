@@ -23,8 +23,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 15 | Activity of a group | Spec 003 | Done |
 | 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Done |
 | 17 | Release pipeline | ADR 0009, 0024 | Done |
-| 18 | Security improvements | Spec 011, 012; ADR 0035 | In review |
-| 19 | Dark theme | Spec 013; UI concept | Not started |
+| 18 | Security improvements | Spec 011, 012; ADR 0035 | Done |
+| 19 | Dark theme | Spec 013; UI concept | In review |
 | 20 | Next unread, mark as unread and keyboard shortcuts | Spec 014 | Not started |
 | 21 | Accessibility and mobile fixes | Spec 015, 022, 023; UI concept | Not started |
 | 22 | Full-text search | Spec 016 | Not started |
@@ -342,6 +342,32 @@ Decided by the owner on 2026-11-23: the first step after 1.0, because the owner 
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 19, dark theme (2026-11-24)**
+
+Built:
+
+- Spec 013: dark tokens in `src/index.css`, the theme script `public/theme.js` in the page header, the theme state in `src/theme/themeState.ts`, the settings section "Preferences" with Light, Dark and System, and the dark logo in the sidebar, on the login and setup pages and in "About". The favicon has both variants and shows the one of the operating system.
+- The dark header logo is made from `assets/logo/wardroom-header-dark.svg` in the same way as the light one: the mark 50 % larger, the lettering moved next to it.
+- The UI concept, `CLAUDE.md` and the user guide (new part "Light and dark theme") are updated.
+
+Decisions of the assistant, open to a veto:
+
+1. **"Preferences" comes after "Ignored" and before "Account"** in the settings navigation. The spec does not say where.
+2. **The theme is chosen with three radio buttons** (shadcn/ui `radio-group`, added with this step), not with a select, so all three choices are visible at once.
+3. **The accent color of the dark theme is the light blue of the dark logo, `#4db5fb`, with dark text on it.** White text on a blue that is light enough for a dark background does not reach 4.5:1. Buttons in the dark theme therefore have dark lettering.
+4. **A new token `warning`** for the three hints in amber (mostly quoted text, long signature, cache limit not reachable). They used `text-amber-700`, which has only about 3.5:1 on the dark background. The token is amber 700 in the light theme and amber 400 in the dark one.
+5. **The quote bars keep their colors** (sky, emerald and amber 600). They reach at least 4.3:1 on the dark background and the dark cards, above the 3:1 for graphics.
+6. **The QR code stays black on white** in the dark theme, as spec 012 requires, and keeps the light logo in its middle.
+7. **The dark surfaces are a soft dark gray, not near black:** the background is `#121212`, cards and the sidebar `#1c1c1c`, controls `#2b2b2b`. The values of shadcn/ui are darker; the owner asked for a softer dark.
+
+Contrast in the dark theme, computed from the tokens: text 16.4:1 on cards, muted text 6.9:1 on cards and 5.7:1 on controls, the accent color 7.6:1 on cards, the warning color 10.2:1, the destructive color 5.9:1, dark text on the accent color 8.8:1.
+
+Verified:
+
+- `./mvnw verify` passes: 682 backend tests and 273 frontend tests.
+- Tried by hand with the built jar on an empty data directory, with the browser set to dark: the setup pages, the sidebar and the settings follow System; Light and Dark take effect at once and stay after a reload.
+- Not tried: the views with articles, because the check had no NNTP server.
 
 **Step 18, security improvements (2026-11-24)**
 

@@ -101,7 +101,7 @@ export function IdentityForm({ serverId, identity, saveLabel, onSaved }: Identit
           Added below your posts, after a line with two dashes.
         </p>
         {signatureLines(signature) > 4 && (
-          <p role="status" className="text-sm text-amber-700">
+          <p role="status" className="text-sm text-warning">
             A signature of more than 4 lines is considered impolite on Usenet.
           </p>
         )}

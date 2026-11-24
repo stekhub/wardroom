@@ -3,7 +3,7 @@ import { ExternalLink } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { api } from '@/api/client'
 import type { components } from '@/api/schema'
-import headerLogo from '@/assets/wardroom-header.svg'
+import { HeaderLogo } from '@/theme/WardroomLogo'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SettingsSectionFrame } from '@/settings/SettingsSectionFrame'
 
@@ -32,7 +32,7 @@ export function AboutSection() {
   return (
     <SettingsSectionFrame title="About">
       <div className="grid gap-2">
-        <img src={headerLogo} alt="Wardroom" className="h-12 w-fit" />
+        <HeaderLogo alt="Wardroom" className="h-12 w-fit" />
         {about.data !== undefined && (
           <p className="text-sm">
             {about.data.version == null ? 'Development build' : `Version ${about.data.version}`}

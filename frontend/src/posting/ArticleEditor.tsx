@@ -246,7 +246,7 @@ function Editor({
           <p className="text-sm text-destructive">{fieldErrors.body}</p>
         )}
         {mostlyQuoted(text) && (
-          <p role="status" className="text-sm text-amber-700">
+          <p role="status" className="text-sm text-warning">
             Most of this text is quoted. Some servers reject such posts; you can shorten the quote.
           </p>
         )}

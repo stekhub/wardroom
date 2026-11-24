@@ -44,10 +44,11 @@ The layout and interaction rules shared by all feature specifications. Each spec
 Wardroom aims for a modern, clean look comparable to current web applications.
 
 - **Components:** shadcn/ui throughout, with one set of design tokens (colors, radii, spacing) defined once in Tailwind. One accent color; everything else neutral.
+- **Themes:** a light and a dark theme, chosen in the section "Preferences" as Light, Dark or System; System is the default and follows the setting of the operating system ([spec 013](../specs/013-dark-theme/spec.md)). Every color comes from the tokens, which are defined once for each theme. The accent color is the blue of the logo in the light theme and the light blue of the dark logo in the dark theme. Hints that need attention use the token `warning`. The QR code of two-factor authentication stays dark on white in both themes.
 - **Typography:** Inter, bundled with the application (no font is loaded from elsewhere). Article text uses a comfortable line length: the thread page's content column is at most 768 px wide.
 - **Content width:** the discover view, the group view and the thread page show their content in one column of at most 768 px, centered in the area next to the sidebar. The column keeps its width when the sidebar is collapsed. The settings page is not centered.
 - **Surfaces:** cards with rounded corners, a light border and a soft shadow on hover; generous whitespace.
-- **Logo:** the files in `assets/logo/`. The application uses the light variant. The favicon is the logo centered on a square canvas.
+- **Logo:** the files in `assets/logo/`. The application uses the variant of the theme. The favicon is the logo centered on a square canvas, in the variant of the setting of the operating system, because browsers draw it next to their own tabs.
 - **Icons:** Lucide everywhere. Icon-only buttons have a tooltip and an accessible label.
 - **Loading:** skeleton placeholders in the shape of the content instead of spinners.
 - **Motion:** short transitions (150–200 ms) for collapsing, expanding and page changes; disabled when the browser asks for reduced motion.
@@ -76,11 +77,12 @@ Opened with the settings button in the sidebar header. A section navigation on t
 | Synchronization | `refresh-cw` | Intervals, depth, cache size limit with its switch, and current use ([spec 005](../specs/005-article-synchronization/spec.md)) |
 | Posting identity | `id-card` | Display name, email address, signature ([spec 009](../specs/009-article-posting/spec.md)) |
 | Ignored | `eye-off` | Ignored authors and threads ([spec 010](../specs/010-ignoring/spec.md)) |
+| Preferences | `sliders-horizontal` | Theme: Light, Dark or System ([spec 013](../specs/013-dark-theme/spec.md)). Stored in this browser; takes effect at once, without a save button |
 | Account | `key-round` | Password change ([spec 001](../specs/001-user-authentication/spec.md)); below it, two-factor authentication ([spec 012](../specs/012-two-factor-authentication/spec.md)) |
 | About | `info` | Logo and version ("Development build" without version information, from `GET /api/about`); the license with links to `LICENSE` and the additional terms; links to the source code, the user guide and the issues of the repository, each in a new tab ([ADR 0011](../architecture/decisions/0011-licensing.md)) |
 | Log out | `log-out` | An action at the end of the navigation, not a section |
 
-- Each section has its own save button, enabled once something has changed; saving shows a toast.
+- Each section has its own save button, enabled once something has changed; saving shows a toast. "Preferences" has none, because its settings stay in the browser and take effect at once.
 - Sections added by later specifications appear in this navigation.
 
 ## Group icons
@@ -120,5 +122,4 @@ Usenet has no profile pictures. Every author gets a round icon instead: the Luci
 ## Not in the MVP
 
 - **Other languages.** The UI is in English only.
-- **Dark theme.** The MVP has a light theme only. shadcn/ui supports dark mode, so it can be added later.
 - **Mobile layout** ([deferred](../open-questions.md#deferred-beyond-the-mvp)). The sidebar can be collapsed, but there is no dedicated layout for narrow screens.
