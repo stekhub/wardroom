@@ -1,9 +1,9 @@
-package io.github.stekhub.wardroom.server.internal;
+package io.github.stekhub.wardroom.platform;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.stekhub.wardroom.server.internal.CredentialKeyLoader.LoadedKey;
+import io.github.stekhub.wardroom.platform.SecretKeyLoader.LoadedKey;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,7 +18,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /** The key file rules of spec 002 and ADR 0025. */
 @ExtendWith(OutputCaptureExtension.class)
-class CredentialKeyLoaderTest {
+class SecretKeyLoaderTest {
 
     @TempDir
     Path temporaryDirectory;
@@ -36,7 +36,7 @@ class CredentialKeyLoaderTest {
 
     @Test
     void missingKeyFileIsCreatedWith32RandomBytes() throws IOException {
-        LoadedKey loadedKey = CredentialKeyLoader.load(dataDirectory, null);
+        LoadedKey loadedKey = SecretKeyLoader.load(dataDirectory, null);
 
         assertThat(loadedKey.generated()).isTrue();
         byte[] written = Files.readAllBytes(internalKeyFile);
@@ -52,7 +52,7 @@ class CredentialKeyLoaderTest {
         byte[] keyBytes = keyBytes(7);
         Files.write(internalKeyFile, keyBytes);
 
-        LoadedKey loadedKey = CredentialKeyLoader.load(dataDirectory, null);
+        LoadedKey loadedKey = SecretKeyLoader.load(dataDirectory, null);
 
         assertThat(loadedKey.generated()).isFalse();
         assertThat(loadedKey.key().getEncoded()).isEqualTo(keyBytes);
@@ -64,8 +64,8 @@ class CredentialKeyLoaderTest {
         byte[] tooShort = Arrays.copyOf(keyBytes(7), 31);
         Files.write(internalKeyFile, tooShort);
 
-        assertThatThrownBy(() -> CredentialKeyLoader.load(dataDirectory, null))
-                .isInstanceOf(CredentialKeyException.class)
+        assertThatThrownBy(() -> SecretKeyLoader.load(dataDirectory, null))
+                .isInstanceOf(SecretKeyException.class)
                 .hasMessageContaining(internalKeyFile.toString())
                 .hasMessageContaining("31 bytes");
         assertThat(Files.readAllBytes(internalKeyFile)).isEqualTo(tooShort);
@@ -76,8 +76,8 @@ class CredentialKeyLoaderTest {
         // A directory in place of the file cannot be read as a key on any operating system.
         Files.createDirectory(internalKeyFile);
 
-        assertThatThrownBy(() -> CredentialKeyLoader.load(dataDirectory, null))
-                .isInstanceOf(CredentialKeyException.class)
+        assertThatThrownBy(() -> SecretKeyLoader.load(dataDirectory, null))
+                .isInstanceOf(SecretKeyException.class)
                 .hasMessageContaining(internalKeyFile.toString())
                 .hasMessageContaining("cannot be read");
         assertThat(internalKeyFile).isDirectory();
@@ -88,7 +88,7 @@ class CredentialKeyLoaderTest {
         byte[] keyBytes = keyBytes(9);
         Files.write(externalKeyFile, keyBytes);
 
-        LoadedKey loadedKey = CredentialKeyLoader.load(dataDirectory, externalKeyFile);
+        LoadedKey loadedKey = SecretKeyLoader.load(dataDirectory, externalKeyFile);
 
         assertThat(loadedKey.generated()).isFalse();
         assertThat(loadedKey.key().getEncoded()).isEqualTo(keyBytes);
@@ -97,8 +97,8 @@ class CredentialKeyLoaderTest {
 
     @Test
     void missingExternalKeyFileStopsTheStartAndNoKeyIsGenerated() {
-        assertThatThrownBy(() -> CredentialKeyLoader.load(dataDirectory, externalKeyFile))
-                .isInstanceOf(CredentialKeyException.class)
+        assertThatThrownBy(() -> SecretKeyLoader.load(dataDirectory, externalKeyFile))
+                .isInstanceOf(SecretKeyException.class)
                 .hasMessageContaining(externalKeyFile.toString())
                 .hasMessageContaining("WARDROOM_ENCRYPTION_KEY_FILE");
         assertThat(externalKeyFile).doesNotExist();
@@ -110,8 +110,8 @@ class CredentialKeyLoaderTest {
         byte[] tooLong = new byte[33];
         Files.write(externalKeyFile, tooLong);
 
-        assertThatThrownBy(() -> CredentialKeyLoader.load(dataDirectory, externalKeyFile))
-                .isInstanceOf(CredentialKeyException.class)
+        assertThatThrownBy(() -> SecretKeyLoader.load(dataDirectory, externalKeyFile))
+                .isInstanceOf(SecretKeyException.class)
                 .hasMessageContaining(externalKeyFile.toString())
                 .hasMessageContaining("33 bytes");
         assertThat(Files.readAllBytes(externalKeyFile)).isEqualTo(tooLong);
@@ -125,7 +125,7 @@ class CredentialKeyLoaderTest {
         Files.write(internalKeyFile, leftover);
         Files.write(externalKeyFile, external);
 
-        LoadedKey loadedKey = CredentialKeyLoader.load(dataDirectory, externalKeyFile);
+        LoadedKey loadedKey = SecretKeyLoader.load(dataDirectory, externalKeyFile);
 
         assertThat(loadedKey.key().getEncoded()).isEqualTo(external);
         assertThat(Files.readAllBytes(internalKeyFile)).isEqualTo(leftover);

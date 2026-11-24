@@ -7,7 +7,7 @@ import io.github.stekhub.wardroom.nntp.NntpTlsMode;
  *
  * @param authMethod        {@code null} when the posting server uses the login of the server it belongs to
  * @param username          {@code null} unless the authentication is {@link AuthMethod#USER_PASS}
- * @param passwordEncrypted the encrypted password in the format of {@link CredentialCipher}, or {@code null}
+ * @param passwordEncrypted the encrypted password in the format of {@link io.github.stekhub.wardroom.platform.SecretCipher}, or {@code null}
  */
 record StoredPostingServer(String host, int port, NntpTlsMode tlsMode, AuthMethod authMethod, String username,
                            byte[] passwordEncrypted) {

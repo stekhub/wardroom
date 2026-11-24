@@ -1,23 +1,23 @@
 # 019. Classic view
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-23
 - Related: [spec 008](../008-discussion-view/spec.md), [spec 013](../013-dark-theme/spec.md), [spec 014](../014-next-unread-and-mark-as-unread/spec.md), [spec 015](../015-accessibility-and-mobile-fixes/spec.md)
 - Changes when accepted: "Views" in the UI concept
 
 ## Scope
 
-A second way to show the groups: a tree of the threads at the top and the selected article below it. Step 27 of the [implementation plan](../../implementation-plan.md), after 1.0.
+A second way to show the groups: a tree of the threads at the top and the selected article below it. Step 23 of the [implementation plan](../../implementation-plan.md), before 1.0.
 
 ## Decisions
 
-Decided by the owner on 2026-11-23:
+Decided by the owner on 2026-11-23. Moved before 1.0 by the owner on 2026-11-24.
 
 1. The subscribed groups on the left as today, a compact tree of the threads at the top, and the selected article below it.
 2. The choice applies to all groups: the whole interface switches.
 3. The tree has a toggle to open or close a thread, the subject indented by reply depth, the author and the date. Unread articles are bold, with a dot. It is in thread order, newest thread first; no sorting or resizing of columns.
 4. Only on wide screens. Below 768 pixels the card view is shown, whatever the choice; the setting says so.
-5. `N` and mark as unread work in it, and it is checked for accessibility as in spec 015.
+5. The keyboard shortcuts and mark as unread ([spec 014](../014-next-unread-and-mark-as-unread/spec.md)) work in it, and it is checked for accessibility as in spec 015.
 
 ## Details added by the AI assistant
 
@@ -28,8 +28,8 @@ Open to a veto by the owner:
 3. The tree and the article each scroll on their own. The tree takes 40 percent of the height; the split cannot be moved.
 4. Threads are closed at first and open with their toggle; the row of a closed thread shows the card article and the number of replies.
 5. The tree follows the keyboard pattern of a tree: up and down move the selection, right opens a thread, left closes it, Enter shows the article. This is not a shortcut but the expected behavior of the control (WAI-ARIA tree grid).
-6. The article pane shows the same header, menu and text as on the thread page, with reply, ignore, bookmark and mark as unread.
-7. A thread page address (`/groups/{id}/threads/{articleId}?article=`) opens the group in the classic view, with the thread open and the article selected, so links from search and bookmarks work in both views.
+6. The article pane shows the same header, menu and text as on the thread page, with reply, ignore and mark as unread. Bookmarks ([spec 020](../020-bookmarks/spec.md)) are added there when they are built, after 1.0.
+7. A thread page address (`/groups/{id}/threads/{articleId}?article=`) opens the group in the classic view, with the thread open and the article selected, so links from the search work in both views.
 
 ## User stories
 
@@ -41,6 +41,8 @@ Open to a veto by the owner:
 - Selecting a row shows its article below. The article is marked read when its text is displayed, as on the thread page (spec 007).
 - Opening a thread loads it with the existing thread endpoint; its replies appear nested below its row.
 - `N` selects the next unread article, opening its thread, and goes on to the next thread and group as in spec 014.
+- `J` and `K` select the next and the previous row, as the up and down arrows do, and show its article. Changed by the owner on 2026-11-24.
+- `Space` scrolls the article pane by one screen; at the end of the article, it does what `N` does. `R` and `C` work on the selected article and its thread. Changed by the owner on 2026-11-24.
 - Unread rows are bold and have a dot; the dot has a text for screen readers.
 - Ignored threads and authors are left out as in the card view.
 - A narrow screen always shows the card view; the setting says "Only on wide screens".

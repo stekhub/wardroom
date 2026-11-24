@@ -148,6 +148,9 @@ export function testThreadArticle(
 export function backendLoggedIn(username = 'owner', servers: Server[] = [TEST_SERVER]) {
   server.use(
     http.get('/api/auth/me', () => HttpResponse.json({ username })),
+    http.get('/api/auth/two-factor', () =>
+      HttpResponse.json({ enabled: false, recoveryCodesLeft: 0 }),
+    ),
     http.get('/api/servers', () => HttpResponse.json(servers)),
     http.get('/api/servers/:serverId/groups', () =>
       HttpResponse.json({ items: [], page: 0, size: 50, total: 0 }),

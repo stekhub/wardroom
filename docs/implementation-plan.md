@@ -23,18 +23,19 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 15 | Activity of a group | Spec 003 | Done |
 | 16 | Polish and documentation | UI concept; spec 001, 002; ADR 0032 | Done |
 | 17 | Release pipeline | ADR 0009, 0024 | Done |
-| 18 | Security improvements | Spec 011, 012 | Not started |
+| 18 | Security improvements | Spec 011, 012; ADR 0035 | In review |
 | 19 | Dark theme | Spec 013; UI concept | Not started |
-| 20 | Next unread and mark as unread | Spec 014 | Not started |
-| 21 | Accessibility and mobile fixes | Spec 015, 022; UI concept | Not started |
+| 20 | Next unread, mark as unread and keyboard shortcuts | Spec 014 | Not started |
+| 21 | Accessibility and mobile fixes | Spec 015, 022, 023; UI concept | Not started |
 | 22 | Full-text search | Spec 016 | Not started |
-| 23 | Release 1.0 | ADR 0004; CONTRIBUTING | Not started |
-| 24 | Windows app (after 1.0) | ADR to be written; spec to be written | Not started |
-| 25 | Installable web app (after 1.0) | Spec 017 | Not started |
-| 26 | Notifications (after 1.0) | Spec 018 | Not started |
-| 27 | Classic view (after 1.0) | Spec 019; spec 008 | Not started |
-| 28 | Bookmarks (after 1.0) | Spec 020; ADR to be written | Not started |
-| 29 | Newest articles (after 1.0) | Spec 021 | Not started |
+| 23 | Classic view | Spec 019; spec 008 | Not started |
+| 24 | Choosing the groups of a post | Spec 024; spec 009 | Not started |
+| 25 | Release 1.0 | Spec 025; ADR 0004; CONTRIBUTING | Not started |
+| 26 | Windows app (after 1.0) | ADR to be written; spec to be written | Not started |
+| 27 | Installable web app (after 1.0) | Spec 017 | Not started |
+| 28 | Notifications (after 1.0) | Spec 018 | Not started |
+| 29 | Bookmarks (after 1.0) | Spec 020; ADR to be written | Not started |
+| 30 | Newest articles (after 1.0) | Spec 021 | Not started |
 
 Status values: `Not started`, `In progress`, `In review`, `Done`.
 
@@ -176,41 +177,49 @@ The first step after the release of 0.9.0, decided by the owner on 2026-11-23. T
 - Two-factor authentication with an authenticator app, turned on in the settings, with a QR code that has the Wardroom logo in the middle ([spec 012](specs/012-two-factor-authentication/spec.md)).
 - Not part of this step: the easier password reset trigger (ADR 0017) and the NNTP password from a file, which stay [deferred](open-questions.md#deferred-beyond-the-mvp).
 
-### 19 to 23. On the way to 1.0
+### 19 to 25. On the way to 1.0
 
-Decided by the owner on 2026-11-23. Version 1.0 is kept to the core done well: reading, writing and finding, secure and polished. Larger optional features follow after 1.0 (steps 24 to 29). The order matters: each step builds on the ones before. The specs were written from the decisions below on 2026-11-23; the owner accepts each one, or changes it, before its step.
+Decided by the owner on 2026-11-23. Version 1.0 is kept to the core done well: reading, writing and finding, secure and polished. Larger optional features follow after 1.0 (steps 26 to 30). The order matters: each step builds on the ones before. The specs were written from the decisions below on 2026-11-23; the owner accepts each one, or changes it, before its step.
+
+Changed by the owner on 2026-11-24, after a comparison with what long-time readers of newsgroups expect: the classic view moved before 1.0 (step 23), more keyboard shortcuts were added to step 20, ignored subject words to step 21, a notice on what the search covers to step 22, and choosing the groups of a post became step 24. Several servers and importing subscriptions from another reader stay [deferred](open-questions.md#deferred-beyond-the-mvp).
 
 ### 19. Dark theme
 
-[Spec 013](specs/013-dark-theme/spec.md), proposed on 2026-11-23 and waiting for the owner.
+[Spec 013](specs/013-dark-theme/spec.md), accepted on 2026-11-24.
 
 - A dark theme next to the light one, with the choice Light, Dark or System in the settings. The default is System.
 - The choice is stored in the browser, so each device has its own.
 - The logo in the application and the icon in the browser tab follow the theme.
 - First, so that the later steps are built for both themes from the start.
 
-### 20. Next unread and mark as unread
+### 20. Next unread, mark as unread and keyboard shortcuts
 
-[Spec 014](specs/014-next-unread-and-mark-as-unread/spec.md), proposed on 2026-11-23 and waiting for the owner.
+[Spec 014](specs/014-next-unread-and-mark-as-unread/spec.md), accepted on 2026-11-24.
 
-- The key `N` opens the next unread article, across threads in the current sort order. At the end of a group, it goes to the next group with unread articles. No other keys for now.
+- The key `N` opens the next unread article, across threads in the current sort order. At the end of a group, it goes to the next group with unread articles.
+- More keys, added by the owner on 2026-11-24: `Space` scrolls the article and, at its end, does what `N` does; `J` and `K` go to the next and the previous article; `R` replies to the current article; `C` marks the current thread as read; `?` shows the list of keys. The letters were proposed by the AI assistant, open to a veto.
 - Opening an article with `N` marks it as read at once, as reading does today.
 - Mark as unread: the owner marks an article as unread again.
 - The key does nothing while the owner types in a field.
-- A setting "Keyboard shortcuts", on by default, turns `N` off, because WCAG 2.2 criterion 2.1.4 asks that a shortcut of a single letter can be turned off. Proposed by the AI assistant and accepted by the owner. It is stored in the browser, like the theme.
+- A setting "Keyboard shortcuts", on by default, turns all these keys off, because WCAG 2.2 criterion 2.1.4 asks that a shortcut of a single letter can be turned off. Proposed by the AI assistant and accepted by the owner. It is stored in the browser, like the theme.
 
 ### 21. Accessibility and mobile fixes
 
-[Spec 015](specs/015-accessibility-and-mobile-fixes/spec.md), proposed on 2026-11-23 and waiting for the owner.
+[Spec 015](specs/015-accessibility-and-mobile-fixes/spec.md), accepted on 2026-11-24.
 
 - A systematic check of the whole application against WCAG 2.2 AA, with the keyboard alone, with the screen reader NVDA, and zoomed to 200 and 400 percent, in both themes. The spec has a short checklist for the screen reader test. No automated accessibility checks.
 - The mobile layout is fixed where needed, also because WCAG 2.2 asks that pages work at 320 pixels wide: the menu closes after a group or another page was chosen, buttons that take too much space show only their icon below 768 pixels, with a tooltip and a label, and every page is checked at the width of a phone.
-- Group list filters and paging ([spec 022](specs/022-group-list-filters-and-paging/spec.md), accepted on 2026-11-24): binary groups are hidden in the group list unless "Show binary groups" is checked, and a paging row at the bottom jumps to any page.
+- Group list filters and paging ([spec 022](specs/022-group-list-filters-and-paging/spec.md), accepted on 2026-11-24 and changed the same day): binary groups are hidden in the group list while the setting "Hide binary groups" in the section "Ignored" is on, which it is by default. They are found by naming rules and a built-in list, which the owner checks and completes against a real server during the step. The owner can also ignore a group; it no longer appears in the group list and is listed in the section "Ignored". A paging row at the bottom jumps to any page.
+- Ignored subject words ([spec 023](specs/023-ignored-subject-words/spec.md), accepted on 2026-11-24), added by the owner on 2026-11-24. The points below were proposed by the AI assistant:
+  - In the settings section "Ignored", the owner adds a word or a phrase, for all groups or for one subscribed group.
+  - A thread whose card article has the word in its subject is not shown in the thread list, and its articles do not count as unread, as for an ignored thread (spec 010). Upper and lower case do not matter, and whole words match, not parts of words.
+  - A filter, not a change: removing the word shows everything as before.
+  - The list shows each word with its group or "All groups", the date it was added and a remove button.
 - After the frontend changes before it, so that it checks them. Later frontend steps are checked with the same checklist (`docs/accessibility-checklist.md`).
 
 ### 22. Full-text search
 
-[Spec 016](specs/016-full-text-search/spec.md), proposed on 2026-11-23 and waiting for the owner.
+[Spec 016](specs/016-full-text-search/spec.md), accepted on 2026-11-24.
 
 - One search over all cached articles, by words in the subject, the author and the text, with the results on a new page. Not limited to one group.
 - Only what is cached is searched; no content is fetched in advance for it. The text of an article is found once it was opened, the subject and author of every synchronized article.
@@ -219,17 +228,44 @@ Decided by the owner on 2026-11-23. Version 1.0 is kept to the core done well: r
 - The search field is in the top bar of every page.
 - The results page is a simple list of articles. Each entry shows the subject, the author, the group and the date, and opens its thread at that article. More results are loaded like the thread list.
 - Added by the AI assistant, open to a veto: each entry also shows a short excerpt around the words found, with these words in bold, so the owner sees why it matched. The excerpt is untrusted text and is drawn as text, never as HTML.
+- A notice on what the search covers, added by the owner on 2026-11-24: a line above the results says "Searches the text of the articles you have opened, and the subject and author of all articles." So nobody takes a missing result for a broken search. Asked for in the usability step 21, but placed here, because the search page is built in this step.
 
-### 23. Release 1.0
+### 23. Classic view
+
+[Spec 019](specs/019-classic-view/spec.md), accepted on 2026-11-24. Moved before 1.0 by the owner on 2026-11-24, because long-time readers of newsgroups skim a group in a compact list of subjects.
+
+- A second way to show the groups, next to the card view ([spec 008](specs/008-discussion-view/spec.md)): the subscribed groups on the left as today, a compact tree of the threads at the top, and the selected article below it.
+- The choice applies to all groups: the whole interface switches to the classic view.
+- The tree has a toggle to open or close a thread, the subject indented by reply depth, the author and the date. Unread articles are bold, with a dot. It is in thread order, newest thread first, as the cards; no sorting or resizing of columns.
+- Only on wide screens. On a narrow screen (below 768 pixels) the card view is shown, whatever the choice; the setting says so.
+- The keys of step 20 and mark as unread work in it too, and it is checked for accessibility as in step 21.
+
+### 24. Choosing the groups of a post
+
+[Spec 024](specs/024-groups-of-a-post/spec.md), accepted on 2026-11-24. Added by the owner on 2026-11-24. It changes "Target groups" in [spec 009](specs/009-article-posting/spec.md), where a new discussion goes to the current group only and the groups of a reply cannot be changed. When a post is crossposted to many groups, every reply goes back to all of them, against the custom of Usenet. The points below were proposed by the AI assistant:
+
+- The groups of a new discussion and of a reply can be edited in the editor. A new discussion starts with the current group, a reply with the groups of its parent (`Followup-To`, otherwise `Newsgroups`), as today.
+- Groups are added from the group list of the server, with a search as on the discover page; unknown names are not accepted. Groups that do not allow posting are not offered.
+- With more than one group, a field "Follow-ups to" sets the header `Followup-To`, so replies go to one group. A reply to a crosspost suggests the group the owner reads it in.
+- A warning appears from 4 groups on, because many servers and readers treat wide crossposts as spam; sending is still possible.
+- The post is stored with the group it was written in, as today (`posted_from_newsgroup_id`).
+
+### 25. Release 1.0
 
 - A check of the user guide against the finished application, and a test of the upgrade from a database of version 0.9.0.
+- A hint that a newer version is available ([spec 025](specs/025-update-hint/spec.md), accepted on 2026-11-24). Asked for by the owner on 2026-11-24. From 1.0 on, people have versions to update from. The points below were proposed by the AI assistant:
+  - The backend asks the releases of the project on GitHub once a day for the latest release and compares its version with its own. Pre-releases are ignored, and a development build never reports an update. The browser is not involved, so the Content Security Policy stays as it is.
+  - The hint is quiet: a mark on "Settings" in the sidebar and a line in the settings, "Wardroom 1.1.0 is available", with a link to the release notes. No dialog and no toast. It is shown only after login.
+  - Wardroom never updates itself; it only tells the owner. The user guide explains the update.
+  - A setting turns the check off; it is on by default. The user guide says what the check sends: one request with the address of the server and the version of Wardroom, nothing else.
+  - Open to a veto: "Dismiss" hides the hint until the next version; a failed check is logged once and tried again the next day, without a message in the browser; once notifications exist (step 28), a new version can also be sent there.
 - Then version 1.0.0 is released as described in `CONTRIBUTING.md`.
 
-### 24 to 29. After 1.0
+### 26 to 30. After 1.0
 
-Decided by the owner on 2026-11-23, and moved behind 1.0 to keep it small. The order is a starting point and is adjusted to what people ask for after 1.0. Steps 25 to 29 have proposed specs; step 24 gets its ADR and spec before it starts; they are checked again before each step, because the steps before may change them.
+Decided by the owner on 2026-11-23, and moved behind 1.0 to keep it small. The order is a starting point and is adjusted to what people ask for after 1.0. Steps 27 to 30 have proposed specs; step 26 gets its ADR and spec before it starts; they are checked again before each step, because the steps before may change them.
 
-### 24. Windows app
+### 26. Windows app
 
 Decided by the owner on 2026-11-23: the first step after 1.0, because the owner wants it. It needs a new ADR, because Wardroom is then no longer only one Docker container.
 
@@ -258,14 +294,14 @@ Decided by the owner on 2026-11-23: the first step after 1.0, because the owner 
 - If the winget step fails, for example because the token expired or a check failed, the rest of the release is not affected. The pull request explains the reason.
 - `CONTRIBUTING.md` describes the token and what to do when the winget step fails.
 
-### 25. Installable web app
+### 27. Installable web app
 
 [Spec 017](specs/017-installable-web-app/spec.md), proposed on 2026-11-23 and waiting for the owner.
 
 - Wardroom can be added to the home screen of a phone and opens there like an app, with its own name and icon: a web app manifest, icons and the tags in the page header. No service worker and no offline use.
 - Moved after 1.0 by the owner on 2026-11-23. It is small and depends on no other step, so its place can change.
 
-### 26. Notifications
+### 28. Notifications
 
 [Spec 018](specs/018-notifications/spec.md), proposed on 2026-11-23 and waiting for the owner.
 
@@ -276,17 +312,7 @@ Decided by the owner on 2026-11-23: the first step after 1.0, because the owner 
 - A notification URL can contain a token, so it is stored encrypted like the NNTP password and never logged.
 - The user guide names ntfy as an example service. The owner asked for this exception to the rule that the docs name no other applications.
 
-### 27. Classic view
-
-[Spec 019](specs/019-classic-view/spec.md), proposed on 2026-11-23 and waiting for the owner.
-
-- A second way to show the groups, next to the card view ([spec 008](specs/008-discussion-view/spec.md)): the subscribed groups on the left as today, a compact tree of the threads at the top, and the selected article below it.
-- The choice applies to all groups: the whole interface switches to the classic view.
-- The tree has a toggle to open or close a thread, the subject indented by reply depth, the author and the date. Unread articles are bold, with a dot. It is in thread order, newest thread first, as the cards; no sorting or resizing of columns.
-- Only on wide screens. On a narrow screen (below 768 pixels) the card view is shown, whatever the choice; the setting says so.
-- `N` and mark as unread (step 20) work in it too, and it is checked for accessibility as in step 21.
-
-### 28. Bookmarks
+### 29. Bookmarks
 
 [Spec 020](specs/020-bookmarks/spec.md), proposed on 2026-11-23 and waiting for the owner.
 
@@ -295,7 +321,7 @@ Decided by the owner on 2026-11-23: the first step after 1.0, because the owner 
 - A bookmarked article is kept when the cache is cleaned.
 - Unsubscribing removes the bookmarks of the group with its articles; the confirmation says so.
 
-### 29. Newest articles
+### 30. Newest articles
 
 [Spec 021](specs/021-newest-articles/spec.md), proposed on 2026-11-23 and waiting for the owner.
 
@@ -316,6 +342,42 @@ Decided by the owner on 2026-11-23: the first step after 1.0, because the owner 
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 18, security improvements (2026-11-24)**
+
+Built:
+
+- The project version is `0.10.0-SNAPSHOT`.
+- Spec 011: the login throttling keeps its state in the account row (migration 14) and counts every failed login, whatever username was entered. While no account exists it stays in memory. A login sets how long its session lasts without requests: 30 minutes, or 7 days with "Remember me"; the session after setup gets the 30 minutes. Sessions from before the update keep the 7 days. The subscription list also asks while the tab is hidden. Failed logins, the start of a waiting time and successful logins are logged with the client address and, if the request has one, `X-Forwarded-For`, both escaped.
+- Spec 012: two-factor authentication (migration 15, [ADR 0035](architecture/decisions/0035-two-factor-authentication.md)). The key loader and the cipher moved to the `platform` module as `SecretCipher`, with a purpose and format version 2; stored NNTP passwords of version 1 stay readable. The login has a second step; the settings section "Account" has "Two-factor authentication" with the QR code, the recovery codes, "Create new recovery codes" and "Turn off".
+- The QR code is drawn by the frontend as an SVG from the modules that the package `qrcode-generator` computes (MIT license), with the highest error correction and the logo in a square in the middle that covers about 5 % of the code. It is always black on white.
+- Spec 001, the data model, the UI concept and the user guide are updated. The user guide has a new part "Login and security".
+
+Decisions of the assistant, accepted by the owner on 2026-11-24:
+
+1. **A recovery code still logs in when the key file was lost.** Spec 012 says that a login with two-factor authentication is then not possible and points to the password reset. The recovery codes are stored as hashes and do not need the key, so refusing them would need extra code and would only make the way back harder. The log and the user guide name both ways: a recovery code, or the password reset. ADR 0035 records it, and spec 012 was changed to match.
+2. **Turning off and creating new recovery codes accept a recovery code as "a code".** The spec says "the current password and a code". With a lost phone, this is how the owner turns two-factor authentication off without a password reset.
+3. **The code that turned two-factor authentication on counts as used.** A login right afterwards needs the next code of the app, at most 30 seconds later.
+4. **A second "Turn on" while it is on is refused** with `400`, so the secret that is in use cannot be replaced without turning it off first.
+5. **Format version 1 is read only for the purpose `nntp-password`.** Nothing else was ever written in it, so a version 1 value cannot be passed off as a secret of another purpose.
+6. **The two messages of the second step differ.** "The code is wrong." and "The login took too long. Enter your password again." Both are `401`. Only someone who knew the password gets to this step, so the difference reveals nothing.
+7. **Wrong codes in the settings count for the login throttling.** At first they were not throttled. A review of the step showed that somebody with a session and the password could then try out all codes within hours and turn two-factor authentication off. The owner decided on 2026-11-24 to throttle them; spec 012 says so now. A wrong code while turning it on counts too. A waiting time is answered with `429` and shown as a message.
+8. **A session in the second step lasts 5 minutes** and is replaced by a new one when the code is accepted.
+9. **The waiting-time log line** is "Too many failed logins in a row; the next login has to wait N seconds".
+10. **The session limits are tested by moving the stored time of the last request back**, as the test of the 7 days did before. Spring Session reads the system clock, so this is the controlled clock of the testing requirements. The codes and the throttling have a real clock that the tests replace.
+11. **The dialog of the recovery codes closes only with "Done"**, because the codes are shown once.
+
+Findings:
+
+- Behind a trusted reverse proxy, the web server already replaces the connection address with the forwarded one and removes the header (ADR 0010). The log then shows the address of the visitor without the `X-Forwarded-For` part. This is what the owner wants to see; the user guide describes both forms.
+
+Verified:
+
+- `./mvnw verify` passes: 682 backend tests and 265 frontend tests.
+- Tried by hand with the built jar on an empty data directory: turning two-factor authentication on in the settings with the QR code and a code, the recovery codes, logging out, a login with the password and then a wrong and a right code. The log has "Two-factor authentication was turned on", "Failed login from …" and "Login from …" and never the password.
+- Not tried: scanning the QR code with a phone. A test decodes the drawn code, with the logo area painted light and dark.
+
+The README still describes version 0.9.0 and does not name two-factor authentication yet.
 
 **Step 16, polish and documentation (2026-11-23)**
 

@@ -8,7 +8,9 @@ import { useAuthState, useShowLoginPage } from '@/auth/authState'
 import { newPasswordRule, PASSWORDS_DIFFER } from '@/auth/rules'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import { SettingsSectionFrame } from '@/settings/SettingsSectionFrame'
+import { TwoFactorSection } from '@/settings/TwoFactorSection'
 
 const passwordForm = z
   .object({
@@ -24,8 +26,9 @@ const passwordForm = z
 type PasswordForm = z.infer<typeof passwordForm>
 
 /**
- * The settings section "Account": changing the password (spec 001). A changed password logs out
- * everywhere, also here, so the login page follows.
+ * The settings section "Account": changing the password (spec 001) and, below it, two-factor
+ * authentication (spec 012). A changed password logs out everywhere, also here, so the login page
+ * follows.
  */
 export function AccountSection() {
   const authState = useAuthState()
@@ -101,6 +104,8 @@ export function AccountSection() {
           </Button>
         </div>
       </form>
+      <Separator />
+      <TwoFactorSection />
     </SettingsSectionFrame>
   )
 }

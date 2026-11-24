@@ -1,6 +1,6 @@
 # 016. Full-text search
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-23
 - Related: [ADR 0013](../../architecture/decisions/0013-synchronization-and-caching.md), [ADR 0023](../../architecture/decisions/0023-cache-size-limit.md), [spec 007](../007-article-reading/spec.md), [spec 010](../010-ignoring/spec.md), [spec 014](../014-next-unread-and-mark-as-unread/spec.md)
 - Changes when accepted: the layout in the UI concept (a top bar)
@@ -19,6 +19,10 @@ Decided by the owner on 2026-11-23:
 4. Results are ordered by best match.
 5. The search field is in a top bar of every page.
 6. The results are a simple list of articles. Each shows the subject, the author, the group and the date, and opens its thread at that article. More results are loaded like the thread list.
+
+Added by the owner on 2026-11-24:
+
+7. A line above the results says what is searched, so a missing result is not taken for a broken search.
 
 ## Details added by the AI assistant
 
@@ -46,6 +50,7 @@ Open to a veto by the owner:
 - Each result shows the subject, the author with the author icon, the group, the date, the excerpt and the unread state. A click opens the thread at that article (`?article=`, [spec 014](../014-next-unread-and-mark-as-unread/spec.md)).
 - A crossposted article is shown once, with the first subscribed group by name where it is located.
 - The page loads 50 results; more are loaded at the end of the list, as in the thread list.
+- Above the results, always: "Searches the text of the articles you have opened, and the subject and author of all articles."
 - Without results, the page says so and that only opened articles are searched by their text.
 - Opening the results page marks nothing as read.
 

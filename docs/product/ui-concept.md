@@ -76,7 +76,7 @@ Opened with the settings button in the sidebar header. A section navigation on t
 | Synchronization | `refresh-cw` | Intervals, depth, cache size limit with its switch, and current use ([spec 005](../specs/005-article-synchronization/spec.md)) |
 | Posting identity | `id-card` | Display name, email address, signature ([spec 009](../specs/009-article-posting/spec.md)) |
 | Ignored | `eye-off` | Ignored authors and threads ([spec 010](../specs/010-ignoring/spec.md)) |
-| Account | `key-round` | Password change ([spec 001](../specs/001-user-authentication/spec.md)) |
+| Account | `key-round` | Password change ([spec 001](../specs/001-user-authentication/spec.md)); below it, two-factor authentication ([spec 012](../specs/012-two-factor-authentication/spec.md)) |
 | About | `info` | Logo and version ("Development build" without version information, from `GET /api/about`); the license with links to `LICENSE` and the additional terms; links to the source code, the user guide and the issues of the repository, each in a new tab ([ADR 0011](../architecture/decisions/0011-licensing.md)) |
 | Log out | `log-out` | An action at the end of the navigation, not a section |
 

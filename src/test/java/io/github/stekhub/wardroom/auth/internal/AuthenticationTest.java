@@ -31,7 +31,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
-/** The testing requirements of spec 001, against the whole application and a real SQLite database. */
+/**
+ * The testing requirements of spec 001, against the whole application and a real SQLite database. The session limits
+ * and the stored throttling of spec 011 are in {@link LoginProtectionTest}.
+ */
 @IntegrationTest
 @Import(AuthenticationTest.CountingCleanup.class)
 @ExtendWith(OutputCaptureExtension.class)
@@ -280,22 +283,6 @@ class AuthenticationTest {
     }
 
     // Sessions
-
-    @Test
-    void sessionEndsAfterTheInactivityTimeout() {
-        setUp(browser);
-        long sevenDays = 7L * 24 * 60 * 60;
-        assertThat(database.select(SPRING_SESSION.MAX_INACTIVE_INTERVAL).from(SPRING_SESSION).fetchSingle().value1())
-                .isEqualTo((int) sevenDays);
-
-        long eightDaysAgo = System.currentTimeMillis() - (sevenDays + 24 * 60 * 60) * 1000;
-        database.update(SPRING_SESSION)
-                .set(SPRING_SESSION.LAST_ACCESS_TIME, eightDaysAgo)
-                .set(SPRING_SESSION.EXPIRY_TIME, eightDaysAgo + sevenDays * 1000)
-                .execute();
-
-        assertThat(browser.get("/api/auth/me")).hasStatus(HttpStatus.UNAUTHORIZED);
-    }
 
     @Test
     void unreadableStoredSessionIsDeletedAndCountsAsLoggedOut(CapturedOutput output) {

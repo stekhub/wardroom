@@ -31,6 +31,22 @@ final class AuthFailures {
         }
     }
 
+    /** The second step of a login failed: the code is wrong, or the step took too long (spec 012). */
+    static class SecondFactorFailedException extends ErrorResponseException {
+
+        SecondFactorFailedException(String detail) {
+            super(HttpStatus.UNAUTHORIZED, ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, detail), null);
+        }
+    }
+
+    /** The second factor is not in the state the request needs, for example it is already on (spec 012). */
+    static class TwoFactorStateException extends ErrorResponseException {
+
+        TwoFactorStateException(String detail) {
+            super(HttpStatus.BAD_REQUEST, ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail), null);
+        }
+    }
+
     /** The login was rejected without checking the password, because of earlier failed logins. */
     static class LoginThrottledException extends ErrorResponseException {
 

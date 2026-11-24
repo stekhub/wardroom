@@ -12,7 +12,7 @@
 
     <groupId>io.github.stekhub</groupId>
     <artifactId>wardroom</artifactId>
-    <version>0.9.0</version>
+    <version>0.10.0-SNAPSHOT</version>
     <name>Wardroom</name>
     <description>Self-hosted NNTP client for reading and participating in newsgroups</description>
     <url>https://github.com/stekhub/wardroom</url>

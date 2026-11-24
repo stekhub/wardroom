@@ -34,14 +34,15 @@ Creating the single Wardroom account at first start, logging in and out, session
 **Login and logout**
 
 - Login with username and password. A failure gives one generic message, without saying which of the two was wrong.
+- With two-factor authentication on, a correct password leads to a second step that asks for a code ([spec 012](../012-two-factor-authentication/spec.md)).
 - The login page has the option "Remember me", which is not chosen by default. It decides how long the browser keeps the session cookie (see Sessions).
 - Logout ends the current session.
 
 **Sessions**
 
 - Sessions are stored in SQLite and survive restarts. After an update, a session that can no longer be read counts as logged out, and the owner logs in again.
-- A session ends after 7 days of inactivity. Every request starts the 7 days again.
-- Without "Remember me", the session cookie ends when the browser is closed. A browser that restores its previous tabs may keep the cookie; the 7 days apply in any case.
+- A session without "Remember me" ends after 30 minutes without requests, one with "Remember me" after 7 days ([spec 011](../011-login-throttling-and-session-timeout/spec.md)). Every request starts the time again, including the ones an open page sends on its own.
+- Without "Remember me", the session cookie ends when the browser is closed. A browser that restores its previous tabs may keep the cookie; the 30 minutes apply in any case.
 - With "Remember me", the browser keeps the session cookie after it is closed. The 7 days of inactivity are enforced by the server.
 - Setup has no such option. The session it starts behaves like a login without "Remember me".
 
@@ -49,7 +50,8 @@ Creating the single Wardroom account at first start, logging in and out, session
 
 - After 5 consecutive failed logins, each further attempt must wait: 1 second, doubling with every further failure, up to 60 seconds.
 - Attempts during the waiting time are rejected without checking the password.
-- A successful login resets the counter. The counter is held in memory and resets on restart.
+- A successful login resets the counter. The counter is stored with the account and survives a restart; every failed login counts, whatever username was entered ([spec 011](../011-login-throttling-and-session-timeout/spec.md)).
+- Failed and successful logins are logged with the client address, never with the entered username or password (spec 011).
 - There is no permanent lockout.
 
 **Password change**
@@ -69,7 +71,7 @@ All endpoints are under `/api/auth`. Request and response bodies are JSON. Error
 |---|---|---|---|
 | `GET /api/auth/setup` | Public | | `200` while setup is available; `404` afterwards |
 | `POST /api/auth/setup` | Public | `{ "username", "password" }` | `201` account created and logged in; `400` validation; `404` an account already exists |
-| `POST /api/auth/login` | Public | `{ "username", "password", "rememberMe" }`; `rememberMe` is optional and `false` by default | `204` logged in; `401` invalid credentials; `429` throttled, with `Retry-After` |
+| `POST /api/auth/login` | Public | `{ "username", "password", "rememberMe" }`; `rememberMe` is optional and `false` by default | `204` logged in; `200 { "secondFactorRequired": true }` a code is needed (spec 012); `401` invalid credentials; `429` throttled, with `Retry-After` |
 | `POST /api/auth/logout` | Logged in | | `204` |
 | `GET /api/auth/me` | Logged in | | `200 { "username" }`; `401` |
 | `PUT /api/auth/password` | Logged in | `{ "currentPassword", "newPassword" }` | `204` password changed and logged out; `400` validation or wrong current password |
@@ -93,7 +95,7 @@ All endpoints are under `/api/auth`. Request and response bodies are JSON. Error
 
 ## Data model changes
 
-- `wardroom_user` as in the [data model](../../architecture/data-model.md); no new columns.
+- `wardroom_user` as in the [data model](../../architecture/data-model.md); no new columns. Spec 011 and spec 012 add theirs.
 - New tables for Spring Session JDBC (session and session attributes).
 
 ## Error handling

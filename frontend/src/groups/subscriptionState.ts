@@ -25,7 +25,12 @@ async function fetchSubscriptions(): Promise<Subscription[]> {
   return data
 }
 
-/** The subscribed groups by name, with their unread counts and synchronization status. */
+/**
+ * The subscribed groups by name, with their unread counts and synchronization status.
+ *
+ * The list is also asked for while the tab is hidden (spec 011): these requests keep the session
+ * of an open page alive, so only a closed browser is logged out.
+ */
 export function useSubscriptions() {
   return useQuery({
     queryKey: SUBSCRIPTIONS_KEY,
@@ -34,6 +39,7 @@ export function useSubscriptions() {
       query.state.data?.some((subscription) => subscription.sync.running) === true
         ? RUNNING_SYNC_POLL_MILLIS
         : POLL_MILLIS,
+    refetchIntervalInBackground: true,
     retry: false,
   })
 }

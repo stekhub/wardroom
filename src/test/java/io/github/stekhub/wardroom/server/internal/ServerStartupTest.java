@@ -5,11 +5,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.stekhub.wardroom.WardroomApplication;
 import io.github.stekhub.wardroom.nntp.NntpTlsMode;
+import io.github.stekhub.wardroom.platform.SecretCipher;
+import io.github.stekhub.wardroom.platform.SecretKeyException;
 import io.github.stekhub.wardroom.server.NntpServers;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,7 +81,7 @@ class ServerStartupTest {
 
         assertThatThrownBy(this::start)
                 .rootCause()
-                .isInstanceOf(CredentialKeyException.class)
+                .isInstanceOf(SecretKeyException.class)
                 .hasMessageContaining(internalKeyFile.toString());
         assertThat(Files.readAllBytes(internalKeyFile)).isEqualTo(tooShort);
     }
@@ -103,10 +109,38 @@ class ServerStartupTest {
     void missingExternalKeyFileStopsTheStartAndNoKeyIsGenerated() {
         assertThatThrownBy(this::startWithExternalKeyFile)
                 .rootCause()
-                .isInstanceOf(CredentialKeyException.class)
+                .isInstanceOf(SecretKeyException.class)
                 .hasMessageContaining(externalKeyFile.toString());
         assertThat(externalKeyFile).doesNotExist();
         assertThat(internalKeyFile).doesNotExist();
+    }
+
+    /** Spec 012: a password that was stored before the update, in format version 1, stays readable. */
+    @Test
+    void passwordStoredBeforePurposesExistedIsStillRead() throws Exception {
+        byte[] key = new byte[32];
+        Arrays.fill(key, (byte) 9);
+        Files.createDirectories(dataDirectory);
+        Files.write(internalKeyFile, key);
+        byte[] nonce = new byte[12];
+        Arrays.fill(nonce, (byte) 3);
+        Cipher aesGcm = Cipher.getInstance("AES/GCM/NoPadding");
+        aesGcm.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, nonce));
+        byte[] ciphertextAndTag = aesGcm.doFinal(NNTP_PASSWORD.getBytes(StandardCharsets.UTF_8));
+        byte[] storedInVersion1 = new byte[1 + nonce.length + ciphertextAndTag.length];
+        storedInVersion1[0] = 1;
+        System.arraycopy(nonce, 0, storedInVersion1, 1, nonce.length);
+        System.arraycopy(ciphertextAndTag, 0, storedInVersion1, 1 + nonce.length, ciphertextAndTag.length);
+
+        try (ConfigurableApplicationContext application = start()) {
+            long serverId = application.getBean(ServerRepository.class).insert(new StoredServer(0, "My provider",
+                    "news.example.com", 563, NntpTlsMode.IMPLICIT, AuthMethod.USER_PASS, "reader", storedInVersion1,
+                    4, false, null));
+
+            assertThat(application.getBean(NntpServers.class).connectionSettings(serverId).orElseThrow().password())
+                    .isEqualTo(NNTP_PASSWORD);
+            assertThat(storedServer(application).credentialsInvalid()).isFalse();
+        }
     }
 
     @Test
@@ -139,7 +173,8 @@ class ServerStartupTest {
     }
 
     private static long storeServerWithPassword(ConfigurableApplicationContext application) {
-        byte[] passwordEncrypted = application.getBean(CredentialCipher.class).encrypt(NNTP_PASSWORD);
+        byte[] passwordEncrypted = application.getBean(SecretCipher.class)
+                .encrypt(SecretCipher.PURPOSE_OF_VERSION_1, NNTP_PASSWORD);
         return application.getBean(ServerRepository.class).insert(new StoredServer(0, "My provider",
                 "news.example.com", 563, NntpTlsMode.IMPLICIT, AuthMethod.USER_PASS, "reader", passwordEncrypted, 4,
                 false, null));

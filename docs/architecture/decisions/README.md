@@ -55,7 +55,7 @@ What follows from it: benefits, costs, rules to follow.
 | [0022](0022-older-articles-arrive-read.md) | Older articles arrive read | Accepted |
 | [0023](0023-cache-size-limit.md) | Cache size limit | Accepted; "always applies" superseded by 0034 |
 | [0024](0024-arm64-image.md) | ARM64 image | Accepted |
-| [0025](0025-external-encryption-key.md) | External encryption key | Accepted; documentation location superseded by 0031 |
+| [0025](0025-external-encryption-key.md) | External encryption key | Accepted; documentation location superseded by 0031, the cost of a lost key by 0035 |
 | [0026](0026-nntp-timeouts-and-retry-values.md) | NNTP timeouts and retry values | Accepted |
 | [0027](0027-committed-openapi-specification.md) | Committed OpenAPI specification | Accepted |
 | [0028](0028-backup-retention.md) | Backup retention | Accepted |
@@ -65,3 +65,4 @@ What follows from it: benefits, costs, rules to follow.
 | [0032](0032-application-version-in-backup-names.md) | Application version in backup names | Accepted |
 | [0033](0033-date-view-up-to-a-day.md) | The date view shows a group up to a day | Accepted |
 | [0034](0034-cache-size-limit-can-be-switched-off.md) | The cache size limit can be switched off | Accepted |
+| [0035](0035-two-factor-authentication.md) | Two-factor authentication with TOTP | Accepted |

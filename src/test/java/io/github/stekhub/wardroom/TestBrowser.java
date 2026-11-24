@@ -27,6 +27,7 @@ public final class TestBrowser {
 
     private final MockMvcTester mvc;
     private final Map<String, Cookie> cookies = new LinkedHashMap<>();
+    private final Map<String, String> headers = new LinkedHashMap<>();
     private boolean sendsCsrfToken = true;
 
     public TestBrowser(MockMvcTester mvc) {
@@ -45,6 +46,12 @@ public final class TestBrowser {
     /** From now on, requests that change state are sent without the CSRF token header. */
     public TestBrowser withoutCsrfToken() {
         sendsCsrfToken = false;
+        return this;
+    }
+
+    /** From now on, every request carries this header. */
+    public TestBrowser withHeader(String name, String value) {
+        headers.put(name, value);
         return this;
     }
 
@@ -79,6 +86,11 @@ public final class TestBrowser {
         return exchange(withCsrfToken(mvc.delete().uri(path)));
     }
 
+    public MvcTestResult delete(String path, String jsonBody) {
+        return exchange(
+                withCsrfToken(mvc.delete().uri(path)).contentType(MediaType.APPLICATION_JSON).content(jsonBody));
+    }
+
     /** @return the value of the cookie, or {@code null} if the browser does not have it */
     public String cookieValue(String name) {
         Cookie cookie = cookies.get(name);
@@ -104,6 +116,7 @@ public final class TestBrowser {
         if (!cookies.isEmpty()) {
             request.cookie(cookies.values().toArray(Cookie[]::new));
         }
+        headers.forEach(request::header);
         MvcTestResult result = request.exchange();
         MockHttpServletResponse response = result.getResponse();
         for (Cookie cookie : response.getCookies()) {

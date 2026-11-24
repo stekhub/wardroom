@@ -7,7 +7,7 @@
 
 ## Scope
 
-One page with the newest articles of all subscribed groups, which becomes the start page. Step 29 of the [implementation plan](../../implementation-plan.md), after 1.0.
+One page with the newest articles of all subscribed groups, which becomes the start page. Step 30 of the [implementation plan](../../implementation-plan.md), after 1.0.
 
 ## Decisions
 
