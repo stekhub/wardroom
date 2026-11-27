@@ -65,7 +65,8 @@ Fetching the server's group list with descriptions, keeping it up to date, and b
 
 **Browsing and searching**
 
-- The group list page shows the server's groups alphabetically by name, paged with 50 per page.
+- The group list page shows the server's groups alphabetically by name, paged with 50 per page. A paging row below the list jumps to the first, the previous, the next and the last page and to a page number that is typed ([spec 022](../022-group-list-filters-and-paging/spec.md)).
+- Binary groups are left out while the setting "Hide binary groups" is on, and the groups the owner ignores always (spec 022).
 - The list can be ordered by activity instead: the groups with the most articles per day first, groups without an activity last, equal groups by name. The order is part of the address of the page, like the search and the page.
 - Each entry shows the group icon ([Group Icons](../../product/group-icons.md)), name, description, activity, posting status and whether it is subscribed.
 - The activity is shown as a whole number, for example "240 per day"; below one article per day as "under 1 per day". An entry without an activity shows none.
@@ -79,7 +80,7 @@ All endpoints require a session ([spec 001](../001-user-authentication/spec.md))
 
 | Method and path | Request | Responses |
 |---|---|---|
-| `GET /api/servers/{id}/groups?q=&sort=&page=&size=` | `q` optional; `sort` is `name` (default) or `activity`; `page` from 0; `size` 1–100, default 50 | `200` page of groups; `400` a parameter breaks a rule; `404` unknown server |
+| `GET /api/servers/{id}/groups?q=&sort=&page=&size=` | `q` optional; `sort` is `name` (default) or `activity`; `page` from 0; `size` 1–100, default 50 | `200` page of groups, without binary groups while the setting is on and without ignored groups (spec 022); `400` a parameter breaks a rule; `404` unknown server |
 | `POST /api/servers/{id}/groups/refresh` | | `202` refresh started or already running; `404`; `409` credentials invalid |
 | `GET /api/servers/{id}/groups/refresh` | | `200` refresh status; `404` |
 

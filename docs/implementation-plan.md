@@ -25,13 +25,13 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 17 | Release pipeline | ADR 0009, 0024 | Done |
 | 18 | Security improvements | Spec 011, 012; ADR 0035 | Done |
 | 19 | Dark theme | Spec 013; UI concept | Done |
-| 20 | Next unread, mark as unread and keyboard shortcuts | Spec 014 | In review |
-| 21 | Accessibility and mobile fixes | Spec 015, 022, 023; UI concept | Not started |
+| 20 | Next unread, mark as unread and keyboard shortcuts | Spec 014 | Done |
+| 21 | Accessibility and mobile fixes | Spec 015, 022, 023; UI concept | In review |
 | 22 | Full-text search | Spec 016 | Not started |
 | 23 | Classic view | Spec 019; spec 008 | Not started |
 | 24 | Choosing the groups of a post | Spec 024; spec 009 | Not started |
 | 25 | Release 1.0 | Spec 025; ADR 0004; CONTRIBUTING | Not started |
-| 26 | Windows app (after 1.0) | ADR to be written; spec to be written | Not started |
+| 26 | Windows app (after 1.0) | Spec 026; ADR 0036, 0037 | Not started |
 | 27 | Installable web app (after 1.0) | Spec 017 | Not started |
 | 28 | Notifications (after 1.0) | Spec 018 | Not started |
 | 29 | Bookmarks (after 1.0) | Spec 020; ADR to be written | Not started |
@@ -263,11 +263,18 @@ Changed by the owner on 2026-11-24, after a comparison with what long-time reade
 
 ### 26 to 30. After 1.0
 
-Decided by the owner on 2026-11-23, and moved behind 1.0 to keep it small. The order is a starting point and is adjusted to what people ask for after 1.0. Steps 27 to 30 have proposed specs; step 26 gets its ADR and spec before it starts; they are checked again before each step, because the steps before may change them.
+Decided by the owner on 2026-11-23, and moved behind 1.0 to keep it small. The order is a starting point and is adjusted to what people ask for after 1.0. Steps 26 to 30 have proposed specs; they are checked again before each step, because the steps before may change them.
 
 ### 26. Windows app
 
-Decided by the owner on 2026-11-23: the first step after 1.0, because the owner wants it. It needs a new ADR, because Wardroom is then no longer only one Docker container.
+Decided by the owner on 2026-11-23: the first step after 1.0, because the owner wants it. [Spec 026](specs/026-windows-app/spec.md), [ADR 0036](architecture/decisions/0036-windows-app.md) and [ADR 0037](architecture/decisions/0037-key-protection-with-dpapi.md), accepted on 2026-11-26.
+
+Decided by the owner on 2026-11-26:
+
+- One switch, `wardroom.windows-app=true`, set only by the launcher of the installer, turns the desktop mode on. Wardroom does not guess it from the operating system.
+- The web server listens on `127.0.0.1` only and refuses requests with another `Host` header, against DNS rebinding. The login stays, because other users of the same computer can reach the port.
+- The key is protected with DPAPI in the desktop mode and stays a key file everywhere else, also for the image on Windows. A copy of the data folder then does not reveal the NNTP password or the secret of the second factor; moving the folder to another computer or user loses the key.
+- Signing comes later and only for the direct download; winget does not need it. The first choice is the SignPath Foundation, which signs open-source projects for free.
 
 **The application**
 
@@ -283,7 +290,7 @@ Decided by the owner on 2026-11-23: the first step after 1.0, because the owner 
 - A fixed upgrade ID (`--win-upgrade-uuid`), so a new version replaces the old one.
 - Installed per user (`--win-per-user-install`), without an administrator prompt.
 - A Start menu entry and a desktop shortcut by default. winget installs silently, so the defaults apply there; an installer started by hand asks.
-- The MSI is attached to each GitHub release. It is not signed; the user guide explains the SmartScreen warning when it is downloaded directly.
+- The MSI is attached to each GitHub release, as a regular installer for a direct download. It is not signed at first; the user guide explains the SmartScreen warning when it is downloaded directly.
 
 **Distribution with winget**
 
@@ -342,6 +349,55 @@ Decided by the owner on 2026-11-23: the first step after 1.0, because the owner 
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Memory limit of the image (2026-11-25)**
+
+- The image starts Java with `JAVA_OPTS`, by default `-Xmx256m -XX:+UseSerialGC`. Decided by the owner on 2026-11-25, after the container used 735 MB on a small computer after two days: without a limit, Java let its memory grow to a quarter of the memory of the machine.
+- The value was estimated from what Wardroom holds in memory at once, not measured. The largest moments are a group list refresh on a server with very many groups and opening an article of 10 MB. The owner tries the limit on their instance; the user guide says how to raise it.
+- Not tried: the image was not built and started with the new entrypoint in this session.
+
+**Step 21, accessibility and mobile fixes, group list filters, ignored subject words (2026-11-25)**
+
+Built:
+
+- Spec 022: the group list leaves out binary groups (`BinaryGroups`, by name) while the setting "Hide binary groups" is on, and ignored groups always. "Ignore group" in each row, with a toast and "Undo". A paging row with "First", "Previous", a field for the page number, "Next" and "Last". The setting and the list "Groups" in the settings section "Ignored".
+- Spec 023: ignored words in subjects, for all groups or for one. Migration V16 rebuilds `ignore_rule` (new kinds, `newsgroup_id`, new unique key) and adds `article.subject_words`. The words are computed when an article is stored or a stub is filled in, and at the start for existing articles (`SubjectWordsStartup`). The thread list, next unread and the unread counts leave the hidden threads out. The thread page shows the notice with the word.
+- Spec 015: "Skip to content" on every page; focus on the main heading after a change of page; a landmark for the sidebar; the level of each article on the thread page; the start and end of a synchronization as a status message; the mobile menu closes after a page was chosen; buttons with icon and label show only their icon below 768 pixels (`LabelledIconButton`).
+- `docs/accessibility-checklist.md` with the test guide for NVDA. The UI concept has a new part "Narrow screens and accessibility"; "Mobile layout" is no longer under "Not in the MVP". Specs 003 and 010, the data model and the user guide are updated.
+
+Found and fixed by the check in the browser, at 375 and 320 pixels wide and in both themes:
+
+- The outline of fields, checkboxes and radio buttons had a contrast of about 1.3:1 in the light and 1.6:1 in the dark theme. A new token `--field-border` gives 3.6:1 and more.
+- The red of destructive buttons had less than 4.5:1 on their own tinted background in the light theme. `--destructive` is darker now.
+- The star of a subscribed group was a fixed amber with 2.1:1 on white. It uses the token `--warning` now.
+- In the group header the name of the group shrank to nothing at 320 pixels. The name keeps its room and wraps; the buttons move below it.
+- In the group list a long name was cut off after a few letters. On a narrow screen the name wraps and the activity stands below it.
+- Three links were lower than 24 pixels.
+- No page scrolls sideways at 320 pixels.
+
+Decisions of the AI assistant, open to a veto:
+
+1. **`SubjectWords` is in the `ignoring` module, not in `articles`.** Spec 023 names the `articles` module. The rule needs the same normalization, and `articles` already depends on `ignoring`, so the other place would be a cycle between the modules.
+2. **No `ServerRemovalCleanup` in the `ignoring` module.** The foreign key of `ignore_rule.newsgroup_id` deletes a rule with its group (`ON DELETE CASCADE`), which does not depend on the order of the cleanups. A test covers it.
+3. **A word needs no escaping for `LIKE`.** The normalized word has only letters, digits and single spaces.
+4. **"Hide binary groups" is a checkbox, not a switch.** The settings use checkboxes for such choices; the component library of the project has no switch installed.
+5. **The level of a reply is a text for screen readers** ("Level 2"), not `aria-level`, which screen readers do not read on list items.
+6. **The focus after a change of page** goes to the heading only when the owner has not moved into the page meanwhile. Within the settings it goes to the heading of the section. The first page a browser loads keeps the focus where the browser puts it.
+7. **The paging row uses the same icon-only buttons** below 768 pixels, so it fits a phone.
+8. **The buttons of the article editor stay as text.** "Send" and "Cancel" have no icon and fit at 320 pixels. Spec 015 lists the editor among the places for icon-only buttons.
+9. **Saving one settings section sends the values of the others as they were loaded.** The endpoint takes all settings at once.
+10. **An address with a page beyond the last one** shows a sentence and the paging row, which leads back.
+
+Open, for the owner:
+
+- **Binary groups:** the owner checked the group list of a real server on 2026-11-25; the naming rules and the built-in list in `BinaryGroups` and spec 022 were extended from it. The owner tests the list again. Eight more groups from the check are ignored by default, with rules that the migrations V17 and V18 create (decided by the owner on 2026-11-25).
+- **The check with NVDA is not done.** The AI assistant cannot run a screen reader. The checklist has the guide; its result goes into the pull request (spec 015).
+- **Zoom to 200 and 400 percent and larger text spacing** were checked through the width of 320 pixels, which is what 400 percent of a window of 1280 pixels gives. A check with the zoom of a real browser is still worth doing.
+- The search (spec 016) and the classic view (spec 019) do not exist yet. They have to leave out the threads that a word hides when they are built; `IgnoreFilters.subjectIgnored` is there for it.
+- When the menu of a narrow screen opens, the tooltip "Collapse or expand the sidebar" shows at once, because its button gets the focus. Not fixed.
+- Quote bars and the circles of group icons still use fixed colors outside the tokens. They are decoration; the checklist lists them under "Known limits".
+
+`mvnw verify` passes with 737 backend tests and 322 frontend tests.
 
 **Hardening after a review: login throttling per account, limits for NNTP answers (2026-11-24)**
 

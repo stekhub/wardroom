@@ -13,6 +13,7 @@ const STORED = {
   groupListIntervalHours: 24,
   cacheLimitEnabled: true,
   maxCacheSizeGb: 5,
+  hideBinaryGroups: false,
 }
 
 /** What the backend adds to the settings it returns. */
@@ -78,6 +79,8 @@ test('saving sends all settings as numbers, says so and waits for the next chang
       groupListIntervalHours: 24,
       cacheLimitEnabled: true,
       maxCacheSizeGb: 5,
+      // The setting of another section is sent as it was loaded (spec 022).
+      hideBinaryGroups: false,
     },
   ])
   await waitFor(() => {

@@ -1,14 +1,16 @@
-import { Search } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { EyeOff, Search } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatActivity } from '@/groups/activity'
 import { GroupIcon } from '@/groups/GroupIcon'
 import { GroupListRefresh } from '@/groups/GroupListRefresh'
+import { GroupPaging } from '@/groups/GroupPaging'
 import { SubscribeToggle } from '@/groups/SubscribeToggle'
 import {
   type Group,
@@ -17,6 +19,7 @@ import {
   useGroupListRefreshStatus,
   useGroupPage,
 } from '@/groups/groupListState'
+import { useIgnoring } from '@/ignoring/ignoreState'
 import { PageHeader } from '@/pages/PageHeader'
 import { ReadingColumn } from '@/pages/ReadingColumn'
 import { useServers } from '@/server/serverState'
@@ -33,7 +36,8 @@ const SKELETON_ROWS = 8
  * The discover view (UI concept, spec 003): the groups of the server by name, 50 per page, with
  * a search over names and descriptions. The list can also be ordered by activity, the articles
  * a group gets per day. Search text, order and page are part of the URL, so the back button and
- * bookmarks work.
+ * bookmarks work. Binary groups and the groups the owner ignores are left out by the backend (spec
+ * 022); a paging row below the list jumps to any page.
  */
 export function DiscoverPage() {
   const server = useServers().data?.[0]
@@ -74,8 +78,13 @@ function GroupList({ serverId }: { serverId: number }) {
     }
   }, [searchText, query, sort, setSearchParams])
 
+  const listTop = useRef<HTMLDivElement>(null)
+
   function showPage(newPage: number) {
     setSearchParams(urlParameters(query, sort, newPage))
+    // The new page is read from its top. Focus goes there too, so the keyboard goes on from the list.
+    listTop.current?.scrollIntoView({ block: 'start' })
+    listTop.current?.focus({ preventScroll: true })
   }
 
   const total = groups.data?.total ?? 0
@@ -126,8 +135,17 @@ function GroupList({ serverId }: { serverId: number }) {
         ) : (
           <GroupListSkeleton />
         )
-      ) : groups.data.items.length === 0 ? (
+      ) : total === 0 ? (
         <EmptyList query={query} refreshRunning={refreshRunning} />
+      ) : groups.data.items.length === 0 ? (
+        // The address names a page beyond the last one; the paging row leads back.
+        <>
+          <p className="text-sm text-muted-foreground">
+            This page does not exist. The list has {COUNT.format(pageCount)}{' '}
+            {pageCount === 1 ? 'page' : 'pages'}.
+          </p>
+          <GroupPaging page={page} pageCount={pageCount} onPage={showPage} />
+        </>
       ) : (
         <>
           {!groups.data.activityKnown && (
@@ -135,6 +153,7 @@ function GroupList({ serverId }: { serverId: number }) {
               The activity of the groups is shown one day after the group list was first fetched.
             </p>
           )}
+          <div ref={listTop} tabIndex={-1} className="scroll-mt-4 outline-none" />
           <ul
             aria-label="Groups"
             className="divide-y rounded-lg border bg-card"
@@ -144,53 +163,32 @@ function GroupList({ serverId }: { serverId: number }) {
               <GroupRow key={group.id} group={group} />
             ))}
           </ul>
-          <nav
-            aria-label="Pages"
-            className="mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground"
-          >
-            <span>
-              {COUNT.format(total)} {total === 1 ? 'group' : 'groups'} · Page {COUNT.format(page)}{' '}
-              of {COUNT.format(pageCount)}
-            </span>
-            <span className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => {
-                  showPage(page - 1)
-                }}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page >= pageCount}
-                onClick={() => {
-                  showPage(page + 1)
-                }}
-              >
-                Next
-              </Button>
-            </span>
-          </nav>
+          <p className="mt-4 text-center text-sm text-muted-foreground" role="status">
+            {COUNT.format(total)} {total === 1 ? 'group' : 'groups'}
+          </p>
+          {pageCount > 1 && <GroupPaging page={page} pageCount={pageCount} onPage={showPage} />}
         </>
       )}
     </ReadingColumn>
   )
 }
 
-/** Name and description come from the server and are shown as text only (spec 003). */
+/**
+ * Name and description come from the server and are shown as text only (spec 003). A group that is
+ * not subscribed can be ignored, which takes it out of the list (spec 022).
+ */
 function GroupRow({ group }: { group: Group }) {
+  const { ignoreGroup } = useIgnoring()
   const description = group.description ?? ''
   return (
-    <li className="flex items-center gap-3 px-4 py-2.5">
+    <li className="flex items-center gap-3 px-4 py-2.5 max-sm:flex-wrap max-sm:gap-x-2 max-sm:gap-y-0.5 max-sm:px-3">
       <GroupIcon name={group.name} description={group.description} size="medium" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium" title={group.name}>
+        {/* On a narrow screen a long name takes the lines it needs instead of being cut off. */}
+        <p
+          className="truncate text-sm font-medium max-sm:[overflow-wrap:anywhere] max-sm:whitespace-normal"
+          title={group.name}
+        >
           {group.name}
         </p>
         {description !== '' && (
@@ -200,15 +198,40 @@ function GroupRow({ group }: { group: Group }) {
         )}
       </div>
       {group.articlesPerDay != null && (
+        // Narrow, the activity stands in a line of its own below the name, in line with it.
         <span
-          className="shrink-0 text-xs text-muted-foreground"
+          className="shrink-0 text-xs text-muted-foreground max-sm:order-last max-sm:basis-full max-sm:pl-12"
           title="New articles per day, counted over the last 7 to 14 days. Approximate."
         >
           {formatActivity(group.articlesPerDay)}
         </span>
       )}
-      {group.postingStatus === 'MODERATED' && <Badge variant="outline">Moderated</Badge>}
-      {group.postingStatus === 'NOT_ALLOWED' && <Badge variant="outline">No posting</Badge>}
+      {group.postingStatus === 'MODERATED' && (
+        <Badge variant="outline" className="max-sm:hidden">
+          Moderated
+        </Badge>
+      )}
+      {group.postingStatus === 'NOT_ALLOWED' && (
+        <Badge variant="outline" className="max-sm:hidden">
+          No posting
+        </Badge>
+      )}
+      {!group.subscribed && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Ignore group ${group.name}`}
+              onClick={() => void ignoreGroup(group.id)}
+            >
+              <EyeOff />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Ignore group</TooltipContent>
+        </Tooltip>
+      )}
       <SubscribeToggle groupId={group.id} groupName={group.name} subscribed={group.subscribed} />
     </li>
   )

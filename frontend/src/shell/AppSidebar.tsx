@@ -26,57 +26,60 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
-          <Link
-            to="/"
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-          >
-            <LogoMark alt="" className="h-auto w-12 shrink-0 group-data-[collapsible=icon]:w-6" />
-            <span className="truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
-              Wardroom
-            </span>
-          </Link>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" asChild>
-                <Link to="/settings" aria-label="Settings">
-                  <Settings />
-                </Link>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Settings</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <SidebarTrigger />
-            </TooltipTrigger>
-            <TooltipContent>Collapse or expand the sidebar</TooltipContent>
-          </Tooltip>
-        </div>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              tooltip="Discover groups"
-              isActive={location.pathname.startsWith('/discover')}
+      {/* The landmark of the sidebar, so a screen reader finds and skips it (spec 015). */}
+      <nav aria-label="Sidebar" className="flex min-h-0 flex-1 flex-col">
+        <SidebarHeader>
+          <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
+            <Link
+              to="/"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
-              <Link to="/discover">
-                <Search />
-                <span>Discover groups</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-      {/* The separator has side margins. Without this, its own rule for a full width wins and it
+              <LogoMark alt="" className="h-auto w-12 shrink-0 group-data-[collapsible=icon]:w-6" />
+              <span className="truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
+                Wardroom
+              </span>
+            </Link>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon-sm" asChild>
+                  <Link to="/settings" aria-label="Settings">
+                    <Settings />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Settings</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SidebarTrigger />
+              </TooltipTrigger>
+              <TooltipContent>Collapse or expand the sidebar</TooltipContent>
+            </Tooltip>
+          </div>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip="Discover groups"
+                isActive={location.pathname.startsWith('/discover')}
+              >
+                <Link to="/discover">
+                  <Search />
+                  <span>Discover groups</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        {/* The separator has side margins. Without this, its own rule for a full width wins and it
           reaches past the edge of the sidebar. */}
-      <SidebarSeparator className="data-horizontal:w-auto" />
-      <SidebarContent>
-        <SidebarGroup>
-          <SubscriptionList />
-        </SidebarGroup>
-      </SidebarContent>
+        <SidebarSeparator className="data-horizontal:w-auto" />
+        <SidebarContent>
+          <SidebarGroup>
+            <SubscriptionList />
+          </SidebarGroup>
+        </SidebarContent>
+      </nav>
       <SidebarRail />
     </Sidebar>
   )

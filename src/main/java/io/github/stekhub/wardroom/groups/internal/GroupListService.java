@@ -5,11 +5,12 @@ import io.github.stekhub.wardroom.groups.internal.GroupResponses.GroupPage;
 import io.github.stekhub.wardroom.groups.internal.GroupResponses.GroupResponse;
 import io.github.stekhub.wardroom.platform.FieldValidationException;
 import io.github.stekhub.wardroom.server.GroupListStates;
+import io.github.stekhub.wardroom.settings.Settings;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-/** Browsing and searching the group list of a server (spec 003). */
+/** Browsing and searching the group list of a server (spec 003), without binary and ignored groups (spec 022). */
 @Service
 @RequiredArgsConstructor
 class GroupListService {
@@ -19,6 +20,7 @@ class GroupListService {
 
     private final GroupListStates groupListStates;
     private final GroupRepository groupRepository;
+    private final Settings settings;
 
     /**
      * @param query the search text, or {@code null} for all groups
@@ -42,12 +44,13 @@ class GroupListService {
             throw new ServerNotFoundException();
         }
         List<String> searchWords = searchWords(query);
+        boolean hideBinaryGroups = settings.hideBinaryGroups();
         List<GroupResponse> items = groupRepository
-                .findPage(serverId, searchWords, groupSort, (long) page * size, size)
+                .findPage(serverId, searchWords, hideBinaryGroups, groupSort, (long) page * size, size)
                 .stream()
                 .map(GroupResponse::of)
                 .toList();
-        return new GroupPage(items, page, size, groupRepository.count(serverId, searchWords),
+        return new GroupPage(items, page, size, groupRepository.count(serverId, searchWords, hideBinaryGroups),
                 groupRepository.hasActivity(serverId));
     }
 

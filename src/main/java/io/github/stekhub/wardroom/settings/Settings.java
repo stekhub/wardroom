@@ -11,4 +11,10 @@ public interface Settings {
 
     /** @return the current settings of the cache size limit, read for every call */
     CacheSettings cache();
+
+    /**
+     * @return whether the group list leaves out binary groups (spec 022), read for every call. It does unless the
+     *         owner switched it off
+     */
+    boolean hideBinaryGroups();
 }

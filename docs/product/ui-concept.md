@@ -33,7 +33,7 @@ The layout and interaction rules shared by all feature specifications. Each spec
 |---|---|---|
 | Group | `/groups/{id}`, `/groups/{id}?until=2015-01-01` | Header with large group icon, group name, subscribe toggle, refresh, mark all as read, jump to date; sort tabs (newest, latest activity (default), most discussed); thread cards ([spec 008](../specs/008-discussion-view/spec.md)) |
 | Thread | `/groups/{id}/threads/{articleId}` | The thread with nested replies, replacing the thread list. Back returns to the list at the same scroll position |
-| Discover | `/discover` | Search box, order (by name or by activity) and paged group list; each row shows group icon, name, description, activity, badges and the subscribe toggle |
+| Discover | `/discover` | Search box, order (by name or by activity) and paged group list; each row shows group icon, name, description, activity, badges, "Ignore group" and the subscribe toggle. Binary groups and ignored groups are left out. Below the list, a paging row: "First", "Previous", a field for the page number, "Next", "Last" ([spec 022](../specs/022-group-list-filters-and-paging/spec.md)) |
 | Settings | `/settings/{section}` | Section navigation and one section at a time; see [Settings page](#settings-page) |
 
 - Every view has its own URL, so the browser's back button and bookmarks work.
@@ -77,7 +77,7 @@ Opened with the settings button in the sidebar header. A section navigation on t
 | Server | `server` | Server form with the optional posting server, connection test, removal ([spec 002](../specs/002-nntp-server-configuration/spec.md)) |
 | Synchronization | `refresh-cw` | Intervals, depth, cache size limit with its switch, and current use ([spec 005](../specs/005-article-synchronization/spec.md)) |
 | Posting identity | `id-card` | Display name, email address, signature ([spec 009](../specs/009-article-posting/spec.md)) |
-| Ignored | `eye-off` | Ignored authors and threads ([spec 010](../specs/010-ignoring/spec.md)) |
+| Ignored | `eye-off` | "Hide binary groups", on by default, with a save button ([spec 022](../specs/022-group-list-filters-and-paging/spec.md)); ignored authors and threads ([spec 010](../specs/010-ignoring/spec.md)), ignored groups (spec 022) and ignored words in subjects with a form to add one ([spec 023](../specs/023-ignored-subject-words/spec.md)) |
 | Preferences | `sliders-horizontal` | Theme: Light, Dark or System ([spec 013](../specs/013-dark-theme/spec.md)); "Keyboard shortcuts", on by default, with the list of keys ([spec 014](../specs/014-next-unread-and-mark-as-unread/spec.md)). Stored in this browser; takes effect at once, without a save button |
 | Account | `key-round` | Password change ([spec 001](../specs/001-user-authentication/spec.md)); below it, two-factor authentication ([spec 012](../specs/012-two-factor-authentication/spec.md)) |
 | About | `info` | Logo and version ("Development build" without version information, from `GET /api/about`); the license with links to `LICENSE` and the additional terms; links to the source code, the user guide and the issues of the repository, each in a new tab ([ADR 0011](../architecture/decisions/0011-licensing.md)) |
@@ -120,7 +120,19 @@ Usenet has no profile pictures. Every author gets a round icon instead: the Luci
 - Background work (synchronization, group list refresh) shows a running indicator where its result appears; it never blocks the UI.
 - Errors from background work are shown as status icons with an explanation on hover or click, not as pop-ups.
 
+## Narrow screens and accessibility
+
+[spec 015](../specs/015-accessibility-and-mobile-fixes/spec.md); the checks are in the [accessibility checklist](../accessibility-checklist.md).
+
+- **Below 768 pixels** the mobile layout applies. The sidebar is a menu that opens over the page with a button at the top, and closes after a group or another page was chosen.
+- **Buttons with icon and label** in the group header, the thread page header and the paging row of the group list show only their icon there, with a tooltip. The label stays for screen readers.
+- **"Skip to content"** is the first element of every page. It is shown while it has the focus.
+- **After a change of page** the focus is on the main heading of the new page; after a change of the settings section, on the heading of the section.
+- **The sidebar and the main area** are landmarks. Every page has one main heading.
+- **On the thread page** every article says its level to screen readers.
+- **Status messages:** toasts, and the start and the end of a synchronization, are announced without moving the focus.
+- **Fields, checkboxes and radio buttons** have an outline with a contrast of 3:1 in both themes.
+
 ## Not in the MVP
 
 - **Other languages.** The UI is in English only.
-- **Mobile layout** ([deferred](../open-questions.md#deferred-beyond-the-mvp)). The sidebar can be collapsed, but there is no dedicated layout for narrow screens.

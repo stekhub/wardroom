@@ -162,6 +162,7 @@ class PostingTest {
         assertThat(posted.get("rootId").asInt()).isEqualTo(stored.getId());
         assertThat(stored.getIsStub()).isFalse();
         assertThat(stored.getSubject()).isEqualTo("Hello 🙂 everyone");
+        assertThat(stored.getSubjectWords()).isEqualTo(" hello everyone ");
         assertThat(stored.getFrom()).isEqualTo("Jane Doe <jane@news.example.org>");
         assertThat(stored.getAuthorKey()).isEqualTo("jane@news.example.org");
         assertThat(stored.getDate()).isCloseTo(System.currentTimeMillis(), org.assertj.core.data.Offset.offset(60_000L));

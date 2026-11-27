@@ -32,6 +32,8 @@ class SettingsService implements Settings {
     static final int MAX_CACHE_SIZE_MIN = 1;
     static final int MAX_CACHE_SIZE_MAX = 1000;
 
+    static final String HIDE_BINARY_GROUPS = "groups.hide_binary_groups";
+
     private final SettingsRepository settingsRepository;
     private final TransactionOperations transactionOperations;
 
@@ -59,6 +61,12 @@ class SettingsService implements Settings {
                         CacheSettings.DEFAULTS.maxSizeGb()));
     }
 
+    /** Binary groups are hidden unless this was switched off (spec 022). */
+    @Override
+    public boolean hideBinaryGroups() {
+        return !"false".equals(settingsRepository.findAll().get(HIDE_BINARY_GROUPS));
+    }
+
     /**
      * @return the settings as they are stored now
      * @throws FieldValidationException naming the first value that is outside its range
@@ -78,11 +86,13 @@ class SettingsService implements Settings {
             settingsRepository.store(GROUP_LIST_INTERVAL_HOURS, request.groupListIntervalHours().toString());
             settingsRepository.store(CACHE_LIMIT_ENABLED, request.cacheLimitEnabled().toString());
             settingsRepository.store(MAX_CACHE_SIZE_GB, request.maxCacheSizeGb().toString());
+            settingsRepository.store(HIDE_BINARY_GROUPS, request.hideBinaryGroups().toString());
         });
         log.info("The settings were saved: synchronization every {} minutes, first synchronization depth {}, group"
-                        + " list every {} hours, cache size limit {}", request.syncIntervalMinutes(),
-                request.initialDepth(), request.groupListIntervalHours(),
-                request.cacheLimitEnabled() ? request.maxCacheSizeGb() + " GB" : "off");
+                        + " list every {} hours, cache size limit {}, binary groups {}",
+                request.syncIntervalMinutes(), request.initialDepth(), request.groupListIntervalHours(),
+                request.cacheLimitEnabled() ? request.maxCacheSizeGb() + " GB" : "off",
+                request.hideBinaryGroups() ? "hidden" : "shown");
         return synchronization();
     }
 

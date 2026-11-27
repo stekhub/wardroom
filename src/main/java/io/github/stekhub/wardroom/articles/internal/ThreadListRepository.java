@@ -93,7 +93,8 @@ class ThreadListRepository {
 
     /**
      * One page of the threads of a group: every thread that has an article located in the group that is no stub.
-     * Left out are the threads the owner ignores and the threads whose card article is by an ignored author.
+     * Left out are the threads the owner ignores, the threads whose card article is by an ignored author, and
+     * the threads whose card article has an ignored word in its subject (spec 023).
      *
      * @param until  only threads whose card article is dated before this time; {@code null} for all
      * @param range  only threads whose card article has a number in this range; {@code null} for all
@@ -151,6 +152,8 @@ class ThreadListRepository {
                         DSL.count(DSL.when(READ_STATE.ID.isNull().andNot(authorIgnored), 1)).over()
                                 .partitionBy(threadRootOfArticle).as("unread_count"),
                         DSL.field(authorIgnored).as("author_ignored"),
+                        DSL.field(IgnoreFilters.subjectIgnored(ARTICLE.SUBJECT_WORDS, groupId))
+                                .as("subject_ignored"),
                         positionInThread.as("position"))
                 .from(ARTICLE_LOCATION)
                 .join(ARTICLE).on(ARTICLE.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
@@ -178,6 +181,7 @@ class ThreadListRepository {
 
         Condition shown = articlesOfGroup.field("position", Integer.class).eq(1)
                 .and(articlesOfGroup.field("author_ignored", Boolean.class).isFalse())
+                .and(articlesOfGroup.field("subject_ignored", Boolean.class).isFalse())
                 .andNot(IgnoreFilters.threadIgnored(threadRoot));
         if (until != null) {
             shown = shown.and(cardDate.lt(until));
@@ -282,6 +286,31 @@ class ThreadListRepository {
                 .and(ARTICLE.THREAD_ROOT_ID.eq((int) threadRootId).or(ARTICLE.ID.eq((int) threadRootId)))
                 .orderBy(IGNORE_RULE.ID)
                 .fetch(row -> row.value1().longValue());
+    }
+
+    /**
+     * @return the ignored word that hides the thread in the lists of the group, as the owner typed it: the oldest
+     *         rule that matches the subject of the card article (spec 023). Empty when no word hides the thread
+     */
+    Optional<String> findIgnoredWord(long threadRootId, long groupId) {
+        // The card article: the thread root when it is located in the group, otherwise the oldest article there.
+        Field<String> cardSubjectWords = DSL.field(DSL.select(ARTICLE.SUBJECT_WORDS)
+                .from(ARTICLE_LOCATION)
+                .join(ARTICLE).on(ARTICLE.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
+                .where(ARTICLE_LOCATION.NEWSGROUP_ID.eq((int) groupId))
+                .and(ARTICLE.THREAD_ROOT_ID.eq((int) threadRootId).or(ARTICLE.ID.eq((int) threadRootId)))
+                .and(ARTICLE.IS_STUB.isFalse())
+                .orderBy(DSL.when(ARTICLE.ID.eq((int) threadRootId), 0).otherwise(1),
+                        DSL.when(ARTICLE.DATE.isNull(), 1).otherwise(0),
+                        ARTICLE.DATE,
+                        ARTICLE_LOCATION.ARTICLE_NUMBER)
+                .limit(1));
+        return database.select(IGNORE_RULE.LABEL)
+                .from(IGNORE_RULE)
+                .where(IgnoreFilters.subjectRuleMatches(cardSubjectWords, groupId))
+                .orderBy(IGNORE_RULE.ID)
+                .limit(1)
+                .fetchOptional(IGNORE_RULE.LABEL);
     }
 
     /**

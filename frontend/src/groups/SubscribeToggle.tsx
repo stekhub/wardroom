@@ -72,7 +72,7 @@ export function SubscribeToggle({
               }
             }}
           >
-            {subscribed ? <Star className="fill-current text-amber-500" /> : <Plus />}
+            {subscribed ? <Star className="fill-current text-warning" /> : <Plus />}
           </Button>
         </TooltipTrigger>
         <TooltipContent>{subscribed ? 'Unsubscribe' : 'Subscribe'}</TooltipContent>

@@ -7,6 +7,7 @@ This guide covers running Wardroom after the installation. For the installation 
 - [Login and security](#login-and-security)
 - [Backups and updates](#backups-and-updates)
 - [Troubleshooting](#troubleshooting)
+- [Finding groups](#finding-groups), [Ignoring](#ignoring), [On a phone and with a screen reader](#on-a-phone-and-with-a-screen-reader)
 - [Advanced: keeping the encryption key outside the data directory](#advanced-keeping-the-encryption-key-outside-the-data-directory)
 - [Building from source](#building-from-source)
 
@@ -37,6 +38,42 @@ An article that a key reaches is marked as read. The keys do nothing while you t
 To read an article again later, choose "Mark as unread" in its menu. It stays unread until you open the discussion again or a key reaches it.
 
 The keys can be turned off in the settings, section "Preferences". The setting is stored in the browser, like the theme.
+
+## Finding groups
+
+"Discover groups" lists the groups of your server, 50 per page. Below the list you go to the first, the previous, the next or the last page, or you type a page number and press Enter.
+
+- **Binary groups are hidden.** Groups whose names show that they carry files, such as `alt.binaries.*`, do not appear in the list. To see them, turn "Hide binary groups" off in the settings, section "Ignored", and save.
+- **Ignore a group** with the button with the crossed-out eye in its row. The group no longer appears in the list. A group you are subscribed to cannot be ignored.
+- **A few groups are ignored from the start:** `misc.phone.mobile.android`, `alt.dvdnordic.org`, `free.usenet`, `free.pt`, `a2i.b`, `zzz.3`, `de.comp.os.ms-windows` and `de.alt.sources.amiga`. To see one of them, remove it in the settings, section "Ignored", list "Groups".
+- A group you are subscribed to always stays in the sidebar.
+
+## Ignoring
+
+Ignoring hides what you do not want to see. It deletes nothing and marks nothing as read: when you stop ignoring, everything is shown as before. The settings section "Ignored" lists everything you ignore, each with a "Remove" button.
+
+| What | How | Effect |
+|---|---|---|
+| An author | "Ignore author" in the menu of an article | Articles of the author are one line; discussions the author started are hidden |
+| A discussion | "Ignore thread" on its card or on its page | The discussion is hidden, also when new replies arrive |
+| A group | The button in its row of the group list | The group is hidden in the group list |
+| A word in subjects | Typed in the settings section "Ignored", for all groups or for one | Discussions with the word in their subject are hidden |
+
+About words in subjects:
+
+- Upper and lower case do not matter, and only whole words match: "java" hides "Java 25 released", not "JavaScript tips".
+- A phrase such as "for sale" matches these words in this order.
+- Punctuation counts as a space: "C++" is the same as "C".
+- The subject of the first article of a discussion decides. A reply with the word does not hide a discussion.
+- A hidden discussion that you open through a link is shown, with a note that names the word.
+
+## On a phone and with a screen reader
+
+- On a narrow screen the sidebar is a menu. Open it with the button at the top left; it closes when you choose a group or a page.
+- Some buttons show only their icon on a narrow screen. Hold a finger on one, or point at it, to see what it does.
+- The first Tab on every page reaches "Skip to content", which jumps past the sidebar.
+- A screen reader announces the heading of a page when you open it, the level of each reply in a discussion, and the start and the end of a synchronization.
+- Some screen readers use single keys themselves. If Wardroom's keys get in the way, turn them off in the settings, section "Preferences".
 
 ## Login and security
 
@@ -194,6 +231,19 @@ docker compose logs -f wardroom
 ```
 
 For more detail, add `WARDROOM_LOG_LEVEL=DEBUG` to `environment` in the Compose file and start the container again.
+
+### Memory
+
+Wardroom limits the memory Java may use for its data to 256 MB. With what Java and the database need besides, the container uses about 400 to 500 MB.
+
+- **If the log shows `OutOfMemoryError`,** raise the limit. This can happen on a server with very many groups or with very large articles. Add this to `environment` in the Compose file and start the container again:
+
+  ```yaml
+  - JAVA_OPTS=-Xmx384m -XX:+UseSerialGC
+  ```
+
+- **On a machine with much memory** you do not need to change anything. A higher limit does not make Wardroom faster.
+- The value replaces the default, so keep `-XX:+UseSerialGC` unless you know that you want another setting.
 
 ## Advanced: keeping the encryption key outside the data directory
 

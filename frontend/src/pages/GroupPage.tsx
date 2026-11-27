@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api } from '@/api/client'
 import { problemMessage, UNEXPECTED_ERROR } from '@/api/problem'
 import { Badge } from '@/components/ui/badge'
+import { LabelledIconButton } from '@/components/LabelledIconButton'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -112,10 +113,14 @@ function GroupHeader({ subscription }: { subscription: Subscription }) {
   const synchronizing = subscription.sync.running
 
   return (
-    <header className="mb-6 flex flex-wrap items-center gap-4">
+    <header className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-3">
       <GroupIcon name={subscription.name} description={subscription.description} size="large" />
-      <div className="min-w-0 flex-1">
-        <h1 className="truncate text-xl font-semibold tracking-tight" title={subscription.name}>
+      {/* Narrow, the name keeps its room and its lines, and the buttons move below it. */}
+      <div className="min-w-0 flex-1 max-md:min-w-40">
+        <h1
+          className="truncate text-xl font-semibold tracking-tight max-md:break-all max-md:whitespace-normal"
+          title={subscription.name}
+        >
           {subscription.name}
         </h1>
         <div className="mt-1 flex flex-wrap gap-2 empty:hidden">
@@ -126,7 +131,7 @@ function GroupHeader({ subscription }: { subscription: Subscription }) {
           {subscription.removed && <Badge variant="outline">Removed from the server</Badge>}
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <SubscribeToggle
           groupId={subscription.groupId}
           groupName={subscription.name}
@@ -154,17 +159,17 @@ function GroupHeader({ subscription }: { subscription: Subscription }) {
         </Tooltip>
         <JumpToDate groupId={subscription.groupId} />
         {subscription.postingStatus !== 'NOT_ALLOWED' && (
-          <Button asChild variant="outline" size="sm">
-            <Link to={`/groups/${String(subscription.groupId)}/new`}>
-              <SquarePen />
-              New discussion
-            </Link>
-          </Button>
+          <LabelledIconButton
+            icon={<SquarePen />}
+            label="New discussion"
+            to={`/groups/${String(subscription.groupId)}/new`}
+          />
         )}
-        <Button type="button" variant="outline" size="sm" onClick={() => void markAllRead()}>
-          <CheckCheck />
-          Mark all as read
-        </Button>
+        <LabelledIconButton
+          icon={<CheckCheck />}
+          label="Mark all as read"
+          onClick={() => void markAllRead()}
+        />
       </div>
     </header>
   )

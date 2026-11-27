@@ -76,6 +76,7 @@ On the first start, a wizard asks for two things: a username and password for yo
 |---|---|
 | `PUID`, `PGID` | User and group ID that Wardroom runs as. Files in `config` belong to this user. |
 | `TZ` | Time zone of the container, for example `Europe/Vienna`. |
+| `JAVA_OPTS` | Optional. Options for Java, above all the memory limit. The default is `-Xmx256m -XX:+UseSerialGC`; see [Memory](docs/user-guide.md#memory) in the user guide. |
 | `ports` | Wardroom listens on port 8119. To use another port on the host, change the left number, for example `"9000:8119"`. |
 | `./config:/config` | The data directory. It holds the database, the encryption key and automatic backups. |
 

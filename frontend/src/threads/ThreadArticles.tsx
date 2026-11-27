@@ -49,6 +49,14 @@ interface Row {
   replyCount: number
 }
 
+/**
+ * The nesting of an article, for screen readers, which do not see the indentation (spec 015). The
+ * first article of the thread is level 1, a reply to it level 2.
+ */
+function levelOf(article: { depth: number }): string {
+  return `Level ${String(article.depth + 1)}`
+}
+
 /** Lays the articles, which come in display order with their depth, out as rows. */
 function rowsOf(articles: ThreadArticle[]): Row[] {
   const replyCounts = new Array<number>(articles.length).fill(0)
@@ -474,6 +482,7 @@ function ArticleRow({
     return (
       <article className="min-w-0 flex-1 py-2" aria-label={`Article by ignored author ${author}`}>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <span className="sr-only">{levelOf(article)}</span>
           <EyeOff aria-hidden="true" className="size-4 shrink-0" />
           <span className="max-w-full truncate">Ignored author · {author}</span>
           <Button type="button" variant="ghost" size="xs" onClick={onShowIgnored}>
@@ -488,6 +497,7 @@ function ArticleRow({
   return (
     <article className="min-w-0 flex-1 py-3" aria-label={`Article by ${author}`}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <span className="sr-only">{levelOf(article)}</span>
         <Button
           type="button"
           variant="ghost"

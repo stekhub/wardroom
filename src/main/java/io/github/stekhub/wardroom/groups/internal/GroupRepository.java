@@ -3,6 +3,7 @@ package io.github.stekhub.wardroom.groups.internal;
 import static io.github.stekhub.wardroom.jooq.Tables.NEWSGROUP;
 import static io.github.stekhub.wardroom.jooq.Tables.SUBSCRIPTION;
 
+import io.github.stekhub.wardroom.ignoring.IgnoreFilters;
 import io.github.stekhub.wardroom.nntp.NntpActiveGroup;
 import io.github.stekhub.wardroom.nntp.NntpGroupDescription;
 import java.util.ArrayList;
@@ -181,10 +182,12 @@ class GroupRepository {
     }
 
     /**
-     * @param searchWords every word must appear in the name or in the description; none means all groups
-     * @return one page of the groups the server still has, in the given order
+     * @param searchWords       every word must appear in the name or in the description; none means all groups
+     * @param hideBinaryGroups whether binary groups are left out (spec 022)
+     * @return one page of the groups the server still has and the owner does not ignore, in the given order
      */
-    List<StoredGroup> findPage(long serverId, List<String> searchWords, GroupSort sort, long offset, int size) {
+    List<StoredGroup> findPage(long serverId, List<String> searchWords, boolean hideBinaryGroups, GroupSort sort,
+            long offset, int size) {
         List<SortField<?>> order = sort == GroupSort.ACTIVITY
                 ? List.of(NEWSGROUP.ARTICLES_PER_DAY.desc().nullsLast(), NEWSGROUP.NAME.asc())
                 : List.of(NEWSGROUP.NAME.asc());
@@ -192,7 +195,7 @@ class GroupRepository {
                         SUBSCRIPTION.ID, NEWSGROUP.ARTICLES_PER_DAY)
                 .from(NEWSGROUP)
                 .leftJoin(SUBSCRIPTION).on(SUBSCRIPTION.NEWSGROUP_ID.eq(NEWSGROUP.ID))
-                .where(listedAndMatching(serverId, searchWords))
+                .where(listedAndMatching(serverId, searchWords, hideBinaryGroups))
                 .orderBy(order)
                 .limit(size)
                 .offset(offset)
@@ -207,9 +210,9 @@ class GroupRepository {
                 .and(NEWSGROUP.ARTICLES_PER_DAY.isNotNull()));
     }
 
-    /** @return how many groups {@link #findPage(long, List, GroupSort, long, int)} has over all pages */
-    int count(long serverId, List<String> searchWords) {
-        return database.fetchCount(NEWSGROUP, listedAndMatching(serverId, searchWords));
+    /** @return how many groups {@link #findPage(long, List, boolean, GroupSort, long, int)} has over all pages */
+    int count(long serverId, List<String> searchWords, boolean hideBinaryGroups) {
+        return database.fetchCount(NEWSGROUP, listedAndMatching(serverId, searchWords, hideBinaryGroups));
     }
 
     void deleteByServer(long serverId) {
@@ -219,9 +222,16 @@ class GroupRepository {
     /**
      * The search of spec 003. SQLite compares with {@code LIKE} without regard to case for the letters A to Z only.
      * The words are bound parameters, and the characters with a meaning in a pattern are escaped.
+     *
+     * <p>Ignored groups are left out always, binary groups when the setting says so (spec 022).
      */
-    private static Condition listedAndMatching(long serverId, List<String> searchWords) {
-        Condition condition = NEWSGROUP.SERVER_ID.eq((int) serverId).and(NEWSGROUP.REMOVED_AT.isNull());
+    private static Condition listedAndMatching(long serverId, List<String> searchWords, boolean hideBinaryGroups) {
+        Condition condition = NEWSGROUP.SERVER_ID.eq((int) serverId)
+                .and(NEWSGROUP.REMOVED_AT.isNull())
+                .andNot(IgnoreFilters.groupIgnored(NEWSGROUP.NAME));
+        if (hideBinaryGroups) {
+            condition = condition.andNot(BinaryGroups.isBinary(NEWSGROUP.NAME));
+        }
         for (String searchWord : searchWords) {
             String pattern = "%" + escapeForLike(searchWord) + "%";
             condition = condition.and(NEWSGROUP.NAME.like(pattern).escape(LIKE_ESCAPE)

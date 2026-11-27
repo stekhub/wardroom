@@ -84,7 +84,9 @@ class SubscriptionRepository {
      * <li>articles by an ignored author,</li>
      * <li>the articles of an ignored thread,</li>
      * <li>the articles of a thread whose card article is by an ignored author, because the thread list hides
-     * that thread.</li>
+     * that thread,</li>
+     * <li>the articles of a thread whose card article has an ignored word in its subject (spec 023), for the same
+     * reason.</li>
      * </ul>
      */
     private int countUnreadNotIgnored(long groupId) {
@@ -99,13 +101,21 @@ class SubscriptionRepository {
                         DSL.when(ARTICLE.DATE.isNull(), 1).otherwise(0),
                         ARTICLE.DATE,
                         ARTICLE_LOCATION.ARTICLE_NUMBER);
+        Field<Boolean> cardSubjectIgnored = DSL.firstValue(
+                        DSL.field(IgnoreFilters.subjectIgnored(ARTICLE.SUBJECT_WORDS, groupId))).over()
+                .partitionBy(threadRootOfArticle)
+                .orderBy(DSL.when(ARTICLE.ID.eq(threadRootOfArticle), 0).otherwise(1),
+                        DSL.when(ARTICLE.DATE.isNull(), 1).otherwise(0),
+                        ARTICLE.DATE,
+                        ARTICLE_LOCATION.ARTICLE_NUMBER);
         Field<Boolean> unread = DSL.field(DSL.notExists(DSL.selectOne().from(READ_STATE)
                 .where(READ_STATE.ARTICLE_ID.eq(ARTICLE.ID))));
         Table<?> articlesOfGroup = database.select(
                         threadRootOfArticle.as("thread_root"),
                         unread.as("unread"),
                         authorIgnored.as("author_ignored"),
-                        cardAuthorIgnored.as("card_author_ignored"))
+                        cardAuthorIgnored.as("card_author_ignored"),
+                        cardSubjectIgnored.as("card_subject_ignored"))
                 .from(ARTICLE_LOCATION)
                 .join(ARTICLE).on(ARTICLE.ID.eq(ARTICLE_LOCATION.ARTICLE_ID))
                 .where(ARTICLE_LOCATION.NEWSGROUP_ID.eq((int) groupId))
@@ -116,6 +126,7 @@ class SubscriptionRepository {
                 .where(articlesOfGroup.field("unread", Boolean.class).isTrue())
                 .and(articlesOfGroup.field("author_ignored", Boolean.class).isFalse())
                 .and(articlesOfGroup.field("card_author_ignored", Boolean.class).isFalse())
+                .and(articlesOfGroup.field("card_subject_ignored", Boolean.class).isFalse())
                 .andNot(IgnoreFilters.threadIgnored(articlesOfGroup.field("thread_root", Integer.class))));
     }
 

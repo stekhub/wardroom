@@ -1,12 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useId } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { api } from '@/api/client'
 import { problemFieldErrors, problemMessage, UNEXPECTED_ERROR } from '@/api/problem'
-import type { components } from '@/api/schema'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -14,10 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCacheSize } from '@/settings/cacheSize'
 import { SettingsSectionFrame } from '@/settings/SettingsSectionFrame'
-
-type Settings = components['schemas']['Settings']
-
-const SETTINGS_KEY = ['settings'] as const
+import { type Settings, useSaveSettings, useSettings } from '@/settings/settingsState'
 
 /**
  * The ranges of spec 005. The backend checks them again; they are repeated here so the owner
@@ -51,21 +45,13 @@ function isFormField(field: string): field is (typeof FORM_FIELDS)[number] {
   return (FORM_FIELDS as readonly string[]).includes(field)
 }
 
-async function fetchSettings(): Promise<Settings> {
-  const { data, response } = await api.GET('/api/settings')
-  if (data === undefined) {
-    throw new Error(`Unexpected answer ${String(response.status)} to the settings request`)
-  }
-  return data
-}
-
 /**
  * The settings section "Synchronization" (spec 005): how often the groups and the group list
  * are fetched, how much a first synchronization fetches, and the cache size limit with the
  * current use (ADR 0023, ADR 0034).
  */
 export function SynchronizationSection() {
-  const settings = useQuery({ queryKey: SETTINGS_KEY, queryFn: fetchSettings, retry: false })
+  const settings = useSettings()
 
   return (
     <SettingsSectionFrame title="Synchronization">
@@ -85,7 +71,7 @@ export function SynchronizationSection() {
 }
 
 function SynchronizationForm({ settings }: { settings: Settings }) {
-  const queryClient = useQueryClient()
+  const saveSettings = useSaveSettings()
   const {
     register,
     handleSubmit,
@@ -102,9 +88,8 @@ function SynchronizationForm({ settings }: { settings: Settings }) {
   const cacheLimitEnabled = useWatch({ control, name: 'cacheLimitEnabled' })
 
   async function save(form: SettingsForm) {
-    const { data, error, response } = await api.PUT('/api/settings', { body: form })
+    const { data, error, response } = await saveSettings(settings, form)
     if (data !== undefined) {
-      queryClient.setQueryData<Settings>(SETTINGS_KEY, data)
       // The saved values are the new starting point, so the button waits for the next change.
       reset(data)
       toast.success('Settings saved')

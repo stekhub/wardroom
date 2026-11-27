@@ -23,6 +23,7 @@ Changed by the owner on 2026-11-24, with points proposed by the AI assistant and
 5. Hiding binary groups is a setting "Hide binary groups" in the settings section "Ignored", on by default, instead of a checkbox on the discover page. It is stored on the server and is not part of the address of the page.
 6. The owner can ignore a group. An ignored group does not appear in the group list. Ignored groups are a third kind of ignore rule, next to authors and threads ([spec 010](../010-ignoring/spec.md)).
 7. Wardroom has a built-in list of binary groups that the naming rules miss. The owner fills it during implementation, after checking which binary groups the naming rules still show. Further naming rules found in this check are added instead where they fit. The built-in list is hidden by the same setting.
+8. Some groups are ignored by default (see "Groups ignored by default"). They are ordinary rules of the kind `GROUP`, which the owner sees and removes in the settings section "Ignored".
 
 ## User stories
 
@@ -34,12 +35,23 @@ Changed by the owner on 2026-11-24, with points proposed by the AI assistant and
 
 A group is a binary group when:
 
-- one part of its name, between dots, is `binaries`, `binary` or `bin`, for example `alt.binaries.linux` or `de.alt.binaries.bilder`;
+- one part of its name, between dots, starts with `binaries`, for example `alt.binaries.linux`, `de.alt.binaries.bilder` or `alt.binariespw-required`;
+- one part of its name is `binary` or `bin`;
+- one part of its name is a form of "binary" in another language: `binaer`, `binaere`, `binarios`, `binari` or `binaires`, for example `dk.binaer.film` or `es.binarios.hd`;
 - one part of its name is `mp3` or `warez`;
 - its name starts with `a.b.`, the common short form of `alt.binaries.`;
-- or its name is on the built-in list.
+- its name starts with `alt.multimedia.` or `3b.`;
+- or its name is on the built-in list: `alt.multimedia`, `alt.asian-movies`, `ab.alt.movies`, `4u.alt.movies`.
 
-Proposed by the AI assistant as a start. The owner checks the list of a real server during implementation; rules that hide discussion groups are removed, and rules for binary groups that are still shown are added.
+Proposed by the AI assistant as a start and adjusted after the owner checked the list of a real server. Rules that hide discussion groups are removed, and rules for binary groups that are still shown are added. The built-in list has the names that no rule fits: a rule for the part `movies` would also hide discussion groups.
+
+## Groups ignored by default
+
+Migrations create a rule of the kind `GROUP` for each of these groups: `misc.phone.mobile.android`, `alt.dvdnordic.org`, `free.usenet`, `free.pt`, `a2i.b`, `zzz.3`, `de.comp.os.ms-windows` and `de.alt.sources.amiga`.
+
+- The owner chose them from the top of the list ordered by activity of a real server, and no naming rule fits them. Whether they carry files was not checked; they are no binary groups for Wardroom, so the setting "Hide binary groups" does not change them.
+- The rules are created once, on a new installation and on the update of an existing one. A rule the owner removes does not come back.
+- A group the owner is subscribed to at that time gets no rule.
 
 ## Functional requirements
 
@@ -107,10 +119,11 @@ Proposed by the AI assistant as a start. The owner checks the list of a real ser
 
 ## Testing requirements
 
-- Binary groups by name: `alt.binaries.x`, `x.binary`, `binaries` alone, `alt.bin.x`, `x.mp3.y`, `a.b.x`, a group on the built-in list; not `alt.binariesx`, `alt.notbinaries`, `comp.lang.binary-trees` or `ab.x`.
+- Binary groups by name: `alt.binaries.x`, `alt.binariespw`, `x.binary`, `binaries` alone, `alt.bin.x`, `x.mp3.y`, `dk.binaer.film`, `es.binarios.hd`, `a.b.x`, `alt.multimedia.movies`, `3b.test`, a group on the built-in list; not `alt.notbinaries`, `comp.lang.binary-trees`, `ab.x`, `alt.multimediax` or `rec.arts.movies.current-films`.
 - Hidden with the setting on, in the list, the search and the order by activity; shown with the setting off; `total` follows the filters.
 - An ignored group is hidden whatever the setting and comes back when the rule is removed; ignoring a subscribed group is refused.
 - A subscribed binary group stays in the subscriptions.
+- Groups ignored by default: a new database has the eight rules; an existing one gets none for a subscribed group and keeps a rule it already has.
 - Frontend: "Ignore group" with toast and undo, and no button on subscribed groups; the switch and the third list in the settings section; the paging row with its disabled buttons; typing a page number and Enter; an invalid number; changing search or order opens page 1.
 
 ## Implementation tasks
@@ -123,3 +136,5 @@ Proposed by the AI assistant as a start. The owner checks the list of a real ser
 ## Changes
 
 - 2026-11-24, before implementation: the checkbox "Show binary groups" on the discover page and the parameter `binaries` were replaced by the setting "Hide binary groups" in the section "Ignored". Ignored groups, more naming rules and the built-in list were added.
+- 2026-11-25, after the owner checked the group list of a real server: a part that starts with `binaries` counts (before, `alt.binariesx` was not a binary group); the parts `binaer`, `binaere`, `binarios`, `binari` and `binaires`, the name starts `alt.multimedia.` and `3b.`, and four names on the built-in list were added. `binaere`, `binari` and `binaires` were proposed by the AI assistant and are not from the checked list.
+- 2026-11-25, decided by the owner: eight groups from the same check are ignored by default, with rules that migrations create.

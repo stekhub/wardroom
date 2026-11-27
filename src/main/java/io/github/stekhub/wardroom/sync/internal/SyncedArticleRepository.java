@@ -6,6 +6,7 @@ import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
 import static io.github.stekhub.wardroom.jooq.Tables.SYNCED_RANGE;
 
 import io.github.stekhub.wardroom.articles.AuthorKey;
+import io.github.stekhub.wardroom.ignoring.SubjectWords;
 import io.github.stekhub.wardroom.nntp.NntpOverview;
 import io.github.stekhub.wardroom.platform.LogSafe;
 import java.util.List;
@@ -247,6 +248,7 @@ class SyncedArticleRepository {
                 .set(ARTICLE.MESSAGE_ID, overview.messageId())
                 .set(ARTICLE.IS_STUB, false)
                 .set(ARTICLE.SUBJECT, overview.subject())
+                .set(ARTICLE.SUBJECT_WORDS, SubjectWords.of(overview.subject()))
                 .set(ARTICLE.FROM, overview.from())
                 .set(ARTICLE.AUTHOR_KEY, AuthorKey.of(overview.from()))
                 .set(ARTICLE.DATE, overview.date())
@@ -264,6 +266,7 @@ class SyncedArticleRepository {
                 // Without a thread root the article has no place: its own References decide it now (spec 006).
                 .setNull(ARTICLE.THREAD_ROOT_ID)
                 .set(ARTICLE.SUBJECT, overview.subject())
+                .set(ARTICLE.SUBJECT_WORDS, SubjectWords.of(overview.subject()))
                 .set(ARTICLE.FROM, overview.from())
                 .set(ARTICLE.AUTHOR_KEY, AuthorKey.of(overview.from()))
                 .set(ARTICLE.DATE, overview.date())

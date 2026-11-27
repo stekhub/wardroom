@@ -17,4 +17,12 @@ final class IgnoreFailures {
                     ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "This article does not exist."), null);
         }
     }
+
+    static class GroupNotFoundException extends ErrorResponseException {
+
+        GroupNotFoundException() {
+            super(HttpStatus.NOT_FOUND,
+                    ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "This group does not exist."), null);
+        }
+    }
 }

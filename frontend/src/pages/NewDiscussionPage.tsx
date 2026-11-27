@@ -51,7 +51,7 @@ export function NewDiscussionPage() {
       <Link
         to={groupPath}
         aria-label={`Back to ${subscription.name}`}
-        className="mb-4 inline-flex max-w-full items-center gap-1.5 rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="mb-4 inline-flex min-h-6 max-w-full items-center gap-1.5 rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ArrowLeft aria-hidden="true" className="size-4 shrink-0" />
         {/* The group name comes from the server and is shown as text only. */}

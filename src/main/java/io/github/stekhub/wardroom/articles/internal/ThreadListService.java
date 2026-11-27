@@ -62,8 +62,10 @@ class ThreadListService {
      * A thread as its page shows it: the articles in display order.
      *
      * @param ignoreRuleIds the rules that ignore the thread; empty when it is not ignored (spec 010)
+     * @param ignoredWord   the ignored word that hides the thread in the lists of the group, as the owner typed
+     *                      it, or {@code null} (spec 023)
      */
-    record ThreadView(long rootId, List<Long> ignoreRuleIds, List<Entry> articles) {
+    record ThreadView(long rootId, List<Long> ignoreRuleIds, String ignoredWord, List<Entry> articles) {
     }
 
     /**
@@ -194,6 +196,7 @@ class ThreadListService {
         }
         long threadRootId = threadRootInGroup(groupId, articleId);
         return new ThreadView(threadRootId, threadListRepository.findIgnoreRuleIds(threadRootId),
+                threadListRepository.findIgnoredWord(threadRootId, groupId).orElse(null),
                 inDisplayOrder(threadRootId, threadListRepository.findThreadArticles(threadRootId, groupId)));
     }
 

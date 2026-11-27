@@ -37,3 +37,4 @@ The order in which the specifications are implemented is in the [implementation 
 | [023](023-ignored-subject-words/spec.md) | Ignored subject words | Accepted |
 | [024](024-groups-of-a-post/spec.md) | Choosing the groups of a post | Accepted |
 | [025](025-update-hint/spec.md) | Update hint | Accepted |
+| [026](026-windows-app/spec.md) | Windows app | Accepted |

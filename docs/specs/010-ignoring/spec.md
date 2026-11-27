@@ -43,6 +43,7 @@ A basic killfile: ignoring an author or a thread, how ignored articles are shown
 **Managing rules**
 
 - Settings section "Ignored" (Lucide `eye-off`) lists all rules, authors and threads separately, each with its label, the date it was added and a remove button.
+- The section also lists the ignored groups ([spec 022](../022-group-list-filters-and-paging/spec.md)) and the ignored words in subjects ([spec 023](../023-ignored-subject-words/spec.md)), and has the setting "Hide binary groups" (spec 022).
 
 ## Matching
 
@@ -56,7 +57,7 @@ All endpoints require a session and the CSRF token for state-changing requests (
 | Method and path | Request | Responses |
 |---|---|---|
 | `GET /api/ignore-rules` | | `200` list of rules |
-| `POST /api/ignore-rules` | `{ "kind": "AUTHOR" \| "THREAD", "articleId": 1234 }` | `201` rule (also if it already exists); `400`; `404` unknown article |
+| `POST /api/ignore-rules` | `{ "kind": "AUTHOR" \| "THREAD", "articleId": 1234 }`; for a group `{ "kind": "GROUP", "groupId": 42 }` (spec 022); for a word `{ "kind": "SUBJECT", "text": "election", "groupId": null }` (spec 023) | `201` rule (also if it already exists); `400`; `404` unknown article or group |
 | `DELETE /api/ignore-rules/{id}` | | `204` (also if already removed) |
 
 The backend derives the value and label from the article: for `AUTHOR` the author key and display name, for `THREAD` the root's `Message-ID` and subject.
@@ -76,7 +77,7 @@ Thread articles of [spec 008](../008-discussion-view/spec.md) gain `ignoredAutho
 
 ## Data model changes
 
-- New table `ignore_rule`: `kind` (`AUTHOR`, `THREAD`), `value`, `label`, `created_at`; unique on `(kind, value)`.
+- New table `ignore_rule`: `kind` (`AUTHOR`, `THREAD`), `value`, `label`, `created_at`; unique on `(kind, value)`. Specs 022 and 023 added the kinds `GROUP` and `SUBJECT`, the column `newsgroup_id` and the unique key `(kind, value, newsgroup_id)`.
 - New column `article.author_key`, indexed, computed on insert and when a stub is filled in; null for stubs.
 
 ## Error handling

@@ -76,7 +76,9 @@ test('the discover view lists the groups with icon, name, description and postin
   expect(within(javaRow).queryByText('No posting')).not.toBeInTheDocument()
   expect(within(moderatedRow).getByText('Moderated')).toBeVisible()
   expect(within(archiveRow).getByText('No posting')).toBeVisible()
-  expect(screen.getByText('3 groups · Page 1 of 1')).toBeVisible()
+  expect(screen.getByText('3 groups')).toBeVisible()
+  // One page needs no paging row (spec 022).
+  expect(screen.queryByRole('navigation', { name: 'Pages' })).not.toBeInTheDocument()
   expect(requests[0]).toEqual({
     query: '',
     page: 0,
@@ -175,7 +177,9 @@ test('the search and the page of the URL are shown, so bookmarks work', async ()
 
   expect(await screen.findByText('match.java.page1')).toBeVisible()
   expect(screen.getByRole('searchbox', { name: 'Search groups' })).toHaveValue('java')
-  expect(screen.getByText('120 groups · Page 2 of 3')).toBeVisible()
+  expect(screen.getByText('120 groups')).toBeVisible()
+  expect(screen.getByLabelText('Page')).toHaveValue('2')
+  expect(screen.getByText('of 3')).toBeVisible()
   expect(requests).toEqual([
     { query: 'java', page: 1, size: '50', serverId: String(TEST_SERVER.id), sort: 'name' },
   ])
@@ -191,8 +195,11 @@ test('the list is paged with 50 groups per page', async () => {
   openAt('/discover')
   await screen.findByText('paged.page0')
 
-  expect(screen.getByText('120 groups · Page 1 of 3')).toBeVisible()
+  expect(screen.getByText('120 groups')).toBeVisible()
+  expect(screen.getByLabelText('Page')).toHaveValue('1')
+  expect(screen.getByRole('button', { name: 'First' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Last' })).toBeEnabled()
 
   await userEvent.click(screen.getByRole('button', { name: 'Next' }))
 
@@ -204,12 +211,188 @@ test('the list is paged with 50 groups per page', async () => {
 
   expect(await screen.findByText('paged.page2')).toBeVisible()
   expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Last' })).toBeDisabled()
+  expect(screen.getByLabelText('Page')).toHaveValue('3')
 
   await userEvent.click(screen.getByRole('button', { name: 'Previous' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Previous' }))
 
   expect(await screen.findByText('paged.page0')).toBeVisible()
   expect(window.location.search).toBe('')
+})
+
+test('"First" and "Last" jump to the ends of the list', async () => {
+  backendLoggedIn()
+  groupsAnswer((_query, page) =>
+    pageOf([testGroup(page + 1, `paged.page${String(page)}`)], page, 5000),
+  )
+  openAt('/discover?page=40')
+  await screen.findByText('paged.page39')
+
+  await userEvent.click(screen.getByRole('button', { name: 'Last' }))
+
+  expect(await screen.findByText('paged.page99')).toBeVisible()
+  expect(window.location.search).toBe('?page=100')
+
+  await userEvent.click(screen.getByRole('button', { name: 'First' }))
+
+  expect(await screen.findByText('paged.page0')).toBeVisible()
+  expect(window.location.search).toBe('')
+})
+
+test('a page number that is typed opens that page when Enter is pressed', async () => {
+  backendLoggedIn()
+  const requests = groupsAnswer((_query, page) =>
+    pageOf([testGroup(page + 1, `paged.page${String(page)}`)], page, 15_000),
+  )
+  openAt('/discover')
+  await screen.findByText('paged.page0')
+  const field = screen.getByLabelText('Page')
+
+  await userEvent.clear(field)
+  await userEvent.type(field, '300')
+  // Nothing happens before Enter.
+  expect(window.location.search).toBe('')
+  await userEvent.keyboard('{Enter}')
+
+  expect(await screen.findByText('paged.page299')).toBeVisible()
+  expect(window.location.search).toBe('?page=300')
+  expect(requests.at(-1)).toMatchObject({ page: 299 })
+})
+
+test('a page number outside the list is not accepted, and the field says so', async () => {
+  backendLoggedIn()
+  const requests = groupsAnswer((_query, page) =>
+    pageOf([testGroup(page + 1, `paged.page${String(page)}`)], page, 120),
+  )
+  openAt('/discover')
+  await screen.findByText('paged.page0')
+  const field = screen.getByLabelText('Page')
+
+  for (const typed of ['4', '0', '-1', '2.5', 'two', '']) {
+    await userEvent.clear(field)
+    if (typed !== '') {
+      await userEvent.type(field, typed)
+    }
+    await userEvent.keyboard('{Enter}')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter a page between 1 and 3.')
+    expect(field).toBeInvalid()
+  }
+  expect(window.location.search).toBe('')
+  expect(requests).toHaveLength(1)
+
+  await userEvent.clear(field)
+  await userEvent.type(field, '3{Enter}')
+
+  expect(await screen.findByText('paged.page2')).toBeVisible()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('a page beyond the last one says so, and the paging row leads back', async () => {
+  backendLoggedIn()
+  groupsAnswer((_query, page) =>
+    page > 2
+      ? pageOf([], page, 120)
+      : pageOf([testGroup(page + 1, `paged.page${String(page)}`)], page, 120),
+  )
+  openAt('/discover?page=9')
+
+  expect(await screen.findByText('This page does not exist. The list has 3 pages.')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+
+  await userEvent.click(screen.getByRole('button', { name: 'Last' }))
+
+  expect(await screen.findByText('paged.page2')).toBeVisible()
+  expect(window.location.search).toBe('?page=3')
+})
+
+test('changing the search opens the first page', async () => {
+  backendLoggedIn()
+  groupsAnswer((query, page) =>
+    pageOf(
+      [testGroup(page + 1, `${query === '' ? 'paged' : query}.page${String(page)}`)],
+      page,
+      120,
+    ),
+  )
+  openAt('/discover?page=2')
+  await screen.findByText('paged.page1')
+
+  await userEvent.type(screen.getByRole('searchbox', { name: 'Search groups' }), 'java')
+
+  expect(await screen.findByText('java.page0')).toBeVisible()
+  expect(window.location.search).toBe('?q=java')
+  expect(screen.getByLabelText('Page')).toHaveValue('1')
+})
+
+// Ignoring a group (spec 022)
+
+test('"Ignore group" hides the row, and "Undo" brings it back', async () => {
+  backendLoggedIn()
+  const ignored = new Set<number>()
+  const created: unknown[] = []
+  const removed: string[] = []
+  groupsAnswer(() =>
+    pageOf(
+      [testGroup(1, 'example.noise'), testGroup(2, 'example.talk')].filter(
+        (group) => !ignored.has(group.id),
+      ),
+    ),
+  )
+  server.use(
+    http.post('/api/ignore-rules', async ({ request }) => {
+      const body = (await request.json()) as { groupId: number }
+      created.push(body)
+      ignored.add(body.groupId)
+      return HttpResponse.json(
+        {
+          id: 40,
+          kind: 'GROUP',
+          label: 'example.noise',
+          createdAt: 1,
+          groupId: null,
+          groupName: null,
+        },
+        { status: 201 },
+      )
+    }),
+    http.delete('/api/ignore-rules/:ruleId', ({ params }) => {
+      removed.push(String(params.ruleId))
+      ignored.clear()
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  openAt('/discover')
+  await screen.findByText('example.noise')
+
+  await userEvent.click(screen.getByRole('button', { name: 'Ignore group example.noise' }))
+
+  expect(await screen.findByText('Group ignored')).toBeVisible()
+  await waitFor(() => {
+    expect(screen.queryByText('example.noise')).not.toBeInTheDocument()
+  })
+  expect(screen.getByText('example.talk')).toBeVisible()
+  expect(created).toEqual([{ kind: 'GROUP', groupId: 1 }])
+
+  await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+  expect(await screen.findByText('example.noise')).toBeVisible()
+  expect(removed).toEqual(['40'])
+})
+
+test('a subscribed group has no "Ignore group"', async () => {
+  backendLoggedIn()
+  groupsAnswer(() =>
+    pageOf([testGroup(1, 'example.read', { subscribed: true }), testGroup(2, 'example.other')]),
+  )
+  openAt('/discover')
+  await screen.findByText('example.read')
+
+  expect(screen.getByRole('button', { name: 'Ignore group example.other' })).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Ignore group example.read' }),
+  ).not.toBeInTheDocument()
 })
 
 // Refresh status and progress
