@@ -28,7 +28,9 @@ A server can offer tens of thousands of groups, and many of them went quiet long
 - **Subscriptions:** search the groups your server offers, subscribe to the ones you like and see unread counts.
 - **Posting:** start new threads and reply to articles.
 - **Local cache:** synchronized articles are stored locally, so reading is fast.
-- **Ignoring:** hide authors and threads you do not want to see.
+- **Ignoring:** hide authors, threads, groups and words in subjects you do not want to see.
+- **Light and dark theme, phone and keyboard:** Wardroom follows the theme of your system, works on a narrow screen and can be used with keyboard shortcuts.
+- **Two-factor authentication:** protect the login with a code from an authenticator app.
 - **Simple to run:** one container, one data directory, one owner account, one NNTP server.
 
 <p align="center">

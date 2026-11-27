@@ -26,7 +26,7 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 18 | Security improvements | Spec 011, 012; ADR 0035 | Done |
 | 19 | Dark theme | Spec 013; UI concept | Done |
 | 20 | Next unread, mark as unread and keyboard shortcuts | Spec 014 | Done |
-| 21 | Accessibility and mobile fixes | Spec 015, 022, 023; UI concept | In review |
+| 21 | Accessibility and mobile fixes | Spec 015, 022, 023; UI concept | Done |
 | 22 | Full-text search | Spec 016 | Not started |
 | 23 | Classic view | Spec 019; spec 008 | Not started |
 | 24 | Choosing the groups of a post | Spec 024; spec 009 | Not started |
@@ -349,6 +349,12 @@ Decided by the owner on 2026-11-26:
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Release 0.10.0 (2026-11-27)**
+
+- The owner asked for the release of 0.10.0 on 2026-11-27, after step 21. It has the steps 18 to 21: security improvements, the dark theme, next unread and keyboard shortcuts, accessibility and mobile fixes, the group list filters and ignored subject words, and the memory limit of the image.
+- The version in `pom.xml` is `0.10.0` for the release; the tag `v0.10.0` goes on the merge commit (`CONTRIBUTING.md`).
+- Added by the AI assistant, open to a veto: the README names the features that are new since 0.9.0.
 
 **Memory limit of the image (2026-11-25)**
 
