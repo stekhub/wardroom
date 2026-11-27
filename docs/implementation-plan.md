@@ -31,7 +31,7 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 23 | Classic view | Spec 019; spec 008 | Not started |
 | 24 | Choosing the groups of a post | Spec 024; spec 009 | Not started |
 | 25 | Release 1.0 | Spec 025; ADR 0004; CONTRIBUTING | Not started |
-| 26 | Windows app (after 1.0) | ADR to be written; spec to be written | Not started |
+| 26 | Windows app (after 1.0) | Spec 026; ADR 0036, 0037 | Not started |
 | 27 | Installable web app (after 1.0) | Spec 017 | Not started |
 | 28 | Notifications (after 1.0) | Spec 018 | Not started |
 | 29 | Bookmarks (after 1.0) | Spec 020; ADR to be written | Not started |
@@ -263,11 +263,18 @@ Changed by the owner on 2026-11-24, after a comparison with what long-time reade
 
 ### 26 to 30. After 1.0
 
-Decided by the owner on 2026-11-23, and moved behind 1.0 to keep it small. The order is a starting point and is adjusted to what people ask for after 1.0. Steps 27 to 30 have proposed specs; step 26 gets its ADR and spec before it starts; they are checked again before each step, because the steps before may change them.
+Decided by the owner on 2026-11-23, and moved behind 1.0 to keep it small. The order is a starting point and is adjusted to what people ask for after 1.0. Steps 26 to 30 have proposed specs; they are checked again before each step, because the steps before may change them.
 
 ### 26. Windows app
 
-Decided by the owner on 2026-11-23: the first step after 1.0, because the owner wants it. It needs a new ADR, because Wardroom is then no longer only one Docker container.
+Decided by the owner on 2026-11-23: the first step after 1.0, because the owner wants it. [Spec 026](specs/026-windows-app/spec.md), [ADR 0036](architecture/decisions/0036-windows-app.md) and [ADR 0037](architecture/decisions/0037-key-protection-with-dpapi.md), accepted on 2026-11-26.
+
+Decided by the owner on 2026-11-26:
+
+- One switch, `wardroom.windows-app=true`, set only by the launcher of the installer, turns the desktop mode on. Wardroom does not guess it from the operating system.
+- The web server listens on `127.0.0.1` only and refuses requests with another `Host` header, against DNS rebinding. The login stays, because other users of the same computer can reach the port.
+- The key is protected with DPAPI in the desktop mode and stays a key file everywhere else, also for the image on Windows. A copy of the data folder then does not reveal the NNTP password or the secret of the second factor; moving the folder to another computer or user loses the key.
+- Signing comes later and only for the direct download; winget does not need it. The first choice is the SignPath Foundation, which signs open-source projects for free.
 
 **The application**
 
@@ -283,7 +290,7 @@ Decided by the owner on 2026-11-23: the first step after 1.0, because the owner 
 - A fixed upgrade ID (`--win-upgrade-uuid`), so a new version replaces the old one.
 - Installed per user (`--win-per-user-install`), without an administrator prompt.
 - A Start menu entry and a desktop shortcut by default. winget installs silently, so the defaults apply there; an installer started by hand asks.
-- The MSI is attached to each GitHub release. It is not signed; the user guide explains the SmartScreen warning when it is downloaded directly.
+- The MSI is attached to each GitHub release, as a regular installer for a direct download. It is not signed at first; the user guide explains the SmartScreen warning when it is downloaded directly.
 
 **Distribution with winget**
 

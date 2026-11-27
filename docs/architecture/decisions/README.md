@@ -66,3 +66,5 @@ What follows from it: benefits, costs, rules to follow.
 | [0033](0033-date-view-up-to-a-day.md) | The date view shows a group up to a day | Accepted |
 | [0034](0034-cache-size-limit-can-be-switched-off.md) | The cache size limit can be switched off | Accepted |
 | [0035](0035-two-factor-authentication.md) | Two-factor authentication with TOTP | Accepted |
+| [0036](0036-windows-app.md) | Windows app with a desktop mode | Accepted |
+| [0037](0037-key-protection-with-dpapi.md) | Key protection with DPAPI in the desktop mode | Accepted |
