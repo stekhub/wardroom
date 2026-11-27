@@ -18,6 +18,8 @@ record SettingsBody(
         @NotNull Boolean cacheLimitEnabled,
         @Schema(description = "The cache size limit in gigabytes; 1 to 1000. It is kept while the limit is off")
         @NotNull Integer maxCacheSizeGb,
+        @Schema(description = "Whether the group list leaves out binary groups (spec 022)")
+        @NotNull Boolean hideBinaryGroups,
         @Schema(description = "The space the database uses now, in bytes",
                 accessMode = Schema.AccessMode.READ_ONLY)
         Long cacheUsedBytes,
@@ -25,10 +27,10 @@ record SettingsBody(
                 + " delete", accessMode = Schema.AccessMode.READ_ONLY)
         Boolean cacheLimitUnreachable) {
 
-    static SettingsBody of(SynchronizationSettings settings, CacheSettings cacheSettings, long cacheUsedBytes,
-            boolean cacheLimitUnreachable) {
+    static SettingsBody of(SynchronizationSettings settings, CacheSettings cacheSettings,
+            boolean hideBinaryGroups, long cacheUsedBytes, boolean cacheLimitUnreachable) {
         return new SettingsBody(settings.syncIntervalMinutes(), settings.initialDepth(),
                 settings.groupListIntervalHours(), cacheSettings.limitEnabled(), cacheSettings.maxSizeGb(),
-                cacheUsedBytes, cacheLimitUnreachable);
+                hideBinaryGroups, cacheUsedBytes, cacheLimitUnreachable);
     }
 }

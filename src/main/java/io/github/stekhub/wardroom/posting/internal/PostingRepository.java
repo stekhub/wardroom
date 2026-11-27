@@ -6,6 +6,7 @@ import static io.github.stekhub.wardroom.jooq.Tables.NNTP_SERVER;
 import static io.github.stekhub.wardroom.jooq.Tables.READ_STATE;
 
 import io.github.stekhub.wardroom.articles.AuthorKey;
+import io.github.stekhub.wardroom.ignoring.SubjectWords;
 import io.github.stekhub.wardroom.posting.internal.ArticleComposer.Composed;
 import io.github.stekhub.wardroom.posting.internal.PostingIdentityService.Identity;
 import java.util.Optional;
@@ -99,6 +100,7 @@ class PostingRepository {
                 // Without a thread root the article has no place: its own References decide it (spec 006).
                 .setNull(ARTICLE.THREAD_ROOT_ID)
                 .set(ARTICLE.SUBJECT, composed.subject())
+                .set(ARTICLE.SUBJECT_WORDS, SubjectWords.of(composed.subject()))
                 .set(ARTICLE.FROM, composed.from())
                 .set(ARTICLE.AUTHOR_KEY, AuthorKey.of(composed.from()))
                 .set(ARTICLE.DATE, postedAt)

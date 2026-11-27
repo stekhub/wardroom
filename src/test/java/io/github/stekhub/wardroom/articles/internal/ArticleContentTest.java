@@ -254,6 +254,7 @@ class ArticleContentTest {
         ArticleRecord filled = stored(stubId);
         assertThat(filled.getIsStub()).isFalse();
         assertThat(filled.getSubject()).isEqualTo("Re: Grüße");
+        assertThat(filled.getSubjectWords()).isEqualTo(" re grüße ");
         assertThat(filled.getFrom()).isEqualTo("Bob <bob@example.org>");
         assertThat(filled.getAuthorKey()).isEqualTo("bob@example.org");
         assertThat(filled.getDate()).isEqualTo(2 * DAY);

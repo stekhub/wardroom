@@ -75,7 +75,7 @@ function RepositoryLink({ path, children }: { path: string; children: ReactNode 
       href={REPOSITORY + path}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 text-primary underline underline-offset-2 hover:no-underline"
+      className="inline-flex min-h-6 items-center gap-1 text-primary underline underline-offset-2 hover:no-underline"
     >
       {children} <ExternalLink aria-hidden="true" className="size-3.5" />
       <span className="sr-only">(opens in a new tab)</span>

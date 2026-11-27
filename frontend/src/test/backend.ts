@@ -27,6 +27,7 @@ export function backendLoggedOut() {
 }
 
 type Server = components['schemas']['Server']
+type Settings = components['schemas']['Settings']
 
 /** A server as the backend returns it: with a login whose password is stored. */
 export const TEST_SERVER: Server = {
@@ -140,6 +141,16 @@ export function testThreadArticle(
   }
 }
 
+/** The settings of an installation in which nothing was changed. */
+export const TEST_SETTINGS: Settings = {
+  syncIntervalMinutes: 15,
+  initialDepth: 500,
+  groupListIntervalHours: 24,
+  cacheLimitEnabled: true,
+  maxCacheSizeGb: 5,
+  hideBinaryGroups: true,
+}
+
 /**
  * The backend with an account, asked by a browser that is logged in. Unless a test says
  * otherwise, a server is configured, so the application itself is shown, the group list of
@@ -158,6 +169,7 @@ export function backendLoggedIn(username = 'owner', servers: Server[] = [TEST_SE
     http.get('/api/servers/:serverId/groups/refresh', () => HttpResponse.json(IDLE_REFRESH)),
     http.get('/api/subscriptions', () => HttpResponse.json([])),
     http.get('/api/ignore-rules', () => HttpResponse.json([])),
+    http.get('/api/settings', () => HttpResponse.json(TEST_SETTINGS)),
     http.get('/api/about', () => HttpResponse.json({ version: '0.9.0' })),
     http.get('/api/groups/:groupId/threads', () => HttpResponse.json(testThreadPage())),
   )

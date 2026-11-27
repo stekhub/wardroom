@@ -127,11 +127,14 @@ class ThreadController {
             @Schema(description = "The ignore rules that ignore the thread; removing them all stops ignoring it. "
                     + "Empty when the thread is not ignored")
             @NotNull List<Long> ignoreRuleIds,
+            @Schema(description = "The ignored word in the subject that hides the thread in the lists of the "
+                    + "group, as the owner typed it; null when no word hides it")
+            String ignoredWord,
             @NotNull List<ThreadArticleBody> articles) {
 
         static ThreadBody of(ThreadView threadView) {
             return new ThreadBody(threadView.rootId(), !threadView.ignoreRuleIds().isEmpty(),
-                    threadView.ignoreRuleIds(),
+                    threadView.ignoreRuleIds(), threadView.ignoredWord(),
                     threadView.articles().stream().map(ThreadArticleBody::of).toList());
         }
     }

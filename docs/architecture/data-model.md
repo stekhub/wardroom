@@ -113,6 +113,7 @@ One row per `Message-ID`. Unique on `message_id`.
 | `subject` | RFC 2047 decoded |
 | `from` | RFC 2047 decoded |
 | `author_key` | Email address from `from`, lowercased and trimmed, else the display name; null for stubs; indexed ([spec 010](../specs/010-ignoring/spec.md)) |
+| `subject_words` | The subject lowercased, with every character that is no letter and no digit replaced by a space, runs of spaces made one, and one space before and after; null for stubs ([spec 023](../specs/023-ignored-subject-words/spec.md)) |
 | `date` | UTC epoch milliseconds; partial index for articles with cached content ([ADR 0023](decisions/0023-cache-size-limit.md)) |
 | `references` | Raw `References` value |
 | `bytes`, `lines` | From the overview |
@@ -150,14 +151,15 @@ A row means the article has been read; no row means unread. Unique on `article_i
 
 ### `ignore_rule`
 
-An author or thread the owner ignores ([spec 010](../specs/010-ignoring/spec.md)). Unique on `(kind, value)`.
+An author or thread the owner ignores ([spec 010](../specs/010-ignoring/spec.md)), a group ([spec 022](../specs/022-group-list-filters-and-paging/spec.md)) or a word in subjects ([spec 023](../specs/023-ignored-subject-words/spec.md)). Unique on `(kind, value, newsgroup_id)`, with all groups counted as one value. Migrations create `GROUP` rules for eight groups that are ignored by default (spec 022).
 
 | Column | Notes |
 |---|---|
-| `kind` | `AUTHOR`, `THREAD` |
-| `value` | Author key, or the `Message-ID` of the thread root when the rule was created |
-| `label` | Display name or thread subject, for the settings page |
+| `kind` | `AUTHOR`, `THREAD`, `GROUP`, `SUBJECT` |
+| `value` | Author key; the `Message-ID` of the thread root when the rule was created; the group name; or the word, normalized like `article.subject_words` |
+| `label` | Display name, thread subject, group name, or the word as it was typed, for the settings page |
 | `created_at` | |
+| `newsgroup_id` | FK `newsgroup`, nullable; set only for a `SUBJECT` rule of one group. The rule is deleted with the group when its server is removed |
 
 ### `app_setting`
 
@@ -170,6 +172,7 @@ Instance-wide settings as key-value pairs, editable on the settings page.
 | `sync.initial_depth` | 500 ([ADR 0019](decisions/0019-initial-sync-depth-instance-only.md)) |
 | `cache.max_size_gb` | 5 ([ADR 0023](decisions/0023-cache-size-limit.md)) |
 | `cache.limit_enabled` | `true` ([ADR 0034](decisions/0034-cache-size-limit-can-be-switched-off.md)) |
+| `groups.hide_binary_groups` | `true` ([spec 022](../specs/022-group-list-filters-and-paging/spec.md)) |
 
 One key is not a setting and is not shown on the settings page: `app.version`, the version of Wardroom that used the database last. Wardroom writes it at every start and uses it to name the backup before an update ([ADR 0032](decisions/0032-application-version-in-backup-names.md)).
 

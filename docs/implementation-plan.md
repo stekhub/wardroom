@@ -25,8 +25,8 @@ The order in which the MVP is built, and the status of each step. Each step is o
 | 17 | Release pipeline | ADR 0009, 0024 | Done |
 | 18 | Security improvements | Spec 011, 012; ADR 0035 | Done |
 | 19 | Dark theme | Spec 013; UI concept | Done |
-| 20 | Next unread, mark as unread and keyboard shortcuts | Spec 014 | In review |
-| 21 | Accessibility and mobile fixes | Spec 015, 022, 023; UI concept | Not started |
+| 20 | Next unread, mark as unread and keyboard shortcuts | Spec 014 | Done |
+| 21 | Accessibility and mobile fixes | Spec 015, 022, 023; UI concept | In review |
 | 22 | Full-text search | Spec 016 | Not started |
 | 23 | Classic view | Spec 019; spec 008 | Not started |
 | 24 | Choosing the groups of a post | Spec 024; spec 009 | Not started |
@@ -349,6 +349,49 @@ Decided by the owner on 2026-11-26:
 ## Notes
 
 Progress notes, deviations and findings, newest first.
+
+**Step 21, accessibility and mobile fixes, group list filters, ignored subject words (2026-11-25)**
+
+Built:
+
+- Spec 022: the group list leaves out binary groups (`BinaryGroups`, by name) while the setting "Hide binary groups" is on, and ignored groups always. "Ignore group" in each row, with a toast and "Undo". A paging row with "First", "Previous", a field for the page number, "Next" and "Last". The setting and the list "Groups" in the settings section "Ignored".
+- Spec 023: ignored words in subjects, for all groups or for one. Migration V16 rebuilds `ignore_rule` (new kinds, `newsgroup_id`, new unique key) and adds `article.subject_words`. The words are computed when an article is stored or a stub is filled in, and at the start for existing articles (`SubjectWordsStartup`). The thread list, next unread and the unread counts leave the hidden threads out. The thread page shows the notice with the word.
+- Spec 015: "Skip to content" on every page; focus on the main heading after a change of page; a landmark for the sidebar; the level of each article on the thread page; the start and end of a synchronization as a status message; the mobile menu closes after a page was chosen; buttons with icon and label show only their icon below 768 pixels (`LabelledIconButton`).
+- `docs/accessibility-checklist.md` with the test guide for NVDA. The UI concept has a new part "Narrow screens and accessibility"; "Mobile layout" is no longer under "Not in the MVP". Specs 003 and 010, the data model and the user guide are updated.
+
+Found and fixed by the check in the browser, at 375 and 320 pixels wide and in both themes:
+
+- The outline of fields, checkboxes and radio buttons had a contrast of about 1.3:1 in the light and 1.6:1 in the dark theme. A new token `--field-border` gives 3.6:1 and more.
+- The red of destructive buttons had less than 4.5:1 on their own tinted background in the light theme. `--destructive` is darker now.
+- The star of a subscribed group was a fixed amber with 2.1:1 on white. It uses the token `--warning` now.
+- In the group header the name of the group shrank to nothing at 320 pixels. The name keeps its room and wraps; the buttons move below it.
+- In the group list a long name was cut off after a few letters. On a narrow screen the name wraps and the activity stands below it.
+- Three links were lower than 24 pixels.
+- No page scrolls sideways at 320 pixels.
+
+Decisions of the AI assistant, open to a veto:
+
+1. **`SubjectWords` is in the `ignoring` module, not in `articles`.** Spec 023 names the `articles` module. The rule needs the same normalization, and `articles` already depends on `ignoring`, so the other place would be a cycle between the modules.
+2. **No `ServerRemovalCleanup` in the `ignoring` module.** The foreign key of `ignore_rule.newsgroup_id` deletes a rule with its group (`ON DELETE CASCADE`), which does not depend on the order of the cleanups. A test covers it.
+3. **A word needs no escaping for `LIKE`.** The normalized word has only letters, digits and single spaces.
+4. **"Hide binary groups" is a checkbox, not a switch.** The settings use checkboxes for such choices; the component library of the project has no switch installed.
+5. **The level of a reply is a text for screen readers** ("Level 2"), not `aria-level`, which screen readers do not read on list items.
+6. **The focus after a change of page** goes to the heading only when the owner has not moved into the page meanwhile. Within the settings it goes to the heading of the section. The first page a browser loads keeps the focus where the browser puts it.
+7. **The paging row uses the same icon-only buttons** below 768 pixels, so it fits a phone.
+8. **The buttons of the article editor stay as text.** "Send" and "Cancel" have no icon and fit at 320 pixels. Spec 015 lists the editor among the places for icon-only buttons.
+9. **Saving one settings section sends the values of the others as they were loaded.** The endpoint takes all settings at once.
+10. **An address with a page beyond the last one** shows a sentence and the paging row, which leads back.
+
+Open, for the owner:
+
+- **Binary groups:** the owner checked the group list of a real server on 2026-11-25; the naming rules and the built-in list in `BinaryGroups` and spec 022 were extended from it. The owner tests the list again. Eight more groups from the check are ignored by default, with rules that the migrations V17 and V18 create (decided by the owner on 2026-11-25).
+- **The check with NVDA is not done.** The AI assistant cannot run a screen reader. The checklist has the guide; its result goes into the pull request (spec 015).
+- **Zoom to 200 and 400 percent and larger text spacing** were checked through the width of 320 pixels, which is what 400 percent of a window of 1280 pixels gives. A check with the zoom of a real browser is still worth doing.
+- The search (spec 016) and the classic view (spec 019) do not exist yet. They have to leave out the threads that a word hides when they are built; `IgnoreFilters.subjectIgnored` is there for it.
+- When the menu of a narrow screen opens, the tooltip "Collapse or expand the sidebar" shows at once, because its button gets the focus. Not fixed.
+- Quote bars and the circles of group icons still use fixed colors outside the tokens. They are decoration; the checklist lists them under "Known limits".
+
+`mvnw verify` passes with 737 backend tests and 322 frontend tests.
 
 **Hardening after a review: login throttling per account, limits for NNTP answers (2026-11-24)**
 

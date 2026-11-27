@@ -1,6 +1,8 @@
 import { useNavigate, useSearchParams } from 'react-router'
 import { openableUrl } from '@/articles/textRules'
 import { Button } from '@/components/ui/button'
+import { MAIN_CONTENT_ID } from '@/shell/pageFocus'
+import { SkipLink } from '@/shell/SkipLink'
 
 /**
  * The page a link in an article leads to (spec 007, "Leaving page"). It shows where the link
@@ -22,7 +24,12 @@ export function LeavingPage() {
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/40 p-6">
+    <main
+      id={MAIN_CONTENT_ID}
+      tabIndex={-1}
+      className="flex min-h-svh items-center justify-center bg-muted/40 p-6 outline-none"
+    >
+      <SkipLink />
       <div className="w-full max-w-lg space-y-4 rounded-xl border border-border bg-background p-6 shadow-sm">
         {target === null ? (
           <>

@@ -243,23 +243,32 @@
         "type" : "object"
       },
       "IgnoreRule" : {
-        "description" : "An author or a thread the owner ignores",
+        "description" : "An author, a thread, a group or a word in subjects the owner ignores",
         "properties" : {
           "createdAt" : {
             "description" : "When the rule was created, in UTC milliseconds",
             "format" : "int64",
             "type" : "integer"
           },
+          "groupId" : {
+            "description" : "The group of a SUBJECT rule of one group; otherwise null",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "groupName" : {
+            "description" : "The name of that group; otherwise null",
+            "type" : "string"
+          },
           "id" : {
             "format" : "int64",
             "type" : "integer"
           },
           "kind" : {
-            "enum" : [ "AUTHOR", "THREAD" ],
+            "enum" : [ "AUTHOR", "THREAD", "GROUP", "SUBJECT" ],
             "type" : "string"
           },
           "label" : {
-            "description" : "The display name of the author or the subject of the thread; untrusted text",
+            "description" : "The display name of the author, the subject of the thread, the group name, or the word as it was typed; untrusted text",
             "type" : "string"
           }
         },
@@ -269,17 +278,26 @@
       "IgnoreRuleRequest" : {
         "properties" : {
           "articleId" : {
-            "description" : "An article by the author, or any article or stub of the thread",
+            "description" : "For AUTHOR and THREAD: an article by the author, or any article or stub of the thread",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "groupId" : {
+            "description" : "For GROUP: the group, which must not be subscribed. For SUBJECT: the subscribed group the rule is for; without it the rule is for all groups",
             "format" : "int64",
             "type" : "integer"
           },
           "kind" : {
-            "description" : "What is ignored: the author of the article, or the thread of the article",
-            "enum" : [ "AUTHOR", "THREAD" ],
+            "description" : "What is ignored: the author of the article, the thread of the article, a group in the group list, or a word or phrase in subjects",
+            "enum" : [ "AUTHOR", "THREAD", "GROUP", "SUBJECT" ],
+            "type" : "string"
+          },
+          "text" : {
+            "description" : "For SUBJECT: the word or phrase, 1 to 100 characters with at least one letter or digit",
             "type" : "string"
           }
         },
-        "required" : [ "articleId", "kind" ],
+        "required" : [ "kind" ],
         "type" : "object"
       },
       "JumpRequest" : {
@@ -688,6 +706,10 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "hideBinaryGroups" : {
+            "description" : "Whether the group list leaves out binary groups (spec 022)",
+            "type" : "boolean"
+          },
           "initialDepth" : {
             "description" : "How many overviews a first synchronization fetches at most; 50 to 10000",
             "format" : "int32",
@@ -704,7 +726,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "cacheLimitEnabled", "groupListIntervalHours", "initialDepth", "maxCacheSizeGb", "syncIntervalMinutes" ],
+        "required" : [ "cacheLimitEnabled", "groupListIntervalHours", "hideBinaryGroups", "initialDepth", "maxCacheSizeGb", "syncIntervalMinutes" ],
         "type" : "object"
       },
       "SetupRequest" : {
@@ -797,6 +819,10 @@
           "ignored" : {
             "description" : "Whether the owner ignores the thread",
             "type" : "boolean"
+          },
+          "ignoredWord" : {
+            "description" : "The ignored word in the subject that hides the thread in the lists of the group, as the owner typed it; null when no word hides it",
+            "type" : "string"
           },
           "rootId" : {
             "description" : "The current root of the thread",
@@ -2317,7 +2343,7 @@
                 }
               }
             },
-            "description" : "The rule; when the author or the thread is ignored already, the rule that does so, unchanged"
+            "description" : "The rule; when the same is ignored already, the rule that does so, unchanged"
           },
           "400" : {
             "content" : {
@@ -2327,7 +2353,7 @@
                 }
               }
             },
-            "description" : "The request is invalid, or the article has no known author"
+            "description" : "The request is invalid, the article has no known author, the group to ignore is subscribed, the group of a word is not subscribed, or the word breaks a rule"
           },
           "404" : {
             "content" : {
@@ -2337,10 +2363,10 @@
                 }
               }
             },
-            "description" : "No article has this ID"
+            "description" : "No article or no group has this ID"
           }
         },
-        "summary" : "Ignores the author or the thread of an article",
+        "summary" : "Ignores the author or the thread of an article, a group, or a word in subjects",
         "tags" : [ "Ignoring" ]
       }
     },

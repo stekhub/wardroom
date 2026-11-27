@@ -367,7 +367,8 @@ test('the leaving page offers no "Continue" for another scheme or an invalid add
       await screen.findByRole('heading', { name: 'This link cannot be opened' }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Continue' })).not.toBeInTheDocument()
-    expect(screen.queryAllByRole('link')).toHaveLength(0)
+    // The only link is "Skip to content", which every page has (spec 015).
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Skip to content'])
     unmount()
   }
 })

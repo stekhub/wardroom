@@ -23,7 +23,8 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 class SettingsTest {
 
     private static final String DEFAULTS = "{\"syncIntervalMinutes\": 15, \"initialDepth\": 500,"
-            + " \"groupListIntervalHours\": 24, \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5}";
+            + " \"groupListIntervalHours\": 24, \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5,"
+            + " \"hideBinaryGroups\": true}";
 
     @Autowired
     MockMvcTester mvc;
@@ -161,10 +162,35 @@ class SettingsTest {
         assertThat(settings.cache()).isEqualTo(CacheSettings.DEFAULTS);
     }
 
+    /** Spec 022: binary groups are hidden unless the owner switched it off. */
+    @Test
+    void hidingBinaryGroupsIsOnByDefaultCanBeSwitchedOffAndIsRequired() {
+        assertThat(settings.hideBinaryGroups()).isTrue();
+
+        assertThat(browser.put("/api/settings", DEFAULTS.replace("Groups\": true", "Groups\": false")))
+                .hasStatusOk().bodyJson().extractingPath("$.hideBinaryGroups").isEqualTo(false);
+
+        assertThat(settings.hideBinaryGroups()).isFalse();
+        assertThat(browser.get("/api/settings")).hasStatusOk().bodyJson().extractingPath("$.hideBinaryGroups")
+                .isEqualTo(false);
+        assertThat(browser.put("/api/settings", DEFAULTS.replace(", \"hideBinaryGroups\": true", "")))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.errors[0].field").isEqualTo("hideBinaryGroups");
+    }
+
+    @Test
+    void aStoredValueForHidingBinaryGroupsThatIsNotFalseCountsAsOn() {
+        database.insertInto(APP_SETTING, APP_SETTING.KEY, APP_SETTING.VALUE)
+                .values("groups.hide_binary_groups", "perhaps")
+                .execute();
+
+        assertThat(settings.hideBinaryGroups()).isTrue();
+    }
+
     @Test
     void aMissingValueIsRejected() {
         assertThat(browser.put("/api/settings", "{\"syncIntervalMinutes\": 15, \"initialDepth\": 500,"
-                + " \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5}"))
+                + " \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5, \"hideBinaryGroups\": true}"))
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson().extractingPath("$.errors[0].field").isEqualTo("groupListIntervalHours");
     }
@@ -191,7 +217,7 @@ class SettingsTest {
     private static String body(int syncIntervalMinutes, int initialDepth, int groupListIntervalHours,
             boolean cacheLimitEnabled, int maxCacheSizeGb) {
         return ("{\"syncIntervalMinutes\": %d, \"initialDepth\": %d, \"groupListIntervalHours\": %d,"
-                + " \"cacheLimitEnabled\": %s, \"maxCacheSizeGb\": %d}")
+                + " \"cacheLimitEnabled\": %s, \"maxCacheSizeGb\": %d, \"hideBinaryGroups\": true}")
                 .formatted(syncIntervalMinutes, initialDepth, groupListIntervalHours, cacheLimitEnabled,
                         maxCacheSizeGb);
     }

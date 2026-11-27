@@ -47,7 +47,7 @@ class SettingsController {
     }
 
     private SettingsBody currentSettings() {
-        return SettingsBody.of(settingsService.synchronization(), settingsService.cache(), cacheUse.usedBytes(),
-                cacheUse.limitUnreachable());
+        return SettingsBody.of(settingsService.synchronization(), settingsService.cache(),
+                settingsService.hideBinaryGroups(), cacheUse.usedBytes(), cacheUse.limitUnreachable());
     }
 }

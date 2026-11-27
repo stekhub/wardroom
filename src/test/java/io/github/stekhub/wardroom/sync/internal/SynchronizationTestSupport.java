@@ -110,7 +110,7 @@ final class SynchronizationTestSupport {
 
     void setInitialDepth(int initialDepth) {
         assertThat(browser.put("/api/settings", "{\"syncIntervalMinutes\": 15, \"initialDepth\": " + initialDepth
-                + ", \"groupListIntervalHours\": 24, \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5}"))
+                + ", \"groupListIntervalHours\": 24, \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5, \"hideBinaryGroups\": true}"))
                 .hasStatusOk();
     }
 

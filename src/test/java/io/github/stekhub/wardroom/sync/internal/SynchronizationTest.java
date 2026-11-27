@@ -148,6 +148,7 @@ class SynchronizationTest {
                 .fetchSingle();
         assertThat(reply.getIsStub()).isFalse();
         assertThat(reply.getSubject()).isEqualTo("Re: Hello");
+        assertThat(reply.getSubjectWords()).isEqualTo(" re hello ");
         assertThat(reply.getFrom()).isEqualTo("Ada <ada@example.org>");
         assertThat(reply.getAuthorKey()).isEqualTo("ada@example.org");
         assertThat(reply.getDate()).isEqualTo(OVERVIEW_DATE_MILLIS);
@@ -283,6 +284,7 @@ class SynchronizationTest {
         ArticleRecord article = database.selectFrom(ARTICLE).fetchSingle();
         assertThat(article.getIsStub()).isFalse();
         assertThat(article.getSubject()).isEqualTo("Hello");
+        assertThat(article.getSubjectWords()).isEqualTo(" hello ");
         assertThat(article.getAuthorKey()).isEqualTo("ada@example.org");
         assertThat(article.getDate()).isEqualTo(OVERVIEW_DATE_MILLIS);
         assertThat(support.locationNumbers(groupId)).containsExactly(3L);
@@ -492,7 +494,7 @@ class SynchronizationTest {
         mockServer.on("GROUP example.talk").reply("211 0 1 0 example.talk");
         assertThat(browser.put("/api/settings",
                 "{\"syncIntervalMinutes\": 5, \"initialDepth\": 50, \"groupListIntervalHours\": 24,"
-                        + " \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5}")).hasStatusOk();
+                        + " \"cacheLimitEnabled\": true, \"maxCacheSizeGb\": 5, \"hideBinaryGroups\": true}")).hasStatusOk();
         long start = scheduleTestStart();
         long minute = Duration.ofMinutes(1).toMillis();
 

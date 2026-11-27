@@ -4,6 +4,7 @@ import { type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { UNEXPECTED_ERROR } from '@/api/problem'
+import { LabelledIconButton } from '@/components/LabelledIconButton'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -92,7 +93,7 @@ function BackToGroup({ subscription }: { subscription: Subscription }) {
       to={`/groups/${String(subscription.groupId)}`}
       onClick={goBack}
       aria-label={`Back to ${subscription.name}`}
-      className="mb-4 inline-flex max-w-full items-center gap-1.5 rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+      className="mb-4 inline-flex min-h-6 max-w-full items-center gap-1.5 rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ArrowLeft aria-hidden="true" className="size-4 shrink-0" />
       {/* The group name comes from the server and is shown as text only. */}
@@ -248,6 +249,8 @@ function OpenThread({
     })
   }
 
+  const ignoredWord = shownThread.ignoredWord ?? null
+
   return (
     <>
       <header className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -256,29 +259,41 @@ function OpenThread({
           {subject}
         </h1>
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+          <LabelledIconButton
+            icon={<CheckCheck />}
+            label="Mark thread as read"
             disabled={!unreadInGroup}
             onClick={() => void markRead()}
-          >
-            <CheckCheck />
-            Mark thread as read
-          </Button>
+          />
           {!shownThread.ignored && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
+            <LabelledIconButton
+              icon={<EyeOff />}
+              label="Ignore thread"
               onClick={() => void ignore('THREAD', articleId, showThreadIgnored)}
-            >
-              <EyeOff />
-              Ignore thread
-            </Button>
+            />
           )}
         </div>
       </header>
+      {ignoredWord !== null && (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm"
+        >
+          <p className="flex min-w-0 items-center gap-2">
+            <EyeOff aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+            {/* The word was typed by the owner and is shown as text only. */}
+            <span className="min-w-0 break-words">
+              Hidden in the list by the ignored word “{ignoredWord}”
+            </span>
+          </p>
+          <Link
+            to="/settings/ignored"
+            className="rounded-sm font-medium underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Ignored words
+          </Link>
+        </div>
+      )}
       {shownThread.ignored && (
         <div
           role="status"

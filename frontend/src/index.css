@@ -31,6 +31,7 @@
   --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-field-border: var(--field-border);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
@@ -72,11 +73,14 @@
   --muted-foreground: oklch(0.45 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  /* Darker than the red of the component library: its text has 4.5:1 also on its own tinted buttons. */
+  --destructive: oklch(0.52 0.22 27.325);
   /* Text of hints that need attention; amber, 5:1 on the background. */
   --warning: #b45309;
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
+  /* The outline of fields, checkboxes and radio buttons: 3:1 on the background (WCAG 1.4.11). */
+  --field-border: oklch(0.62 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -117,6 +121,7 @@
   --warning: #fbbf24;
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 18%);
+  --field-border: oklch(0.56 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -142,6 +147,12 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* A heading that got the focus after a change of page (spec 015) is announced, not outlined. */
+  h1[tabindex='-1']:focus,
+  h2[tabindex='-1']:focus {
+    outline: none;
   }
 
   /* UI concept: motion is disabled when the browser asks for reduced motion. */
