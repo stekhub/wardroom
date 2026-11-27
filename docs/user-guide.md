@@ -232,6 +232,19 @@ docker compose logs -f wardroom
 
 For more detail, add `WARDROOM_LOG_LEVEL=DEBUG` to `environment` in the Compose file and start the container again.
 
+### Memory
+
+Wardroom limits the memory Java may use for its data to 256 MB. With what Java and the database need besides, the container uses about 400 to 500 MB.
+
+- **If the log shows `OutOfMemoryError`,** raise the limit. This can happen on a server with very many groups or with very large articles. Add this to `environment` in the Compose file and start the container again:
+
+  ```yaml
+  - JAVA_OPTS=-Xmx384m -XX:+UseSerialGC
+  ```
+
+- **On a machine with much memory** you do not need to change anything. A higher limit does not make Wardroom faster.
+- The value replaces the default, so keep `-XX:+UseSerialGC` unless you know that you want another setting.
+
 ## Advanced: keeping the encryption key outside the data directory
 
 **How the NNTP password is stored**

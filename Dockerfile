@@ -31,9 +31,13 @@ RUN apt-get update \
 COPY --from=build /build/wardroom.jar /app/wardroom.jar
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/wardroom-entrypoint
 
+# JAVA_OPTS: without a limit, Java lets its memory grow to a quarter of the memory of the machine and rarely
+# gives it back. Wardroom works in small parts, so 256 MB are enough; the serial collector needs the least
+# memory itself. The Compose file can set another value.
 ENV PUID=1000 \
     PGID=1000 \
-    TZ=Etc/UTC
+    TZ=Etc/UTC \
+    JAVA_OPTS="-Xmx256m -XX:+UseSerialGC"
 
 EXPOSE 8119
 VOLUME /config

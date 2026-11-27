@@ -350,6 +350,12 @@ Decided by the owner on 2026-11-26:
 
 Progress notes, deviations and findings, newest first.
 
+**Memory limit of the image (2026-11-25)**
+
+- The image starts Java with `JAVA_OPTS`, by default `-Xmx256m -XX:+UseSerialGC`. Decided by the owner on 2026-11-25, after the container used 735 MB on a small computer after two days: without a limit, Java let its memory grow to a quarter of the memory of the machine.
+- The value was estimated from what Wardroom holds in memory at once, not measured. The largest moments are a group list refresh on a server with very many groups and opening an article of 10 MB. The owner tries the limit on their instance; the user guide says how to raise it.
+- Not tried: the image was not built and started with the new entrypoint in this session.
+
 **Step 21, accessibility and mobile fixes, group list filters, ignored subject words (2026-11-25)**
 
 Built:
